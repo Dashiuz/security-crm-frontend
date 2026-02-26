@@ -1,4 +1,5 @@
 import { HttpClient } from "./client";
+import { tokenStore } from "./token-store";
 
 export interface User {
   id: string;
@@ -20,7 +21,12 @@ export interface LoginResponse {
 
 export class AuthService {
   static async login(credentials: any): Promise<LoginResponse> {
-    return HttpClient.post<LoginResponse>("/auth/login", credentials);
+    const res = await HttpClient.post<LoginResponse>(
+      "/auth/login",
+      credentials,
+    );
+    tokenStore.setToken(res.accessToken);
+    return res;
   }
 
   static async me(): Promise<SessionInfo> {
@@ -28,7 +34,16 @@ export class AuthService {
   }
 
   static async logout(): Promise<{ ok: boolean }> {
-    // The backend uses cookies for refresh token, so we call logout to clear them
-    return HttpClient.post<{ ok: boolean }>("/auth/logout");
+    try {
+      return await HttpClient.post<{ ok: boolean }>("/auth/logout");
+    } finally {
+      tokenStore.clearToken();
+    }
+  }
+
+  static async refresh(): Promise<LoginResponse> {
+    const res = await HttpClient.post<LoginResponse>("/auth/refresh");
+    tokenStore.setToken(res.accessToken);
+    return res;
   }
 }

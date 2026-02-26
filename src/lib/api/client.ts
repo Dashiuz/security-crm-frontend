@@ -1,3 +1,5 @@
+import { tokenStore } from "./token-store";
+
 export interface ApiError {
   message: string;
   statusCode: number;
@@ -10,21 +12,57 @@ const API_BASE_URL =
 export class HttpClient {
   private static async request<T>(
     endpoint: string,
-    options: RequestInit = {},
+    options: RequestInit & { _retry?: boolean } = {},
   ): Promise<T> {
     const url = `${API_BASE_URL}${endpoint}`;
+    const token = tokenStore.getToken();
+
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+    };
+
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`;
+    }
+
+    // Merge provided headers
+    if (options.headers) {
+      const extraHeaders = options.headers as Record<string, string>;
+      Object.keys(extraHeaders).forEach((key) => {
+        headers[key] = extraHeaders[key];
+      });
+    }
 
     const defaultOptions: RequestInit = {
       ...options,
-      headers: {
-        "Content-Type": "application/json",
-        ...options.headers,
-      },
+      headers,
       credentials: "include",
     };
 
     try {
       const response = await fetch(url, defaultOptions);
+
+      if (
+        response.status === 401 &&
+        !options._retry &&
+        !endpoint.includes("/auth/refresh")
+      ) {
+        try {
+          // Attempt refresh
+          const refreshRes = await this.post<{ accessToken: string }>(
+            "/auth/refresh",
+            {},
+            { _retry: true } as any,
+          );
+          tokenStore.setToken(refreshRes.accessToken);
+
+          // Retry original request
+          return this.request<T>(endpoint, { ...options, _retry: true });
+        } catch (refreshError) {
+          tokenStore.clearToken();
+          // Fall through to error handling below
+        }
+      }
 
       if (!response.ok) {
         let errorData: ApiError;
@@ -36,12 +74,9 @@ export class HttpClient {
             statusCode: response.status,
           };
         }
-
-        // Handle specific status codes if needed (e.g., 401 redirect is usually handled by the caller or middleware)
         throw errorData;
       }
 
-      // Some endpoints might return empty response (204)
       if (response.status === 204) {
         return {} as T;
       }
