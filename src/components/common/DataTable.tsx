@@ -13,6 +13,11 @@ import {
   Tooltip,
   Alert,
   CircularProgress,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogContentText,
+  DialogActions,
 } from "@mui/material";
 import {
   DataGrid,
@@ -25,6 +30,7 @@ import {
   Refresh as RefreshIcon,
   Edit as EditIcon,
   Delete as DeleteIcon,
+  InfoOutlined as InfoIcon,
 } from "@mui/icons-material";
 import { HttpClient, ApiError } from "@/lib/api/client";
 import Link from "next/link";
@@ -35,8 +41,14 @@ interface DataTableProps {
   columns: GridColDef[];
   breadcrumbs: { label: string; href?: string }[];
   onCreate?: () => void;
-  onEdit?: (id: string) => void;
+  onEdit?: (id: string, row: any) => void;
   onDelete?: (id: string) => void;
+  refreshTrigger?: number;
+  checkboxSelection?: boolean;
+  onRowSelectionModelChange?: (newSelection: any) => void;
+  getRowId?: (row: any) => GridRowId;
+  infoDescription?: string;
+  infoInstructions?: string;
 }
 
 export default function DataTable({
@@ -47,10 +59,20 @@ export default function DataTable({
   onCreate,
   onEdit,
   onDelete,
+  refreshTrigger,
+  checkboxSelection = false,
+  onRowSelectionModelChange,
+  getRowId,
+  infoDescription,
+  infoInstructions,
 }: DataTableProps) {
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [selectedIdToDelete, setSelectedIdToDelete] =
+    useState<GridRowId | null>(null);
+  const [infoDialogOpen, setInfoDialogOpen] = useState(false);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -68,17 +90,29 @@ export default function DataTable({
 
   useEffect(() => {
     fetchData();
-  }, [fetchData]);
+  }, [fetchData, refreshTrigger]);
 
-  const handleDelete = async (id: GridRowId) => {
-    if (window.confirm("¿Estás seguro de que deseas eliminar este registro?")) {
-      try {
-        await HttpClient.delete(`${endpoint}/${id}`);
-        setRows((prev) => prev.filter((row) => row.id !== id));
-      } catch (err) {
-        const apiError = err as ApiError;
-        alert(apiError.message || "Error al eliminar el registro");
+  const handleDeleteClick = (id: GridRowId) => {
+    setSelectedIdToDelete(id);
+    setDeleteDialogOpen(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!selectedIdToDelete) return;
+
+    try {
+      if (onDelete) {
+        await onDelete?.(selectedIdToDelete.toString());
+      } else {
+        await HttpClient.delete(`${endpoint}/${selectedIdToDelete}`);
       }
+      setRows((prev) => prev.filter((row) => row.id !== selectedIdToDelete));
+    } catch (err) {
+      const apiError = err as ApiError;
+      alert(apiError.message || "Error al eliminar el registro");
+    } finally {
+      setDeleteDialogOpen(false);
+      setSelectedIdToDelete(null);
     }
   };
 
@@ -92,14 +126,14 @@ export default function DataTable({
         key="edit"
         icon={<EditIcon color="primary" />}
         label="Editar"
-        onClick={() => onEdit?.(params.id.toString())}
+        onClick={() => onEdit?.(params.id.toString(), params.row)}
         showInMenu={false}
       />,
       <GridActionsCellItem
         key="delete"
         icon={<DeleteIcon color="error" />}
         label="Borrar"
-        onClick={() => handleDelete(params.id)}
+        onClick={() => handleDeleteClick(params.id)}
         showInMenu={false}
       />,
     ],
@@ -143,9 +177,23 @@ export default function DataTable({
               ),
             )}
           </Breadcrumbs>
-          <Typography variant="h4" fontWeight="bold">
-            {title}
-          </Typography>
+          <Stack direction="row" alignItems="center" spacing={1}>
+            <Typography variant="h4" fontWeight="bold">
+              {title}
+            </Typography>
+            {(infoDescription || infoInstructions) && (
+              <Tooltip title="Información de la vista">
+                <IconButton
+                  size="small"
+                  color="primary"
+                  onClick={() => setInfoDialogOpen(true)}
+                  sx={{ mt: 0.5 }}
+                >
+                  <InfoIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+            )}
+          </Stack>
         </Box>
         <Stack direction="row" spacing={2}>
           <Button
@@ -195,13 +243,15 @@ export default function DataTable({
         <DataGrid
           rows={rows}
           columns={finalColumns}
+          getRowId={getRowId}
           initialState={{
             pagination: {
               paginationModel: { page: 0, pageSize: 10 },
             },
           }}
           pageSizeOptions={[10, 25, 50]}
-          checkboxSelection={false}
+          checkboxSelection={checkboxSelection}
+          onRowSelectionModelChange={onRowSelectionModelChange}
           disableRowSelectionOnClick
           localeText={{
             noRowsLabel: "No hay datos disponibles",
@@ -214,6 +264,90 @@ export default function DataTable({
           sx={{ border: "none" }}
         />
       </Paper>
+
+      {/* Confimation Dialog for Delete */}
+      <Dialog
+        open={deleteDialogOpen}
+        onClose={() => setDeleteDialogOpen(false)}
+        aria-labelledby="delete-dialog-title"
+        aria-describedby="delete-dialog-description"
+      >
+        <DialogTitle id="delete-dialog-title">
+          Confirmar Eliminación
+        </DialogTitle>
+        <DialogContent>
+          <DialogContentText id="delete-dialog-description">
+            ¿Estás seguro de que deseas eliminar este registro? Esta acción no
+            se puede deshacer.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions sx={{ p: 2 }}>
+          <Button onClick={() => setDeleteDialogOpen(false)} disabled={loading}>
+            Cancelar
+          </Button>
+          <Button
+            onClick={handleConfirmDelete}
+            color="error"
+            variant="contained"
+            disabled={loading}
+            autoFocus
+          >
+            Eliminar
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Info/Help Dialog */}
+      <Dialog
+        open={infoDialogOpen}
+        onClose={() => setInfoDialogOpen(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+          <InfoIcon color="primary" />
+          Información: {title}
+        </DialogTitle>
+        <DialogContent dividers>
+          {infoDescription && (
+            <Box sx={{ mb: 3 }}>
+              <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
+                Finalidad
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                {infoDescription}
+              </Typography>
+            </Box>
+          )}
+          {infoInstructions && (
+            <Box>
+              <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
+                Instrucciones de Uso
+              </Typography>
+              <Typography
+                variant="body2"
+                color="text.secondary"
+                component="div"
+              >
+                <ul style={{ paddingLeft: "1.2rem", margin: 0 }}>
+                  {infoInstructions.split("\n").map((line, i) => (
+                    <li key={i}>{line}</li>
+                  ))}
+                </ul>
+              </Typography>
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ p: 2 }}>
+          <Button
+            onClick={() => setInfoDialogOpen(false)}
+            variant="contained"
+            autoFocus
+          >
+            Entendido
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }

@@ -65,7 +65,7 @@ export default function Navbar({ onMenuClick }: NavbarProps) {
               variant="body2"
               sx={{ display: { xs: "none", sm: "block" } }}
             >
-              {session.user.firstName} {session.user.lastName}
+              {session.user?.fullName || "Usuario"}
             </Typography>
             <IconButton
               size="large"
@@ -83,7 +83,7 @@ export default function Navbar({ onMenuClick }: NavbarProps) {
                   fontSize: "1rem",
                 }}
               >
-                {session.user.firstName[0]}
+                {session.user.fullName?.[0]?.toUpperCase() || "?"}
               </Avatar>
             </IconButton>
             <Menu

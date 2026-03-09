@@ -10,6 +10,35 @@ const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3000/api";
 
 export class HttpClient {
+  private static refreshPromise: Promise<string | null> | null = null;
+
+  public static async handleRefresh(): Promise<string | null> {
+    if (this.refreshPromise) return this.refreshPromise;
+
+    this.refreshPromise = (async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/auth/refresh`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+        });
+
+        if (!res.ok) throw new Error("Refresh failed");
+
+        const data = await res.json();
+        tokenStore.setToken(data.accessToken);
+        return data.accessToken;
+      } catch (error) {
+        tokenStore.clearToken();
+        return null;
+      } finally {
+        this.refreshPromise = null;
+      }
+    })();
+
+    return this.refreshPromise;
+  }
+
   private static async request<T>(
     endpoint: string,
     options: RequestInit & { _retry?: boolean } = {},
@@ -45,22 +74,15 @@ export class HttpClient {
       if (
         response.status === 401 &&
         !options._retry &&
-        !endpoint.includes("/auth/refresh")
+        !endpoint.includes("/auth/refresh") &&
+        !endpoint.includes("/auth/login")
       ) {
-        try {
-          // Attempt refresh
-          const refreshRes = await this.post<{ accessToken: string }>(
-            "/auth/refresh",
-            {},
-            { _retry: true } as any,
-          );
-          tokenStore.setToken(refreshRes.accessToken);
+        // Attempt refresh (locked to one at a time)
+        const newToken = await this.handleRefresh();
 
-          // Retry original request
+        if (newToken) {
+          // Retry original request with new token
           return this.request<T>(endpoint, { ...options, _retry: true });
-        } catch (refreshError) {
-          tokenStore.clearToken();
-          // Fall through to error handling below
         }
       }
 

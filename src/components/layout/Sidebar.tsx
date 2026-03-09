@@ -96,16 +96,6 @@ const menuItems: MenuItem[] = [
         icon: <RoleIcon />,
         path: "/administrative/roles",
       },
-      {
-        text: "Asignación de Roles",
-        icon: <AssignIcon />,
-        path: "/administrative/user-roles",
-      },
-      {
-        text: "Permisos",
-        icon: <PermissionIcon />,
-        path: "/administrative/permissions",
-      },
     ],
   },
 ];

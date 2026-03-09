@@ -9,6 +9,7 @@ import {
 } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { AuthService, SessionInfo } from "@/lib/api/auth";
+import { tokenStore } from "@/lib/api/token-store";
 import { CircularProgress, Box } from "@mui/material";
 
 interface AuthContextType {
@@ -28,6 +29,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const fetchSession = async () => {
     try {
+      // Rehydration: If no token in memory, try to refresh from cookie
+      if (!tokenStore.getToken()) {
+        try {
+          await AuthService.refresh();
+        } catch (refreshError) {
+          // Silent fail if refresh fails on initial boot
+        }
+      }
+
       const data = await AuthService.me();
       setSession(data);
     } catch (error) {

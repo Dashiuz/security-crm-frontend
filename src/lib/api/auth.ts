@@ -3,9 +3,7 @@ import { tokenStore } from "./token-store";
 
 export interface User {
   id: string;
-  email: string;
-  firstName: string;
-  lastName: string;
+  fullName: string;
   role: string;
 }
 
@@ -42,8 +40,8 @@ export class AuthService {
   }
 
   static async refresh(): Promise<LoginResponse> {
-    const res = await HttpClient.post<LoginResponse>("/auth/refresh");
-    tokenStore.setToken(res.accessToken);
-    return res;
+    const accessToken = await HttpClient.handleRefresh();
+    if (!accessToken) throw new Error("Refresh failed");
+    return { accessToken };
   }
 }
