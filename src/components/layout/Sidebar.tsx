@@ -30,6 +30,7 @@ import {
   VerifiedUser as RoleIcon,
   AssignmentInd as AssignIcon,
   Key as PermissionIcon,
+  Business as ClientIcon,
 } from "@mui/icons-material";
 import { useRouter, usePathname } from "next/navigation";
 import { useState } from "react";
@@ -75,6 +76,11 @@ const menuItems: MenuItem[] = [
     text: "Administrativo",
     icon: <AdministrativeIcon />,
     subItems: [
+      {
+        text: "Clientes",
+        icon: <ClientIcon />,
+        path: "/administrative/clients",
+      },
       {
         text: "Empleados",
         icon: <EmployeeIcon />,
