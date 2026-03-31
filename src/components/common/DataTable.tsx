@@ -23,6 +23,7 @@ import {
   DataGrid,
   GridColDef,
   GridActionsCellItem,
+  GridActionsCellItemProps,
   GridRowId,
 } from "@mui/x-data-grid";
 import {
@@ -43,6 +44,7 @@ interface DataTableProps {
   onCreate?: () => void;
   onEdit?: (id: string, row: any) => void;
   onDelete?: (id: string) => void;
+  customActions?: (row: any) => React.ReactElement<GridActionsCellItemProps>[];
   refreshTrigger?: number;
   checkboxSelection?: boolean;
   onRowSelectionModelChange?: (newSelection: any) => void;
@@ -59,6 +61,7 @@ export default function DataTable({
   onCreate,
   onEdit,
   onDelete,
+  customActions,
   refreshTrigger,
   checkboxSelection = false,
   onRowSelectionModelChange,
@@ -121,22 +124,39 @@ export default function DataTable({
     type: "actions",
     headerName: "Acciones",
     width: 100,
-    getActions: (params) => [
-      <GridActionsCellItem
-        key="edit"
-        icon={<EditIcon color="primary" />}
-        label="Editar"
-        onClick={() => onEdit?.(params.id.toString(), params.row)}
-        showInMenu={false}
-      />,
-      <GridActionsCellItem
-        key="delete"
-        icon={<DeleteIcon color="error" />}
-        label="Borrar"
-        onClick={() => handleDeleteClick(params.id)}
-        showInMenu={false}
-      />,
-    ],
+    getActions: (params) => {
+      const actions: React.ReactElement<GridActionsCellItemProps>[] = [];
+
+      if (customActions) {
+        actions.push(...customActions(params.row));
+      }
+
+      if (onEdit) {
+        actions.push(
+          <GridActionsCellItem
+            key="edit"
+            icon={<EditIcon color="primary" />}
+            label="Editar"
+            onClick={() => onEdit(params.id.toString(), params.row)}
+            showInMenu={false}
+          />
+        );
+      }
+
+      if (onDelete) {
+        actions.push(
+          <GridActionsCellItem
+            key="delete"
+            icon={<DeleteIcon color="error" />}
+            label="Borrar"
+            onClick={() => handleDeleteClick(params.id)}
+            showInMenu={false}
+          />
+        );
+      }
+
+      return actions;
+    },
   };
 
   const finalColumns = [...columns, actionsColumn];

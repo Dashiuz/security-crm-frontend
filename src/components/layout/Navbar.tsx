@@ -9,10 +9,13 @@ import {
   Avatar,
   Menu,
   MenuItem,
+  Button,
 } from "@mui/material";
 import { Menu as MenuIcon, AccountCircle } from "@mui/icons-material";
 import { useAuth } from "@/components/AuthContext";
+import { AuthService } from "@/lib/api/auth";
 import { useState } from "react";
+import { useTenant } from "@/providers/TenantProvider";
 
 interface NavbarProps {
   onMenuClick: () => void;
@@ -20,6 +23,7 @@ interface NavbarProps {
 
 export default function Navbar({ onMenuClick }: NavbarProps) {
   const { session, logout } = useAuth();
+  const { tenant } = useTenant();
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
 
   const handleMenu = (event: React.MouseEvent<HTMLElement>) => {
@@ -33,6 +37,15 @@ export default function Navbar({ onMenuClick }: NavbarProps) {
   const handleLogout = () => {
     handleClose();
     logout();
+  };
+
+  const handleExitImpersonation = async () => {
+    try {
+      await AuthService.exitImpersonation();
+      window.location.href = "/administrative/tenants";
+    } catch (error) {
+      console.error("Failed to exit impersonation:", error);
+    }
   };
 
   return (
@@ -56,8 +69,46 @@ export default function Navbar({ onMenuClick }: NavbarProps) {
           component="div"
           sx={{ flexGrow: 1, fontWeight: "bold", letterSpacing: 1 }}
         >
-          NOXIA CRM
+          {tenant?.name || "NOXIA CRM"}
         </Typography>
+
+        {session?.isImpersonating && (
+          <Box
+            sx={{
+              mr: 2,
+              display: { xs: "none", md: "flex" },
+              alignItems: "center",
+              bgcolor: "warning.light",
+              px: 2,
+              py: 0.5,
+              borderRadius: 2,
+              border: "1px solid",
+              borderColor: "warning.main",
+            }}
+          >
+            <Typography
+              variant="body2"
+              color="warning.dark"
+              sx={{ fontWeight: "bold", mr: 2 }}
+            >
+              ⚠️ Administrando: {tenant?.name || session.tenantId}
+            </Typography>
+            <Button
+              variant="contained"
+              color="warning"
+              size="small"
+              onClick={handleExitImpersonation}
+              sx={{
+                textTransform: "none",
+                borderRadius: 2,
+                boxShadow: "none",
+                "&:hover": { boxShadow: "none", bgcolor: "warning.main" },
+              }}
+            >
+              Cerrar
+            </Button>
+          </Box>
+        )}
 
         {session && (
           <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>

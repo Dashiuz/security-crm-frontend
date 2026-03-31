@@ -14,9 +14,11 @@ import {
 } from "@mui/material";
 import { useRouter } from "next/navigation";
 import { AuthService } from "@/lib/api/auth";
+import { useAuth } from "@/components/AuthContext";
 
 export default function LoginPage() {
   const router = useRouter();
+  const { refreshSession } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -31,6 +33,7 @@ export default function LoginPage() {
 
     try {
       await AuthService.login({ document, password });
+      await refreshSession();
       router.push("/dashboard");
     } catch (err: any) {
       setError(err.message || "Error al iniciar sesión");

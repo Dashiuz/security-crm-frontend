@@ -30,9 +30,13 @@ import {
   VerifiedUser as RoleIcon,
   AssignmentInd as AssignIcon,
   Key as PermissionIcon,
+  Business as ClientIcon,
+  Domain as DomainIcon,
 } from "@mui/icons-material";
 import { useRouter, usePathname } from "next/navigation";
 import { useState } from "react";
+import { useTenant } from "@/providers/TenantProvider";
+import { useAuth } from "@/components/AuthContext";
 
 const drawerWidth = 260;
 
@@ -41,10 +45,18 @@ interface MenuItem {
   icon: React.ReactNode;
   path?: string;
   subItems?: MenuItem[];
+  feature?: string;
+  permission?: string | string[];
 }
 
 const menuItems: MenuItem[] = [
   { text: "Dashboard", icon: <DashboardIcon />, path: "/dashboard" },
+  {
+    text: "Empresas",
+    icon: <DomainIcon />,
+    path: "/administrative/tenants",
+    permission: "godlike:manage",
+  },
   {
     text: "Operaciones",
     icon: <OperationIcon />,
@@ -53,21 +65,29 @@ const menuItems: MenuItem[] = [
         text: "Minuta General",
         icon: <MinutaIcon />,
         path: "/operation/minuta-general",
+        feature: "minuta",
+        permission: ["minuta:manage", "minuta:read"],
       },
       {
         text: "Control de Parqueadero",
         icon: <ParkingIcon />,
         path: "/operation/parking",
+        feature: "parking",
+        permission: ["parking:manage", "parking:read"],
       },
       {
         text: "Control de Visitas",
         icon: <PeopleIcon />,
         path: "/operation/visitor",
+        feature: "visitor",
+        permission: ["visitor:manage", "visitor:read"],
       },
       {
         text: "Control de Domicilios",
         icon: <CorrespondenceIcon />,
         path: "/operation/correspondence",
+        feature: "correspondence",
+        permission: ["correspondence:manage", "correspondence:read"],
       },
     ],
   },
@@ -76,25 +96,46 @@ const menuItems: MenuItem[] = [
     icon: <AdministrativeIcon />,
     subItems: [
       {
+        text: "Clientes",
+        icon: <ClientIcon />,
+        path: "/administrative/clients",
+        feature: "client",
+        permission: ["client:manage", "client:read"],
+      },
+      {
         text: "Empleados",
         icon: <EmployeeIcon />,
         path: "/administrative/employees",
+        feature: "employee",
+        permission: ["employee:manage", "employee:read"],
       },
-      { text: "Usuarios", icon: <UserIcon />, path: "/administrative/users" },
+      {
+        text: "Usuarios",
+        icon: <UserIcon />,
+        path: "/administrative/users",
+        feature: "user",
+        permission: ["user:manage", "user:read"],
+      },
       {
         text: "Departamentos",
         icon: <DeptIcon />,
         path: "/administrative/departments",
+        feature: "department",
+        permission: ["department:manage", "department:read"],
       },
       {
         text: "Posiciones",
         icon: <PositionIcon />,
         path: "/administrative/positions",
+        feature: "position",
+        permission: ["position:manage", "position:read"],
       },
       {
         text: "Control de Roles",
         icon: <RoleIcon />,
         path: "/administrative/roles",
+        feature: "role",
+        permission: ["role:manage", "role:read"],
       },
     ],
   },
@@ -108,6 +149,8 @@ interface SidebarProps {
 export default function Sidebar({ open, onClose }: SidebarProps) {
   const router = useRouter();
   const pathname = usePathname();
+  const { tenant, isFeatureEnabled } = useTenant();
+  const { session } = useAuth();
   const [openSubmenus, setOpenSubmenus] = useState<Record<string, boolean>>({
     Operaciones: pathname.startsWith("/operation"),
     Administrativo: pathname.startsWith("/administrative"),
@@ -117,8 +160,31 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
     setOpenSubmenus((prev) => ({ ...prev, [text]: !prev[text] }));
   };
 
+  const hasPermission = (perm?: string | string[]) => {
+    if (!perm) return true;
+    if (session?.permissions?.includes("godlike:manage")) return true;
+    
+    if (Array.isArray(perm)) {
+      return perm.some((p) => session?.permissions?.includes(p));
+    }
+    return session?.permissions?.includes(perm as string);
+  };
+
   const renderMenuItem = (item: MenuItem, level = 0) => {
-    const hasSubItems = item.subItems && item.subItems.length > 0;
+    if (item.feature && !isFeatureEnabled(item.feature)) return null;
+    if (item.permission && !hasPermission(item.permission)) return null;
+
+    const filteredSubItems = item.subItems?.filter(
+      (si) =>
+        (!si.feature || isFeatureEnabled(si.feature)) &&
+        (!si.permission || hasPermission(si.permission)),
+    );
+
+    const hasSubItems = filteredSubItems && filteredSubItems.length > 0;
+    
+    // Completely hide parent items if all their children were filtered out
+    if (item.subItems && !hasSubItems) return null;
+
     const isActive = item.path ? pathname === item.path : false;
     const isSubmenuOpen = openSubmenus[item.text] || false;
 
@@ -178,7 +244,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
         {hasSubItems && (
           <Collapse in={isSubmenuOpen} timeout="auto" unmountOnExit>
             <List component="div" disablePadding>
-              {item.subItems!.map((subItem) =>
+              {filteredSubItems!.map((subItem) =>
                 renderMenuItem(subItem, level + 1),
               )}
             </List>
@@ -190,9 +256,17 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
 
   const drawerContent = (
     <div>
-      <Toolbar>
+      <Toolbar sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+        {tenant?.logoUrl ? (
+          <Box
+            component="img"
+            src={tenant.logoUrl}
+            alt="Logo"
+            sx={{ width: 32, height: 32, objectFit: "contain" }}
+          />
+        ) : null}
         <Typography variant="h6" color="primary" sx={{ fontWeight: "bold" }}>
-          NOXIA
+          {tenant?.name || "NOXIA"}
         </Typography>
       </Toolbar>
       <Divider />
