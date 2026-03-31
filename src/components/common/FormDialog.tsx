@@ -27,7 +27,7 @@ import { useNotification } from "@/providers/NotificationProvider";
 export interface FormField<T extends FieldValues> {
   name: Path<T>;
   label: string;
-  type?: "text" | "number" | "date" | "time" | "select" | "password";
+  type?: "text" | "number" | "date" | "time" | "select" | "password" | "multiselect";
   options?: { value: string; label: string }[];
   required?: boolean;
   placeholder?: string;
@@ -185,6 +185,10 @@ export default function FormDialog<T extends FieldValues>({
                         value={value ?? ""}
                         onChange={(e) => {
                           const val = e.target.value;
+                          if (field.type === "multiselect") {
+                            onChange(typeof val === 'string' ? val.split(',') : val);
+                            return;
+                          }
                           if (val === "true") onChange(true);
                           else if (val === "false") onChange(false);
                           else onChange(val);
@@ -198,7 +202,24 @@ export default function FormDialog<T extends FieldValues>({
                               ? "password"
                               : "text"
                         }
-                        select={field.type === "select"}
+                        select={field.type === "select" || field.type === "multiselect"}
+                        SelectProps={
+                          field.type === "multiselect"
+                            ? {
+                                multiple: true,
+                                renderValue: (selected: any) => {
+                                  const selectedValues = selected as string[];
+                                  return selectedValues
+                                    .map(
+                                      (val) =>
+                                        field.options?.find((opt) => opt.value === val)
+                                          ?.label || val
+                                    )
+                                    .join(", ");
+                                },
+                              }
+                            : undefined
+                        }
                         fullWidth
                         error={!!error}
                         helperText={error?.message}

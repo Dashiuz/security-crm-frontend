@@ -8,18 +8,18 @@ import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
 import { AuthProvider } from "./AuthContext";
 import { NotificationProvider } from "@/providers/NotificationProvider";
+import { TenantProvider } from "@/providers/TenantProvider";
 
 export default function Providers({ children }: { children: React.ReactNode }) {
   return (
     <AppRouterCacheProvider>
-      <ThemeProvider theme={theme}>
-        <LocalizationProvider dateAdapter={AdapterDayjs}>
-          <CssBaseline />
-          <NotificationProvider>
-            <AuthProvider>{children}</AuthProvider>
-          </NotificationProvider>
-        </LocalizationProvider>
-      </ThemeProvider>
+      <LocalizationProvider dateAdapter={AdapterDayjs}>
+        <NotificationProvider>
+          <AuthProvider>
+            <TenantProvider>{children}</TenantProvider>
+          </AuthProvider>
+        </NotificationProvider>
+      </LocalizationProvider>
     </AppRouterCacheProvider>
   );
 }
