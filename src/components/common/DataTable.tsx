@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import {
   Box,
   Paper,
@@ -18,6 +18,8 @@ import {
   DialogContent,
   DialogContentText,
   DialogActions,
+  ToggleButton,
+  ToggleButtonGroup,
 } from "@mui/material";
 import {
   DataGrid,
@@ -31,7 +33,9 @@ import {
   Refresh as RefreshIcon,
   Edit as EditIcon,
   Delete as DeleteIcon,
+  RemoveCircle as RemoveCircleIcon,
   InfoOutlined as InfoIcon,
+  Visibility as VisibilityIcon,
 } from "@mui/icons-material";
 import { HttpClient, ApiError } from "@/lib/api/client";
 import Link from "next/link";
@@ -44,7 +48,9 @@ interface DataTableProps {
   onCreate?: () => void;
   onEdit?: (id: string, row: any) => void;
   onDelete?: (id: string) => void;
+  onView?: (row: any) => void;
   customActions?: (row: any) => React.ReactElement<GridActionsCellItemProps>[];
+  deleteIcon?: React.ReactElement;
   refreshTrigger?: number;
   checkboxSelection?: boolean;
   onRowSelectionModelChange?: (newSelection: any) => void;
@@ -61,7 +67,9 @@ export default function DataTable({
   onCreate,
   onEdit,
   onDelete,
+  onView,
   customActions,
+  deleteIcon,
   refreshTrigger,
   checkboxSelection = false,
   onRowSelectionModelChange,
@@ -72,6 +80,7 @@ export default function DataTable({
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState<"ALL" | "ACTIVE" | "INACTIVE">("ALL");
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedIdToDelete, setSelectedIdToDelete] =
     useState<GridRowId | null>(null);
@@ -94,6 +103,16 @@ export default function DataTable({
   useEffect(() => {
     fetchData();
   }, [fetchData, refreshTrigger]);
+
+  const filteredRows = useMemo(() => {
+    if (statusFilter === "ACTIVE") {
+      return rows.filter((r) => r.isActive !== false && r.isRetired !== true);
+    }
+    if (statusFilter === "INACTIVE") {
+      return rows.filter((r) => r.isActive === false || r.isRetired === true);
+    }
+    return rows;
+  }, [rows, statusFilter]);
 
   const handleDeleteClick = (id: GridRowId) => {
     setSelectedIdToDelete(id);
@@ -123,12 +142,25 @@ export default function DataTable({
     field: "actions",
     type: "actions",
     headerName: "Acciones",
-    width: 100,
+    width: 120,
     getActions: (params) => {
       const actions: React.ReactElement<GridActionsCellItemProps>[] = [];
 
       if (customActions) {
         actions.push(...customActions(params.row));
+      }
+
+      if (onView) {
+        actions.push(
+          <GridActionsCellItem
+            key="view"
+            icon={<VisibilityIcon color="info" />}
+            label="Ver Detalle"
+            title="Ver Detalle"
+            onClick={() => onView(params.row)}
+            showInMenu={false}
+          />
+        );
       }
 
       if (onEdit) {
@@ -137,18 +169,21 @@ export default function DataTable({
             key="edit"
             icon={<EditIcon color="primary" />}
             label="Editar"
+            title="Editar"
             onClick={() => onEdit(params.id.toString(), params.row)}
             showInMenu={false}
           />
         );
       }
 
-      if (onDelete) {
+      const isRowInactive = params.row?.isActive === false || params.row?.isRetired === true;
+      if (onDelete && !isRowInactive && params.row?.slug !== "system" && params.row?.id !== "system") {
         actions.push(
           <GridActionsCellItem
             key="delete"
-            icon={<DeleteIcon color="error" />}
-            label="Borrar"
+            icon={deleteIcon || <RemoveCircleIcon color="error" />}
+            label="Inhabilitar"
+            title="Inhabilitar"
             onClick={() => handleDeleteClick(params.id)}
             showInMenu={false}
           />
@@ -215,7 +250,26 @@ export default function DataTable({
             )}
           </Stack>
         </Box>
-        <Stack direction="row" spacing={2}>
+        <Stack direction="row" spacing={2} alignItems="center">
+          <ToggleButtonGroup
+            size="small"
+            value={statusFilter}
+            exclusive
+            onChange={(_, newStatus) => {
+              if (newStatus !== null) setStatusFilter(newStatus);
+            }}
+            color="primary"
+          >
+            <ToggleButton value="ALL" sx={{ px: 1.5, py: 0.5, textTransform: "none", fontWeight: 600 }}>
+              Todos
+            </ToggleButton>
+            <ToggleButton value="ACTIVE" sx={{ px: 1.5, py: 0.5, textTransform: "none", fontWeight: 600 }}>
+              Activos
+            </ToggleButton>
+            <ToggleButton value="INACTIVE" sx={{ px: 1.5, py: 0.5, textTransform: "none", fontWeight: 600 }}>
+              Inactivos
+            </ToggleButton>
+          </ToggleButtonGroup>
           <Button
             variant="outlined"
             startIcon={<RefreshIcon />}
@@ -261,7 +315,7 @@ export default function DataTable({
           </Box>
         )}
         <DataGrid
-          rows={rows}
+          rows={filteredRows}
           columns={finalColumns}
           getRowId={getRowId}
           initialState={{

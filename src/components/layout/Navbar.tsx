@@ -10,8 +10,9 @@ import {
   Menu,
   MenuItem,
   Button,
+  Chip,
 } from "@mui/material";
-import { Menu as MenuIcon, AccountCircle } from "@mui/icons-material";
+import { Menu as MenuIcon, AccountCircle, HomeWork as ClientIcon } from "@mui/icons-material";
 import { useAuth } from "@/components/AuthContext";
 import { AuthService } from "@/lib/api/auth";
 import { useState } from "react";
@@ -63,14 +64,31 @@ export default function Navbar({ onMenuClick }: NavbarProps) {
         >
           <MenuIcon />
         </IconButton>
-        <Typography
-          variant="h6"
-          noWrap
-          component="div"
-          sx={{ flexGrow: 1, fontWeight: "bold", letterSpacing: 1 }}
-        >
-          {tenant?.name || "NOXIA CRM"}
-        </Typography>
+        <Box sx={{ flexGrow: 1, display: "flex", alignItems: "center", gap: 3.0 }}>
+          <Typography
+            variant="h6"
+            noWrap
+            component="div"
+            sx={{ fontWeight: "bold", letterSpacing: 1 }}
+          >
+            {tenant?.name || "NOXIA CRM"}
+          </Typography>
+
+          {Boolean(session?.user?.clientName || session?.user?.client?.name) && (
+            <Chip
+              icon={<ClientIcon style={{ color: "#fff", fontSize: "1.1rem" }} />}
+              label={`Conjunto: ${session?.user?.clientName || session?.user?.client?.name}`}
+              size="small"
+              sx={{
+                bgcolor: "rgba(255, 255, 255, 0.15)",
+                color: "#fff",
+                fontWeight: 600,
+                fontSize: "0.8rem",
+                borderRadius: 1.5,
+              }}
+            />
+          )}
+        </Box>
 
         {session?.isImpersonating && (
           <Box

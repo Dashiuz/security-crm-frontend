@@ -8,6 +8,11 @@ import { GridColDef } from "@mui/x-data-grid";
 import { z } from "zod";
 import { HttpClient } from "@/lib/api/client";
 
+import DetailDialog from "@/components/common/DetailDialog";
+import PromptConfirmDialog from "@/components/common/PromptConfirmDialog";
+import { formatDateTime } from "@/lib/formatters";
+import { Chip } from "@mui/material";
+
 const schema = z.object({
   name: z.string().min(1, "El nombre es requerido").max(100),
   isActive: z.boolean().optional().default(true),
@@ -29,15 +34,27 @@ const fields: FormField<DepartmentForm>[] = [
 ];
 
 const columns: GridColDef[] = [
-  { field: "id", headerName: "ID", width: 220 },
   { field: "name", headerName: "Nombre", flex: 1 },
-  { field: "isActive", headerName: "Activo", type: "boolean", width: 100 },
-  { field: "createdAt", headerName: "Creado En", width: 180 },
+  { field: "isActive", headerName: "Activo", type: "boolean", width: 90 },
+  {
+    field: "createdBy",
+    headerName: "Creado Por",
+    width: 180,
+    valueGetter: (value: any) => value || "Sistema",
+  },
+  {
+    field: "createdAt",
+    headerName: "Creado En",
+    width: 180,
+    valueFormatter: (value: any) => (value ? formatDateTime(value) : "N/A"),
+  },
 ];
 
 export default function DepartmentsPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [detailDept, setDetailDept] = useState<any | null>(null);
+  const [deleteDept, setDeleteDept] = useState<any | null>(null);
   const [defaultValues, setDefaultValues] = useState<
     DepartmentForm | undefined
   >();
@@ -68,6 +85,27 @@ export default function DepartmentsPage() {
     }
   };
 
+  const handleView = (row: any) => {
+    setDetailDept(row);
+  };
+
+  const handleDeleteRequest = (id: string) => {
+    HttpClient.get<any[]>("/department").then((depts) => {
+      const target = depts.find((d) => d.id === id);
+      if (target) setDeleteDept(target);
+    });
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteDept) return;
+    try {
+      await HttpClient.delete(`/department/${deleteDept.id}`);
+      setRefreshTrigger((prev) => prev + 1);
+    } catch (error: any) {
+      showError(error.message || "Error al inhabilitar el departamento");
+    }
+  };
+
   const handleSubmit = async (data: DepartmentForm) => {
     try {
       if (selectedId) {
@@ -90,12 +128,57 @@ export default function DepartmentsPage() {
         breadcrumbs={[{ label: "Administrativo" }, { label: "Departamentos" }]}
         onCreate={handleCreate}
         onEdit={handleEdit}
+        onDelete={handleDeleteRequest}
+        onView={handleView}
         refreshTrigger={refreshTrigger}
         infoDescription="Organización de las unidades estructurales de la empresa (ej. Operaciones, Recursos Humanos, Seguridad)."
         infoInstructions={`Crea un departamento asignándole un nombre y estado.
-El estado determina si el departamento está disponible para vincular nuevos empleados.
-Cualquier cambio se reflejará automáticamente en los formularios de gestión de personal.`}
+Haz clic en el icono de ojo para consultar el creador y fecha de registro.
+Para inhabilitar un departamento, confirma ingresando su nombre exacto.`}
       />
+
+      <DetailDialog
+        open={Boolean(detailDept)}
+        onClose={() => setDetailDept(null)}
+        title="Detalles del Departamento"
+        fields={
+          detailDept
+            ? [
+                { label: "Nombre", value: detailDept.name },
+                {
+                  label: "Estado",
+                  value: (
+                    <Chip
+                      label={detailDept.isActive ? "Activo" : "Inactivo"}
+                      color={detailDept.isActive ? "success" : "default"}
+                      size="small"
+                    />
+                  ),
+                },
+                { label: "Creado Por", value: detailDept.createdBy || "Sistema" },
+                {
+                  label: "Creado En",
+                  value: detailDept.createdAt
+                    ? formatDateTime(detailDept.createdAt)
+                    : "N/A",
+                },
+              ]
+            : []
+        }
+      />
+
+      <PromptConfirmDialog
+        open={Boolean(deleteDept)}
+        onClose={() => setDeleteDept(null)}
+        onConfirm={handleConfirmDelete}
+        title="Inhabilitar / Eliminar Departamento"
+        description={`Para confirmar la inactivación del departamento "${deleteDept?.name}", por favor ingrese su nombre exacto:`}
+        expectedValue={deleteDept?.name || ""}
+        inputLabel="Nombre del Departamento"
+        confirmButtonText="Confirmar Inactivación"
+        confirmColor="error"
+      />
+
       <FormDialog
         open={dialogOpen}
         onClose={() => setDialogOpen(false)}

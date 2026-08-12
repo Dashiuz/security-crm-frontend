@@ -1,10 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNotification } from "@/providers/NotificationProvider";
+import { useAuth } from "@/components/AuthContext";
 import DataTable from "@/components/common/DataTable";
 import FormDialog, { FormField } from "@/components/common/FormDialog";
 import { GridColDef } from "@mui/x-data-grid";
+import { Box, MenuItem, TextField } from "@mui/material";
 import { z } from "zod";
 import { HttpClient } from "@/lib/api/client";
 import { formatTime } from "@/lib/formatters";
@@ -47,21 +49,28 @@ const fields: FormField<ParkingForm>[] = [
 
 const columns: GridColDef[] = [
   { field: "id", headerName: "ID", width: 90 },
-  { field: "plate", headerName: "Placa", width: 100 },
-  { field: "parkingNumber", headerName: "N° Parqueadero", width: 130 },
+  { field: "plate", headerName: "Placa", width: 110 },
+  { field: "parkingNumber", headerName: "Parqueadero", width: 120 },
   {
     field: "entryTime",
-    headerName: "Hora Entrada",
-    width: 120,
+    headerName: "Entrada",
+    width: 110,
     valueFormatter: (value: any) => formatTime(value),
   },
   {
     field: "exitTime",
-    headerName: "Hora Salida",
-    width: 120,
+    headerName: "Salida",
+    width: 110,
     valueFormatter: (value: any) => formatTime(value),
   },
-  { field: "condition", headerName: "Estado", width: 100 },
+  { field: "brand", headerName: "Marca", width: 120 },
+  { field: "color", headerName: "Color", width: 100 },
+  {
+    field: "createdBy",
+    headerName: "Creado Por",
+    width: 160,
+    valueGetter: (value: any) => value || "Sistema",
+  },
 ];
 
 export default function ParkingPage() {
@@ -69,7 +78,34 @@ export default function ParkingPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [defaultValues, setDefaultValues] = useState<ParkingForm | undefined>();
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [clients, setClients] = useState<any[]>([]);
+  const [selectedClientId, setSelectedClientId] = useState<string>("");
   const { showError } = useNotification();
+  const { session } = useAuth();
+
+  const isGlobalUser = !session?.user?.clientId;
+
+  useEffect(() => {
+    if (isGlobalUser) {
+      HttpClient.get<any[]>("/client")
+        .then((data) => setClients(data || []))
+        .catch(() => {});
+    }
+  }, [isGlobalUser]);
+
+  const permissions = session?.permissions || [];
+  const canDelete =
+    permissions.includes("godlike:manage") ||
+    permissions.includes("minuta:manage") ||
+    permissions.includes("minuta:delete");
+  const canEdit =
+    permissions.includes("godlike:manage") ||
+    permissions.includes("minuta:manage") ||
+    permissions.includes("minuta:update");
+  const canCreate =
+    permissions.includes("godlike:manage") ||
+    permissions.includes("minuta:manage") ||
+    permissions.includes("minuta:create");
 
   const handleCreate = () => {
     setSelectedId(null);
@@ -81,7 +117,10 @@ export default function ParkingPage() {
       entryTime: now.toTimeString().split(" ")[0],
       parkingNumber: "",
       plate: "",
+      brand: "",
+      color: "",
       condition: "GOOD",
+      observations: "",
     } as any);
     setDialogOpen(true);
   };
@@ -94,6 +133,15 @@ export default function ParkingPage() {
       setDialogOpen(true);
     } catch (error) {
       showError("Error al cargar el registro de parqueadero");
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    try {
+      await HttpClient.delete(`/operation/minuta/parking/${id}`);
+      setRefreshTrigger((prev) => prev + 1);
+    } catch (error: any) {
+      showError(error.message || "Error al eliminar el registro de parqueadero");
     }
   };
 
@@ -110,15 +158,39 @@ export default function ParkingPage() {
     }
   };
 
+  const endpoint = selectedClientId
+    ? `/operation/minuta/parking?clientId=${selectedClientId}`
+    : "/operation/minuta/parking";
+
   return (
     <>
+      {isGlobalUser && (
+        <Box sx={{ mb: 2, display: "flex", justifyContent: "flex-end" }}>
+          <TextField
+            select
+            size="small"
+            label="Filtrar por Cliente / Conjunto"
+            value={selectedClientId}
+            onChange={(e) => setSelectedClientId(e.target.value)}
+            sx={{ minWidth: 300, bgcolor: "background.paper", borderRadius: 1 }}
+          >
+            <MenuItem value="">Todos los Clientes / Conjuntos</MenuItem>
+            {clients.map((c) => (
+              <MenuItem key={c.id} value={c.id}>
+                {c.name} ({c.internalCode})
+              </MenuItem>
+            ))}
+          </TextField>
+        </Box>
+      )}
       <DataTable
         title="Control de Parqueadero"
-        endpoint="/operation/minuta/parking"
+        endpoint={endpoint}
         columns={columns}
         breadcrumbs={[{ label: "Operaciones" }, { label: "Parqueadero" }]}
-        onCreate={handleCreate}
-        onEdit={handleEdit}
+        onCreate={canCreate ? handleCreate : undefined}
+        onEdit={canEdit ? handleEdit : undefined}
+        onDelete={canDelete ? handleDelete : undefined}
         refreshTrigger={refreshTrigger}
         infoDescription="Sistema de control para el ingreso y salida de vehículos, asegurando el monitoreo de placas y tiempos de permanencia."
         infoInstructions={`Registra la placa del vehículo y selecciona el tipo (Residente, Visitante, etc.).

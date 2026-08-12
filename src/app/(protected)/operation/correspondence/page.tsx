@@ -1,10 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNotification } from "@/providers/NotificationProvider";
+import { useAuth } from "@/components/AuthContext";
 import DataTable from "@/components/common/DataTable";
 import FormDialog, { FormField } from "@/components/common/FormDialog";
 import { GridColDef } from "@mui/x-data-grid";
+import { Box, MenuItem, TextField } from "@mui/material";
 import { z } from "zod";
 import { HttpClient } from "@/lib/api/client";
 import { formatDate, formatTime, formatDateTime } from "@/lib/formatters";
@@ -54,21 +56,27 @@ const fields: FormField<CorrespondenceForm>[] = [
 
 const columns: GridColDef[] = [
   { field: "id", headerName: "ID", width: 90 },
-  { field: "destination", headerName: "Destino", width: 130 },
-  { field: "sender", headerName: "Remitente", width: 150 },
-  { field: "courierCompany", headerName: "Empresa", width: 130 },
-  { field: "status", headerName: "Estado", width: 120 },
+  {
+    field: "date",
+    headerName: "Fecha",
+    width: 110,
+    valueFormatter: (value: any) => formatDate(value),
+  },
   {
     field: "receivedTime",
     headerName: "Recibido",
-    width: 120,
+    width: 90,
     valueFormatter: (value: any) => formatTime(value),
   },
+  { field: "destination", headerName: "Destino", width: 130 },
+  { field: "correspondenceType", headerName: "Tipo", width: 120 },
+  { field: "courierCompany", headerName: "Mensajería", width: 140 },
+  { field: "status", headerName: "Estado", width: 110 },
   {
-    field: "deliveredAt",
-    headerName: "Entregado",
-    width: 180,
-    valueFormatter: (value: any) => formatDateTime(value),
+    field: "createdBy",
+    headerName: "Creado Por",
+    width: 160,
+    valueGetter: (value: any) => value || "Sistema",
   },
 ];
 
@@ -79,7 +87,34 @@ export default function CorrespondencePage() {
     CorrespondenceForm | undefined
   >();
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [clients, setClients] = useState<any[]>([]);
+  const [selectedClientId, setSelectedClientId] = useState<string>("");
   const { showError } = useNotification();
+  const { session } = useAuth();
+
+  const isGlobalUser = !session?.user?.clientId;
+
+  useEffect(() => {
+    if (isGlobalUser) {
+      HttpClient.get<any[]>("/client")
+        .then((data) => setClients(data || []))
+        .catch(() => {});
+    }
+  }, [isGlobalUser]);
+
+  const permissions = session?.permissions || [];
+  const canDelete =
+    permissions.includes("godlike:manage") ||
+    permissions.includes("minuta:manage") ||
+    permissions.includes("minuta:delete");
+  const canEdit =
+    permissions.includes("godlike:manage") ||
+    permissions.includes("minuta:manage") ||
+    permissions.includes("minuta:update");
+  const canCreate =
+    permissions.includes("godlike:manage") ||
+    permissions.includes("minuta:manage") ||
+    permissions.includes("minuta:create");
 
   const handleCreate = () => {
     setSelectedId(null);
@@ -90,7 +125,11 @@ export default function CorrespondencePage() {
       occurredAt: now.toISOString(),
       receivedTime: now.toTimeString().split(" ")[0],
       destination: "",
-      correspondenceType: "BOX",
+      sender: "",
+      courierCompany: "",
+      trackingNumber: "",
+      correspondenceType: "ENVELOPE",
+      observations: "",
     } as any);
     setDialogOpen(true);
   };
@@ -104,7 +143,16 @@ export default function CorrespondencePage() {
       setDefaultValues(data);
       setDialogOpen(true);
     } catch (error) {
-      showError("Error al cargar el registro de domicilio");
+      showError("Error al cargar la correspondencia");
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    try {
+      await HttpClient.delete(`/operation/minuta/correspondence/${id}`);
+      setRefreshTrigger((prev) => prev + 1);
+    } catch (error: any) {
+      showError(error.message || "Error al eliminar el registro");
     }
   };
 
@@ -124,15 +172,39 @@ export default function CorrespondencePage() {
     }
   };
 
+  const endpoint = selectedClientId
+    ? `/operation/minuta/correspondence?clientId=${selectedClientId}`
+    : "/operation/minuta/correspondence";
+
   return (
     <>
+      {isGlobalUser && (
+        <Box sx={{ mb: 2, display: "flex", justifyContent: "flex-end" }}>
+          <TextField
+            select
+            size="small"
+            label="Filtrar por Cliente / Conjunto"
+            value={selectedClientId}
+            onChange={(e) => setSelectedClientId(e.target.value)}
+            sx={{ minWidth: 300, bgcolor: "background.paper", borderRadius: 1 }}
+          >
+            <MenuItem value="">Todos los Clientes / Conjuntos</MenuItem>
+            {clients.map((c) => (
+              <MenuItem key={c.id} value={c.id}>
+                {c.name} ({c.internalCode})
+              </MenuItem>
+            ))}
+          </TextField>
+        </Box>
+      )}
       <DataTable
         title="Control de Domicilios y Correspondencia"
-        endpoint="/operation/minuta/correspondence"
+        endpoint={endpoint}
         columns={columns}
         breadcrumbs={[{ label: "Operaciones" }, { label: "Correspondencia" }]}
-        onCreate={handleCreate}
-        onEdit={handleEdit}
+        onCreate={canCreate ? handleCreate : undefined}
+        onEdit={canEdit ? handleEdit : undefined}
+        onDelete={canDelete ? handleDelete : undefined}
         refreshTrigger={refreshTrigger}
         infoDescription="Seguimiento de paquetes, sobres y domicilios recibidos en la recepción para su posterior entrega."
         infoInstructions={`Registra el nombre del destinatario y el tipo de paquete recibido.
