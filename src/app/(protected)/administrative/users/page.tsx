@@ -4,6 +4,8 @@ import { useState, useEffect } from "react";
 import { useNotification } from "@/providers/NotificationProvider";
 import DataTable from "@/components/common/DataTable";
 import FormDialog, { FormField } from "@/components/common/FormDialog";
+import DetailDialog from "@/components/common/DetailDialog";
+import PromptConfirmDialog from "@/components/common/PromptConfirmDialog";
 import {
   Dialog,
   DialogTitle,
@@ -18,6 +20,7 @@ import {
   Box,
   Divider,
   Alert,
+  Chip,
 } from "@mui/material";
 import { GridColDef } from "@mui/x-data-grid";
 import { z } from "zod";
@@ -207,9 +210,6 @@ function UserEditDialog({
               title=""
               schema={resetSchema}
               fields={resetFields}
-              // We use FormDialog inside but we need it to just render the fields and button
-              // This is a bit hacky, normally we'd refactor FormDialog to be more composable
-              // or just implement the form here. For simplicity and consistency in style:
               onSubmitOverride={handlePasswordReset}
             />
           </>
@@ -227,25 +227,32 @@ function UserEditDialog({
 // --- Main Page ---
 
 const columns: GridColDef[] = [
-  { field: "id", headerName: "ID", width: 90 },
-  { field: "fullName", headerName: "Nombre Completo", width: 220 },
-  { field: "document", headerName: "Documento", width: 120 },
+  { field: "fullName", headerName: "Nombre Completo", width: 200 },
+  { field: "document", headerName: "Documento", width: 110 },
+  {
+    field: "clientName",
+    headerName: "Cliente / Conjunto",
+    width: 180,
+    valueGetter: (value: any) => value || "Sin asignar",
+  },
   {
     field: "roles",
     headerName: "Rol",
-    width: 150,
+    width: 140,
     valueGetter: (value: any) =>
       value?.map((r: any) => r.name).join(", ") || "Sin Rol",
   },
-  { field: "department", headerName: "Departamento", width: 150 },
-  { field: "position", headerName: "Cargo", width: 150 },
-  { field: "isActive", headerName: "Activo", type: "boolean", width: 90 },
+  { field: "department", headerName: "Departamento", width: 130 },
+  { field: "position", headerName: "Cargo", width: 130 },
+  { field: "isActive", headerName: "Activo", type: "boolean", width: 80 },
 ];
 
 export default function UsersPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<any | null>(null);
+  const [detailUser, setDetailUser] = useState<any | null>(null);
+  const [deleteUserData, setDeleteUserData] = useState<any | null>(null);
   const [allRoles, setAllRoles] = useState<{ id: string; name: string }[]>([]);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const { showError } = useNotification();
@@ -266,6 +273,28 @@ export default function UsersPage() {
     setEditDialogOpen(true);
   };
 
+  const handleView = (row: any) => {
+    setDetailUser(row);
+  };
+
+  const handleDeleteRequest = (id: string) => {
+    // Find matching user or store selected user data
+    HttpClient.get<any[]>("/user").then((users) => {
+      const target = users.find((u) => u.id === id);
+      if (target) setDeleteUserData(target);
+    });
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteUserData) return;
+    try {
+      await HttpClient.delete(`/user/${deleteUserData.id}`);
+      setRefreshTrigger((prev) => prev + 1);
+    } catch (error: any) {
+      showError(error.message || "Error al eliminar el usuario");
+    }
+  };
+
   const handleSubmit = async (data: UserForm) => {
     try {
       await HttpClient.post("/user", data);
@@ -273,15 +302,6 @@ export default function UsersPage() {
       setDialogOpen(false);
     } catch (error: any) {
       throw error;
-    }
-  };
-
-  const handleDelete = async (id: string) => {
-    try {
-      await HttpClient.delete(`/user/${id}`);
-      setRefreshTrigger((prev) => prev + 1);
-    } catch (error: any) {
-      showError(error.message || "Error al eliminar el usuario");
     }
   };
 
@@ -294,14 +314,61 @@ export default function UsersPage() {
         breadcrumbs={[{ label: "Administrativo" }, { label: "Usuarios" }]}
         onCreate={handleCreate}
         onEdit={handleEdit}
-        onDelete={handleDelete}
+        onDelete={handleDeleteRequest}
+        onView={handleView}
         refreshTrigger={refreshTrigger}
         infoDescription="Gestión centralizada de los usuarios del sistema, permitiendo la creación de cuentas, asignación de roles y restablecimiento de contraseñas de seguridad."
         infoInstructions={`Para crear un usuario, el empleado debe existir previamente.
-Haz clic en el icono de edición para cambiar el rol del usuario o restablecer su contraseña.
-Recuerda que al restablecer la contraseña, se obligará al usuario a cambiarla en su próximo ingreso.`}
+Haz clic en el icono de ojo para ver los detalles del usuario.
+Haz clic en el icono de borrado para inhabilitar la cuenta confirmando con la cédula del usuario.`}
       />
-      {/* Create User Dialog */}
+
+      <DetailDialog
+        open={Boolean(detailUser)}
+        onClose={() => setDetailUser(null)}
+        title="Detalles del Usuario"
+        fields={
+          detailUser
+            ? [
+                { label: "Nombre Completo", value: detailUser.fullName },
+                { label: "Documento", value: detailUser.document },
+                { label: "Cliente / Conjunto", value: detailUser.clientName || "Sin asignar (se gestiona desde Empleado)" },
+                { label: "Departamento", value: detailUser.department || "N/A" },
+                { label: "Cargo / Posición", value: detailUser.position || "N/A" },
+                {
+                  label: "Roles Asignados",
+                  value:
+                    detailUser.roles && detailUser.roles.length > 0
+                      ? detailUser.roles.map((r: any) => r.name).join(", ")
+                      : "Sin Rol",
+                },
+                {
+                  label: "Estado",
+                  value: (
+                    <Chip
+                      label={detailUser.isActive ? "Activo" : "Inactivo"}
+                      color={detailUser.isActive ? "success" : "default"}
+                      size="small"
+                    />
+                  ),
+                },
+              ]
+            : []
+        }
+      />
+
+      <PromptConfirmDialog
+        open={Boolean(deleteUserData)}
+        onClose={() => setDeleteUserData(null)}
+        onConfirm={handleConfirmDelete}
+        title="Inhabilitar Usuario"
+        description={`Para inhabilitar la cuenta de ${deleteUserData?.fullName}, por favor ingrese su número de documento:`}
+        expectedValue={deleteUserData?.document || ""}
+        inputLabel="Número de Documento"
+        confirmButtonText="Inhabilitar Cuenta"
+        confirmColor="error"
+      />
+
       <FormDialog
         open={dialogOpen}
         onClose={() => setDialogOpen(false)}
@@ -322,7 +389,7 @@ Recuerda que al restablecer la contraseña, se obligará al usuario a cambiarla 
           ) as any
         }
       />
-      {/* Consolidated Edit Dialog */}
+
       <UserEditDialog
         open={editDialogOpen}
         onClose={() => setEditDialogOpen(false)}

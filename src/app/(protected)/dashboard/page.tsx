@@ -9,7 +9,7 @@ export default function DashboardPage() {
   return (
     <Box>
       <Typography variant="h4" sx={{ mb: 4, fontWeight: "bold" }}>
-        Bienvenido, {session?.user.firstName} {session?.user.lastName}
+        Bienvenido, {session?.user.fullName}
       </Typography>
 
       <Grid container spacing={3}>

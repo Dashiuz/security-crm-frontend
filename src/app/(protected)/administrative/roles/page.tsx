@@ -4,6 +4,9 @@ import { useState, useEffect } from "react";
 import { useNotification } from "@/providers/NotificationProvider";
 import DataTable from "@/components/common/DataTable";
 import FormDialog, { FormField } from "@/components/common/FormDialog";
+import DetailDialog from "@/components/common/DetailDialog";
+import PromptConfirmDialog from "@/components/common/PromptConfirmDialog";
+import { formatDateTime } from "@/lib/formatters";
 import {
   Typography,
   Stack,
@@ -20,6 +23,7 @@ import {
   FormGroup,
   TextField,
   Divider,
+  Chip,
 } from "@mui/material";
 import { GridColDef } from "@mui/x-data-grid";
 import { z } from "zod";
@@ -178,15 +182,27 @@ const fields: FormField<RoleForm>[] = [
 ];
 
 const columns: GridColDef[] = [
-  { field: "id", headerName: "ID", width: 220 },
   { field: "name", headerName: "Nombre del Rol", flex: 1 },
-  { field: "createdAt", headerName: "Creado En", width: 180 },
+  {
+    field: "createdBy",
+    headerName: "Creado Por",
+    width: 180,
+    valueGetter: (value: any) => value || "Sistema",
+  },
+  {
+    field: "createdAt",
+    headerName: "Creado En",
+    width: 180,
+    valueFormatter: (value: any) => (value ? formatDateTime(value) : "N/A"),
+  },
 ];
 
 export default function RolesPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [selectedRole, setSelectedRole] = useState<any | null>(null);
+  const [detailRole, setDetailRole] = useState<any | null>(null);
+  const [deleteRole, setDeleteRole] = useState<any | null>(null);
   const [allPermissions, setAllPermissions] = useState<any[]>([]);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const { showError } = useNotification();
@@ -204,6 +220,27 @@ export default function RolesPage() {
   const handleEdit = (id: string, row: any) => {
     setSelectedRole(row);
     setEditDialogOpen(true);
+  };
+
+  const handleView = (row: any) => {
+    setDetailRole(row);
+  };
+
+  const handleDeleteRequest = (id: string) => {
+    HttpClient.get<any[]>("/role").then((roles) => {
+      const target = roles.find((r) => r.id === id);
+      if (target) setDeleteRole(target);
+    });
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteRole) return;
+    try {
+      await HttpClient.delete(`/role/${deleteRole.id}`);
+      setRefreshTrigger((prev) => prev + 1);
+    } catch (error: any) {
+      showError(error.message || "Error al eliminar el rol");
+    }
   };
 
   const handleSubmit = async (data: RoleForm) => {
@@ -224,13 +261,54 @@ export default function RolesPage() {
         breadcrumbs={[{ label: "Administrativo" }, { label: "Roles" }]}
         onCreate={handleCreate}
         onEdit={handleEdit}
+        onDelete={handleDeleteRequest}
+        onView={handleView}
         refreshTrigger={refreshTrigger}
         infoDescription="Administración de los roles de acceso al sistema, permitiendo definir perfiles de usuario y asignar permisos específicos por cada módulo."
         infoInstructions={`Utiliza esta vista para crear nuevos roles o modificar los existentes.
-Haz clic en el icono de edición para gestionar el nombre de los roles y sus permisos detallados.
-Los cambios en los permisos se aplicarán a todos los usuarios que tengan asignado dicho rol.`}
+Haz clic en el icono de ojo para ver quién creó el rol y la fecha de creación.
+Haz clic en el icono de borrado para eliminar un rol especificando su nombre exacto.`}
       />
-      {/* Create Role Dialog */}
+
+      <DetailDialog
+        open={Boolean(detailRole)}
+        onClose={() => setDetailRole(null)}
+        title="Detalles del Rol"
+        fields={
+          detailRole
+            ? [
+                { label: "Nombre del Rol", value: detailRole.name },
+                { label: "Creado Por", value: detailRole.createdBy || "Sistema" },
+                {
+                  label: "Creado En",
+                  value: detailRole.createdAt
+                    ? formatDateTime(detailRole.createdAt)
+                    : "N/A",
+                },
+                {
+                  label: "Permisos Asignados",
+                  value:
+                    detailRole.permissions && detailRole.permissions.length > 0
+                      ? detailRole.permissions.map((p: any) => p.key).join(", ")
+                      : "Sin Permisos",
+                },
+              ]
+            : []
+        }
+      />
+
+      <PromptConfirmDialog
+        open={Boolean(deleteRole)}
+        onClose={() => setDeleteRole(null)}
+        onConfirm={handleConfirmDelete}
+        title="Eliminar Rol"
+        description={`Para confirmar la eliminación del rol "${deleteRole?.name}", por favor ingrese su nombre exacto:`}
+        expectedValue={deleteRole?.name || ""}
+        inputLabel="Nombre del Rol"
+        confirmButtonText="Eliminar Rol"
+        confirmColor="error"
+      />
+
       <FormDialog
         open={dialogOpen}
         onClose={() => setDialogOpen(false)}
@@ -239,7 +317,7 @@ Los cambios en los permisos se aplicarán a todos los usuarios que tengan asigna
         schema={schema}
         fields={fields}
       />
-      {/* Consolidated Edit Dialog */}
+
       <RoleEditDialog
         open={editDialogOpen}
         onClose={() => setEditDialogOpen(false)}

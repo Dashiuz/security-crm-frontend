@@ -42,10 +42,15 @@ const tenantSchema = z.object({
 
 type TenantFormData = z.infer<typeof tenantSchema>;
 
+import DetailDialog from "@/components/common/DetailDialog";
+
+// ... existing interfaces ...
+
 export default function TenantsPage() {
   const [featuresList, setFeaturesList] = useState<Feature[]>([]);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingTenant, setEditingTenant] = useState<Tenant | null>(null);
+  const [detailTenant, setDetailTenant] = useState<Tenant | null>(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const { showError } = useNotification();
 
@@ -71,9 +76,22 @@ export default function TenantsPage() {
     setIsFormOpen(true);
   };
 
+  const handleView = (row: any) => {
+    setDetailTenant(row as Tenant);
+  };
+
   const handleDelete = async (id: string) => {
-    await HttpClient.delete(`/tenants/${id}`);
-    setRefreshTrigger((prev) => prev + 1);
+    try {
+      const target = await HttpClient.get<Tenant>(`/tenants/${id}`);
+      if (target?.slug === "system" || id === "system") {
+        showError("No es posible eliminar el tenant maestro del sistema.");
+        return;
+      }
+      await HttpClient.delete(`/tenants/${id}`);
+      setRefreshTrigger((prev) => prev + 1);
+    } catch (error: any) {
+      showError(error.message || "Error al eliminar la empresa");
+    }
   };
 
   const handleImpersonate = async (tenantId: string) => {
@@ -85,15 +103,20 @@ export default function TenantsPage() {
     }
   };
 
-  const customActions = (row: any) => [
-    <GridActionsCellItem
-      key={`impersonate-${row.id}`}
-      icon={<LoginIcon color="success" />}
-      label="Administrar"
-      showInMenu={false}
-      onClick={() => handleImpersonate(row.id)}
-    />
-  ];
+  const customActions = (row: any) => {
+    if (row.slug === "system" || row.id === "system") {
+      return [];
+    }
+    return [
+      <GridActionsCellItem
+        key={`impersonate-${row.id}`}
+        icon={<LoginIcon color="success" />}
+        label="Administrar"
+        showInMenu={false}
+        onClick={() => handleImpersonate(row.id)}
+      />,
+    ];
+  };
 
   const handleFormSubmit = async (data: TenantFormData) => {
     try {
@@ -129,34 +152,6 @@ export default function TenantsPage() {
       headerName: "Estado",
       flex: 1,
       valueFormatter: (value: boolean) => (value ? "Activo" : "Inactivo"),
-    },
-    {
-      field: "features",
-      headerName: "Módulos",
-      flex: 2,
-      renderCell: (params: any) => {
-        const features = params.value as string[];
-        if (!features || features.length === 0) {
-          return (
-            <Typography variant="body2" color="text.secondary">
-              Ninguno
-            </Typography>
-          );
-        }
-        return (
-          <Box sx={{ display: "flex", gap: 0.5, flexWrap: "wrap", p: 0.5 }}>
-            {features.map((f) => (
-              <Chip
-                key={f}
-                label={f}
-                size="small"
-                variant="outlined"
-                color="primary"
-              />
-            ))}
-          </Box>
-        );
-      },
     },
   ];
 
@@ -223,8 +218,49 @@ export default function TenantsPage() {
         onCreate={handleCreate}
         onEdit={handleEdit}
         onDelete={handleDelete}
+        onView={handleView}
         customActions={customActions}
         refreshTrigger={refreshTrigger}
+      />
+
+      <DetailDialog
+        open={Boolean(detailTenant)}
+        onClose={() => setDetailTenant(null)}
+        title="Detalles de la Empresa"
+        fields={
+          detailTenant
+            ? [
+                { label: "Nombre", value: detailTenant.name },
+                { label: "Identificador (Slug)", value: detailTenant.slug },
+                {
+                  label: "Estado",
+                  value: (
+                    <Chip
+                      label={detailTenant.isActive ? "Activo" : "Inactivo"}
+                      color={detailTenant.isActive ? "success" : "default"}
+                      size="small"
+                    />
+                  ),
+                },
+                { label: "URL Logo", value: detailTenant.logoUrl || "No especificado" },
+                { label: "Color Primario", value: detailTenant.primaryColor || "Default" },
+                { label: "Color Secundario", value: detailTenant.secondaryColor || "Default" },
+                {
+                  label: "Módulos Habilitados",
+                  value:
+                    detailTenant.features && detailTenant.features.length > 0 ? (
+                      <Box sx={{ display: "flex", gap: 0.5, flexWrap: "wrap", mt: 0.5 }}>
+                        {detailTenant.features.map((f) => (
+                          <Chip key={f} label={f} size="small" variant="outlined" color="primary" />
+                        ))}
+                      </Box>
+                    ) : (
+                      "Ninguno"
+                    ),
+                },
+              ]
+            : []
+        }
       />
 
       <FormDialog

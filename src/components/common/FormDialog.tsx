@@ -27,12 +27,12 @@ import { useNotification } from "@/providers/NotificationProvider";
 export interface FormField<T extends FieldValues> {
   name: Path<T>;
   label: string;
-  type?: "text" | "number" | "date" | "time" | "select" | "password" | "multiselect";
+  type?: "text" | "number" | "date" | "time" | "select" | "password" | "multiselect" | "checkbox" | "textarea" | "file";
   options?: { value: string; label: string }[];
   required?: boolean;
   placeholder?: string;
   inputProps?: React.InputHTMLAttributes<HTMLInputElement>;
-  hidden?: boolean;
+  hidden?: boolean | ((watchValues: T) => boolean);
 }
 
 interface FormDialogProps<T extends FieldValues> {
@@ -61,12 +61,15 @@ export default function FormDialog<T extends FieldValues>({
   const {
     handleSubmit,
     control,
+    watch,
     formState: { errors },
     reset,
   } = useForm<T>({
     resolver: zodResolver(schema as any),
     defaultValues: defaultValues || ({} as DefaultValues<T>),
   });
+
+  const watchValues = watch();
 
   const { showError, showSuccess } = useNotification();
   const [internalSubmitting, setInternalSubmitting] = useState(false);
@@ -124,7 +127,11 @@ export default function FormDialog<T extends FieldValues>({
         <DialogContent dividers>
           <Stack spacing={3}>
             {fields.map((field) => {
-              if (field.hidden) return null;
+              const isHidden =
+                typeof field.hidden === "function"
+                  ? field.hidden(watchValues)
+                  : field.hidden;
+              if (isHidden) return null;
               return (
                 <Controller
                   key={field.name.toString()}
@@ -179,14 +186,47 @@ export default function FormDialog<T extends FieldValues>({
                       );
                     }
 
+                    if (field.type === "file") {
+                      return (
+                        <Button
+                          variant="outlined"
+                          component="label"
+                          fullWidth
+                          disabled={isPending}
+                          sx={{ justifyContent: "flex-start", py: 1.5, textTransform: "none" }}
+                        >
+                          {value ? (typeof value === "string" ? value : (value as File).name) : `Cargar ${field.label}`}
+                          <input
+                            type="file"
+                            hidden
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              onChange(file || null);
+                            }}
+                          />
+                        </Button>
+                      );
+                    }
+
                     return (
                       <TextField
                         {...rest}
-                        value={value ?? ""}
+                        value={
+                          field.type === "select"
+                            ? value !== undefined && value !== null
+                              ? String(value)
+                              : ""
+                            : value ?? ""
+                        }
                         onChange={(e) => {
                           const val = e.target.value;
                           if (field.type === "multiselect") {
                             onChange(typeof val === 'string' ? val.split(',') : val);
+                            return;
+                          }
+                          if (field.type === "number") {
+                            const parsedVal = val === "" ? 0 : Number(val);
+                            onChange(isNaN(parsedVal) ? val : parsedVal);
                             return;
                           }
                           if (val === "true") onChange(true);
