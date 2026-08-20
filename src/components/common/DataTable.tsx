@@ -44,10 +44,10 @@ interface DataTableProps {
   title: string;
   endpoint: string;
   columns: GridColDef[];
-  breadcrumbs: { label: string; href?: string }[];
+  breadcrumbs?: { label: string; href?: string }[];
   onCreate?: () => void;
   onEdit?: (id: string, row: any) => void;
-  onDelete?: (id: string) => void;
+  onDelete?: (id: string, row?: any) => void;
   onView?: (row: any) => void;
   customActions?: (row: any) => React.ReactElement<GridActionsCellItemProps>[];
   deleteIcon?: React.ReactElement;
@@ -57,6 +57,9 @@ interface DataTableProps {
   getRowId?: (row: any) => GridRowId;
   infoDescription?: string;
   infoInstructions?: string;
+  rows?: any[];
+  hideCreateButton?: boolean;
+  hideStatusFilter?: boolean;
 }
 
 export default function DataTable({
@@ -76,8 +79,11 @@ export default function DataTable({
   getRowId,
   infoDescription,
   infoInstructions,
+  rows: externalRows,
+  hideCreateButton = false,
+  hideStatusFilter = false,
 }: DataTableProps) {
-  const [rows, setRows] = useState<any[]>([]);
+  const [internalRows, setInternalRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<"ALL" | "ACTIVE" | "INACTIVE">("ALL");
@@ -86,35 +92,46 @@ export default function DataTable({
     useState<GridRowId | null>(null);
   const [infoDialogOpen, setInfoDialogOpen] = useState(false);
 
+  const activeRows = externalRows !== undefined ? externalRows : internalRows;
+
   const fetchData = useCallback(async () => {
+    if (externalRows !== undefined) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
       const data = await HttpClient.get<any[]>(endpoint);
-      setRows(data);
+      setInternalRows(data);
     } catch (err) {
       const apiError = err as ApiError;
       setError(apiError.message || "Error al cargar los datos");
     } finally {
       setLoading(false);
     }
-  }, [endpoint]);
+  }, [endpoint, externalRows]);
 
   useEffect(() => {
     fetchData();
   }, [fetchData, refreshTrigger]);
 
   const filteredRows = useMemo(() => {
+    if (hideStatusFilter) return activeRows;
     if (statusFilter === "ACTIVE") {
-      return rows.filter((r) => r.isActive !== false && r.isRetired !== true);
+      return activeRows.filter((r) => r.isActive !== false && r.isRetired !== true);
     }
     if (statusFilter === "INACTIVE") {
-      return rows.filter((r) => r.isActive === false || r.isRetired === true);
+      return activeRows.filter((r) => r.isActive === false || r.isRetired === true);
     }
-    return rows;
-  }, [rows, statusFilter]);
+    return activeRows;
+  }, [activeRows, statusFilter, hideStatusFilter]);
 
-  const handleDeleteClick = (id: GridRowId) => {
+  const handleDeleteClick = (id: GridRowId, row: any) => {
+    if (onDelete) {
+      onDelete(id.toString(), row);
+      return;
+    }
     setSelectedIdToDelete(id);
     setDeleteDialogOpen(true);
   };
@@ -123,12 +140,8 @@ export default function DataTable({
     if (!selectedIdToDelete) return;
 
     try {
-      if (onDelete) {
-        await onDelete?.(selectedIdToDelete.toString());
-      } else {
-        await HttpClient.delete(`${endpoint}/${selectedIdToDelete}`);
-      }
-      setRows((prev) => prev.filter((row) => row.id !== selectedIdToDelete));
+      await HttpClient.delete(`${endpoint}/${selectedIdToDelete}`);
+      setInternalRows((prev) => prev.filter((row) => row.id !== selectedIdToDelete));
     } catch (err) {
       const apiError = err as ApiError;
       alert(apiError.message || "Error al eliminar el registro");
@@ -184,7 +197,7 @@ export default function DataTable({
             icon={deleteIcon || <RemoveCircleIcon color="error" />}
             label="Inhabilitar"
             title="Inhabilitar"
-            onClick={() => handleDeleteClick(params.id)}
+            onClick={() => handleDeleteClick(params.id, params.row)}
             showInMenu={false}
           />
         );
@@ -205,33 +218,35 @@ export default function DataTable({
         sx={{ mb: 3 }}
       >
         <Box>
-          <Breadcrumbs aria-label="breadcrumb" sx={{ mb: 1 }}>
-            <MuiLink
-              component={Link}
-              underline="hover"
-              color="inherit"
-              href="/dashboard"
-            >
-              Dashboard
-            </MuiLink>
-            {breadcrumbs.map((bc, index) =>
-              index === breadcrumbs.length - 1 ? (
-                <Typography key={bc.label} color="text.primary">
-                  {bc.label}
-                </Typography>
-              ) : (
-                <MuiLink
-                  key={bc.label}
-                  component={Link}
-                  underline="hover"
-                  color="inherit"
-                  href={bc.href || "#"}
-                >
-                  {bc.label}
-                </MuiLink>
-              ),
-            )}
-          </Breadcrumbs>
+          {breadcrumbs && breadcrumbs.length > 0 && (
+            <Breadcrumbs aria-label="breadcrumb" sx={{ mb: 1 }}>
+              <MuiLink
+                component={Link}
+                underline="hover"
+                color="inherit"
+                href="/dashboard"
+              >
+                Dashboard
+              </MuiLink>
+              {breadcrumbs.map((bc, index) =>
+                index === breadcrumbs.length - 1 ? (
+                  <Typography key={bc.label} color="text.primary">
+                    {bc.label}
+                  </Typography>
+                ) : (
+                  <MuiLink
+                    key={bc.label}
+                    component={Link}
+                    underline="hover"
+                    color="inherit"
+                    href={bc.href || "#"}
+                  >
+                    {bc.label}
+                  </MuiLink>
+                ),
+              )}
+            </Breadcrumbs>
+          )}
           <Stack direction="row" alignItems="center" spacing={1}>
             <Typography variant="h4" fontWeight="bold">
               {title}
@@ -251,25 +266,27 @@ export default function DataTable({
           </Stack>
         </Box>
         <Stack direction="row" spacing={2} alignItems="center">
-          <ToggleButtonGroup
-            size="small"
-            value={statusFilter}
-            exclusive
-            onChange={(_, newStatus) => {
-              if (newStatus !== null) setStatusFilter(newStatus);
-            }}
-            color="primary"
-          >
-            <ToggleButton value="ALL" sx={{ px: 1.5, py: 0.5, textTransform: "none", fontWeight: 600 }}>
-              Todos
-            </ToggleButton>
-            <ToggleButton value="ACTIVE" sx={{ px: 1.5, py: 0.5, textTransform: "none", fontWeight: 600 }}>
-              Activos
-            </ToggleButton>
-            <ToggleButton value="INACTIVE" sx={{ px: 1.5, py: 0.5, textTransform: "none", fontWeight: 600 }}>
-              Inactivos
-            </ToggleButton>
-          </ToggleButtonGroup>
+          {!hideStatusFilter && (
+            <ToggleButtonGroup
+              size="small"
+              value={statusFilter}
+              exclusive
+              onChange={(_, newStatus) => {
+                if (newStatus !== null) setStatusFilter(newStatus);
+              }}
+              color="primary"
+            >
+              <ToggleButton value="ALL" sx={{ px: 1.5, py: 0.5, textTransform: "none", fontWeight: 600 }}>
+                Todos
+              </ToggleButton>
+              <ToggleButton value="ACTIVE" sx={{ px: 1.5, py: 0.5, textTransform: "none", fontWeight: 600 }}>
+                Activos
+              </ToggleButton>
+              <ToggleButton value="INACTIVE" sx={{ px: 1.5, py: 0.5, textTransform: "none", fontWeight: 600 }}>
+                Inactivos
+              </ToggleButton>
+            </ToggleButtonGroup>
+          )}
           <Button
             variant="outlined"
             startIcon={<RefreshIcon />}
@@ -278,14 +295,16 @@ export default function DataTable({
           >
             Refrescar
           </Button>
-          <Button
-            variant="contained"
-            startIcon={<AddIcon />}
-            onClick={onCreate}
-            disabled={loading}
-          >
-            Crear Nuevo
-          </Button>
+          {onCreate && !hideCreateButton && (
+            <Button
+              variant="contained"
+              startIcon={<AddIcon />}
+              onClick={onCreate}
+              disabled={loading}
+            >
+              Crear Nuevo
+            </Button>
+          )}
         </Stack>
       </Stack>
 

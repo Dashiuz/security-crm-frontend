@@ -64,9 +64,22 @@ function RoleEditDialog({
     }
   }, [open, role]);
 
+  const categoryOrder: Record<string, number> = {
+    client: 1,
+    resident: 2,
+    employee: 3,
+    user: 4,
+    minuta: 5,
+    department: 6,
+    position: 7,
+    role: 8,
+    permission: 9,
+    godlike: 10,
+  };
+
   const categories = Array.from(
     new Set(allPermissions.map((p) => p.key.split(":")[0])),
-  );
+  ).sort((a, b) => (categoryOrder[a] || 99) - (categoryOrder[b] || 99));
 
   const togglePermission = (key: string) => {
     setSelectedPermissions((prev) =>
@@ -123,9 +136,26 @@ function RoleEditDialog({
               scrollButtons="auto"
               sx={{ borderBottom: 1, borderColor: "divider", mb: 2 }}
             >
-              {categories.map((cat, i) => (
-                <Tab key={i} label={cat.toUpperCase()} />
-              ))}
+              {categories.map((cat, i) => {
+                const categoryLabels: Record<string, string> = {
+                  client: "CLIENTES",
+                  resident: "RESIDENTES",
+                  user: "USUARIOS",
+                  employee: "EMPLEADOS",
+                  department: "DEPARTAMENTOS",
+                  position: "POSICIONES",
+                  role: "ROLES",
+                  permission: "PERMISOS",
+                  minuta: "MINUTA",
+                  godlike: "GODLIKE",
+                };
+                return (
+                  <Tab
+                    key={i}
+                    label={categoryLabels[cat] || cat.toUpperCase()}
+                  />
+                );
+              })}
             </Tabs>
 
             <Box sx={{ minHeight: 200 }}>
@@ -144,7 +174,7 @@ function RoleEditDialog({
                       label={
                         <Box>
                           <Typography variant="body2" fontWeight="bold">
-                            {perm.name}
+                            {perm.desc || perm.key}
                           </Typography>
                           <Typography variant="caption" color="text.secondary">
                             {perm.key}
