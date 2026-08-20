@@ -28,10 +28,10 @@ import {
   AccountTree as DeptIcon,
   Work as PositionIcon,
   VerifiedUser as RoleIcon,
-  AssignmentInd as AssignIcon,
-  Key as PermissionIcon,
   Business as ClientIcon,
   Domain as DomainIcon,
+  Storefront as BuyersIcon,
+  GroupWork as ResourcesIcon,
 } from "@mui/icons-material";
 import { useRouter, usePathname } from "next/navigation";
 import { useState } from "react";
@@ -92,8 +92,8 @@ const menuItems: MenuItem[] = [
     ],
   },
   {
-    text: "Administrativo",
-    icon: <AdministrativeIcon />,
+    text: "Mis Compradores",
+    icon: <BuyersIcon />,
     subItems: [
       {
         text: "Clientes",
@@ -102,6 +102,12 @@ const menuItems: MenuItem[] = [
         feature: "client",
         permission: ["client:manage", "client:read"],
       },
+    ],
+  },
+  {
+    text: "Mis Recursos",
+    icon: <ResourcesIcon />,
+    subItems: [
       {
         text: "Empleados",
         icon: <EmployeeIcon />,
@@ -153,7 +159,13 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
   const { session } = useAuth();
   const [openSubmenus, setOpenSubmenus] = useState<Record<string, boolean>>({
     Operaciones: pathname.startsWith("/operation"),
-    Administrativo: pathname.startsWith("/administrative"),
+    "Mis Compradores": pathname.startsWith("/administrative/clients"),
+    "Mis Recursos":
+      pathname.startsWith("/administrative/employees") ||
+      pathname.startsWith("/administrative/users") ||
+      pathname.startsWith("/administrative/departments") ||
+      pathname.startsWith("/administrative/positions") ||
+      pathname.startsWith("/administrative/roles"),
   });
 
   const handleSubmenuToggle = (text: string) => {
@@ -163,7 +175,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
   const hasPermission = (perm?: string | string[]) => {
     if (!perm) return true;
     if (session?.permissions?.includes("godlike:manage")) return true;
-    
+
     if (Array.isArray(perm)) {
       return perm.some((p) => session?.permissions?.includes(p));
     }
@@ -181,8 +193,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
     );
 
     const hasSubItems = filteredSubItems && filteredSubItems.length > 0;
-    
-    // Completely hide parent items if all their children were filtered out
+
     if (item.subItems && !hasSubItems) return null;
 
     const isActive = item.path ? pathname === item.path : false;
@@ -297,7 +308,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
         open={open}
         onClose={onClose}
         ModalProps={{
-          keepMounted: true, // Better open performance on mobile.
+          keepMounted: true,
         }}
         sx={{
           display: { xs: "block", sm: "none" },
