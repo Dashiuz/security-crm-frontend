@@ -100,7 +100,7 @@ export default function ClientsPage() {
         title="Gestión de Clientes"
         endpoint="/client"
         columns={columns}
-        breadcrumbs={[{ label: "Mis Compradores" }, { label: "Clientes" }]}
+        breadcrumbs={[{ label: "Mis Clientes" }, { label: "Clientes" }]}
         onCreate={handleCreate}
         onView={handleView}
         onDelete={handleDeleteRequest}
