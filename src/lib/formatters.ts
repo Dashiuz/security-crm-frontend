@@ -52,3 +52,18 @@ export const formatDateTime = (params: any): string => {
     return String(value);
   }
 };
+
+/**
+ * Maps and formats property structure types from Enum to friendly Spanish
+ */
+export const formatStructureType = (type?: string): string => {
+  if (!type) return "No especificado";
+  const map: Record<string, string> = {
+    SINGLE_BUILDING: "Edificio Único (Torre individual)",
+    BUILDING_CLUSTER: "Conjunto de Torres / Bloques",
+    HOUSE_CLUSTER: "Conjunto Cerrado de Casas",
+    MIXED: "Conjunto Mixto (Residencial + Locales)",
+    OTHER: "Otro Tipo de Inmueble",
+  };
+  return map[type] || type.replace(/_/g, " ");
+};

@@ -32,6 +32,13 @@ import {
   Domain as DomainIcon,
   Storefront as BuyersIcon,
   GroupWork as ResourcesIcon,
+  PersonSearch as ProspectIcon,
+  Shield as SecurityStudyIcon,
+  Memory as TechProjectIcon,
+  Checkroom as UniformIcon,
+  Inventory as InventoryIcon,
+  FormatListBulleted as ListIcon,
+  UploadFile as UploadIcon,
 } from "@mui/icons-material";
 import { useRouter, usePathname } from "next/navigation";
 import { useState } from "react";
@@ -47,6 +54,7 @@ interface MenuItem {
   subItems?: MenuItem[];
   feature?: string;
   permission?: string | string[];
+  disabled?: boolean;
 }
 
 const menuItems: MenuItem[] = [
@@ -92,15 +100,45 @@ const menuItems: MenuItem[] = [
     ],
   },
   {
-    text: "Mis Compradores",
+    text: "Mis Clientes",
     icon: <BuyersIcon />,
     subItems: [
       {
-        text: "Clientes",
-        icon: <ClientIcon />,
-        path: "/administrative/clients",
+        text: "Prospectos",
+        icon: <ProspectIcon />,
+        path: "/administrative/prospects",
         feature: "client",
         permission: ["client:manage", "client:read"],
+      },
+      {
+        text: "Estudios de Seguridad",
+        icon: <SecurityStudyIcon />,
+        disabled: true,
+      },
+      {
+        text: "Proyectos de Tecnología",
+        icon: <TechProjectIcon />,
+        disabled: true,
+      },
+      {
+        text: "Clientes",
+        icon: <ClientIcon />,
+        subItems: [
+          {
+            text: "Listado de Clientes",
+            icon: <ListIcon />,
+            path: "/administrative/clients",
+            feature: "client",
+            permission: ["client:manage", "client:read"],
+          },
+          {
+            text: "Cargar Clientes Existentes",
+            icon: <UploadIcon />,
+            path: "/administrative/clients/import",
+            feature: "client",
+            permission: ["client:manage", "client:create"],
+          },
+        ],
       },
     ],
   },
@@ -143,6 +181,16 @@ const menuItems: MenuItem[] = [
         feature: "role",
         permission: ["role:manage", "role:read"],
       },
+      {
+        text: "Dotaciones",
+        icon: <UniformIcon />,
+        disabled: true,
+      },
+      {
+        text: "Inventario",
+        icon: <InventoryIcon />,
+        disabled: true,
+      },
     ],
   },
 ];
@@ -159,7 +207,10 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
   const { session } = useAuth();
   const [openSubmenus, setOpenSubmenus] = useState<Record<string, boolean>>({
     Operaciones: pathname.startsWith("/operation"),
-    "Mis Compradores": pathname.startsWith("/administrative/clients"),
+    "Mis Clientes":
+      pathname.startsWith("/administrative/clients") ||
+      pathname.startsWith("/administrative/prospects"),
+    Clientes: pathname.startsWith("/administrative/clients"),
     "Mis Recursos":
       pathname.startsWith("/administrative/employees") ||
       pathname.startsWith("/administrative/users") ||
@@ -203,7 +254,9 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
       <div key={item.text}>
         <ListItem disablePadding sx={{ mb: 0.5 }}>
           <ListItemButton
+            disabled={item.disabled}
             onClick={() => {
+              if (item.disabled) return;
               if (hasSubItems) {
                 handleSubmenuToggle(item.text);
               } else if (item.path) {

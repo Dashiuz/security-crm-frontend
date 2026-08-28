@@ -42,7 +42,7 @@ import Link from "next/link";
 
 interface DataTableProps {
   title: string;
-  endpoint: string;
+  endpoint?: string;
   columns: GridColDef[];
   breadcrumbs?: { label: string; href?: string }[];
   onCreate?: () => void;
@@ -95,7 +95,7 @@ export default function DataTable({
   const activeRows = externalRows !== undefined ? externalRows : internalRows;
 
   const fetchData = useCallback(async () => {
-    if (externalRows !== undefined) {
+    if (externalRows !== undefined || !endpoint) {
       setLoading(false);
       return;
     }
