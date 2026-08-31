@@ -121,11 +121,17 @@ export default function FormDialog<T extends FieldValues>({
   };
 
   return (
-    <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
-      <DialogTitle>{title}</DialogTitle>
+    <Dialog 
+      open={open} 
+      onClose={onClose} 
+      maxWidth="sm" 
+      fullWidth
+      PaperProps={{ sx: { borderRadius: 2.5 } }}
+    >
+      <DialogTitle sx={{ pb: 1, fontWeight: 700 }}>{title}</DialogTitle>
       <Box component="form" onSubmit={handleSubmit(handleFormSubmit as any)}>
-        <DialogContent dividers>
-          <Stack spacing={3}>
+        <DialogContent dividers sx={{ pt: 2 }}>
+          <Stack spacing={2.5}>
             {fields.map((field) => {
               const isHidden =
                 typeof field.hidden === "function"
@@ -153,9 +159,11 @@ export default function FormDialog<T extends FieldValues>({
                           slotProps={{
                             textField: {
                               fullWidth: true,
+                              size: "small",
                               error: !!error,
                               helperText: error?.message,
                               required: field.required,
+                              InputLabelProps: { shrink: true }
                             },
                           }}
                           disabled={isPending}
@@ -175,9 +183,11 @@ export default function FormDialog<T extends FieldValues>({
                           slotProps={{
                             textField: {
                               fullWidth: true,
+                              size: "small",
                               error: !!error,
                               helperText: error?.message,
                               required: field.required,
+                              InputLabelProps: { shrink: true }
                             },
                           }}
                           disabled={isPending}
@@ -211,6 +221,7 @@ export default function FormDialog<T extends FieldValues>({
                     return (
                       <TextField
                         {...rest}
+                        size="small"
                         value={
                           field.type === "select"
                             ? value !== undefined && value !== null
@@ -242,6 +253,8 @@ export default function FormDialog<T extends FieldValues>({
                               ? "password"
                               : "text"
                         }
+                        multiline={field.type === "textarea"}
+                        rows={field.type === "textarea" ? 3 : 1}
                         select={field.type === "select" || field.type === "multiselect"}
                         SelectProps={
                           field.type === "multiselect"
@@ -280,11 +293,11 @@ export default function FormDialog<T extends FieldValues>({
             })}
           </Stack>
         </DialogContent>
-        <DialogActions sx={{ p: 2 }}>
-          <Button onClick={onClose} disabled={isPending}>
+        <DialogActions sx={{ px: 3, py: 2 }}>
+          <Button onClick={onClose} disabled={isPending} color="inherit">
             Cancelar
           </Button>
-          <Button type="submit" variant="contained" disabled={isPending}>
+          <Button type="submit" variant="contained" disabled={isPending} sx={{ fontWeight: 600 }}>
             {isPending ? "Guardando..." : "Guardar"}
           </Button>
         </DialogActions>

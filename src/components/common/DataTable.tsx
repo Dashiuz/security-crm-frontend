@@ -212,9 +212,10 @@ export default function DataTable({
   return (
     <Box>
       <Stack
-        direction="row"
+        direction={{ xs: "column", md: "row" }}
         justifyContent="space-between"
-        alignItems="center"
+        alignItems={{ xs: "flex-start", md: "flex-end" }}
+        spacing={2}
         sx={{ mb: 3 }}
       >
         <Box>

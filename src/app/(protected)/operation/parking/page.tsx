@@ -6,7 +6,7 @@ import { useAuth } from "@/components/AuthContext";
 import DataTable from "@/components/common/DataTable";
 import FormDialog, { FormField } from "@/components/common/FormDialog";
 import { GridColDef } from "@mui/x-data-grid";
-import { Box, MenuItem, TextField } from "@mui/material";
+import { Box, MenuItem, TextField, Paper, FormControl, Select, Typography } from "@mui/material";
 import { z } from "zod";
 import { HttpClient } from "@/lib/api/client";
 import { formatTime } from "@/lib/formatters";
@@ -165,23 +165,37 @@ export default function ParkingPage() {
   return (
     <>
       {isGlobalUser && (
-        <Box sx={{ mb: 2, display: "flex", justifyContent: "flex-end" }}>
-          <TextField
-            select
-            size="small"
-            label="Filtrar por Cliente / Conjunto"
-            value={selectedClientId}
-            onChange={(e) => setSelectedClientId(e.target.value)}
-            sx={{ minWidth: 300, bgcolor: "background.paper", borderRadius: 1 }}
-          >
-            <MenuItem value="">Todos los Clientes / Conjuntos</MenuItem>
-            {clients.map((c) => (
-              <MenuItem key={c.id} value={c.id}>
-                {c.name} ({c.internalCode})
-              </MenuItem>
-            ))}
-          </TextField>
-        </Box>
+        <Paper
+          elevation={0}
+          sx={{
+            p: 2,
+            mb: 2,
+            borderRadius: 2,
+            border: "1px solid",
+            borderColor: "divider",
+            display: "flex",
+            alignItems: "center",
+            gap: 2,
+          }}
+        >
+          <Typography variant="body2" sx={{ fontWeight: 600, minWidth: 160 }}>
+            Conjunto / Cliente Activo:
+          </Typography>
+          <FormControl size="small" sx={{ minWidth: 280 }}>
+            <Select
+              value={selectedClientId}
+              onChange={(e) => setSelectedClientId(e.target.value)}
+              displayEmpty
+            >
+              <MenuItem value="">Todos los Clientes / Conjuntos</MenuItem>
+              {clients.map((c) => (
+                <MenuItem key={c.id} value={c.id}>
+                  {c.name} ({c.internalCode || c.nit})
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+        </Paper>
       )}
       <DataTable
         title="Control de Parqueadero"
