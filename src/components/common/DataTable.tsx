@@ -212,15 +212,18 @@ export default function DataTable({
   return (
     <Box>
       <Stack
-        direction={{ xs: "column", md: "row" }}
+        direction={{ xs: "column", lg: "row" }}
         justifyContent="space-between"
-        alignItems={{ xs: "flex-start", md: "flex-end" }}
-        spacing={2}
-        sx={{ mb: 3 }}
+        alignItems={{ xs: "flex-start", lg: "flex-end" }}
+        spacing={2.5}
+        sx={{ mb: { xs: 2, sm: 3 } }}
       >
-        <Box>
+        <Box sx={{ width: { xs: "100%", lg: "auto" } }}>
           {breadcrumbs && breadcrumbs.length > 0 && (
-            <Breadcrumbs aria-label="breadcrumb" sx={{ mb: 1 }}>
+            <Breadcrumbs
+              aria-label="breadcrumb"
+              sx={{ mb: 0.5, "& .MuiBreadcrumbs-li": { fontSize: { xs: "0.75rem", sm: "0.85rem" } } }}
+            >
               <MuiLink
                 component={Link}
                 underline="hover"
@@ -231,7 +234,7 @@ export default function DataTable({
               </MuiLink>
               {breadcrumbs.map((bc, index) =>
                 index === breadcrumbs.length - 1 ? (
-                  <Typography key={bc.label} color="text.primary">
+                  <Typography key={bc.label} color="text.primary" sx={{ fontSize: { xs: "0.75rem", sm: "0.85rem" } }}>
                     {bc.label}
                   </Typography>
                 ) : (
@@ -241,6 +244,7 @@ export default function DataTable({
                     underline="hover"
                     color="inherit"
                     href={bc.href || "#"}
+                    sx={{ fontSize: { xs: "0.75rem", sm: "0.85rem" } }}
                   >
                     {bc.label}
                   </MuiLink>
@@ -248,8 +252,16 @@ export default function DataTable({
               )}
             </Breadcrumbs>
           )}
-          <Stack direction="row" alignItems="center" spacing={1}>
-            <Typography variant="h4" fontWeight="bold">
+          <Stack direction="row" alignItems="center" spacing={1} sx={{ flexWrap: "wrap" }}>
+            <Typography
+              variant="h4"
+              sx={{
+                fontWeight: "bold",
+                fontSize: { xs: "1.25rem", sm: "1.55rem", md: "1.9rem" },
+                lineHeight: 1.25,
+                letterSpacing: "-0.01em",
+              }}
+            >
               {title}
             </Typography>
             {(infoDescription || infoInstructions) && (
@@ -258,7 +270,7 @@ export default function DataTable({
                   size="small"
                   color="primary"
                   onClick={() => setInfoDialogOpen(true)}
-                  sx={{ mt: 0.5 }}
+                  sx={{ mt: 0.2 }}
                 >
                   <InfoIcon fontSize="small" />
                 </IconButton>
@@ -266,7 +278,13 @@ export default function DataTable({
             )}
           </Stack>
         </Box>
-        <Stack direction="row" spacing={2} alignItems="center">
+
+        <Stack
+          direction={{ xs: "column", sm: "row" }}
+          spacing={{ xs: 1.2, sm: 1.5 }}
+          alignItems={{ xs: "stretch", sm: "center" }}
+          sx={{ width: { xs: "100%", lg: "auto" }, flexWrap: "wrap", gap: { xs: 1, sm: 1.5 } }}
+        >
           {!hideStatusFilter && (
             <ToggleButtonGroup
               size="small"
@@ -276,36 +294,92 @@ export default function DataTable({
                 if (newStatus !== null) setStatusFilter(newStatus);
               }}
               color="primary"
+              sx={{
+                width: { xs: "100%", sm: "auto" },
+                display: "flex",
+                bgcolor: "background.paper",
+                borderRadius: 2,
+                border: "1px solid",
+                borderColor: "divider",
+                boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
+                "& .MuiToggleButton-root": {
+                  border: "none",
+                  px: { xs: 1.5, sm: 2 },
+                  py: 0.65,
+                  textTransform: "none",
+                  fontWeight: 600,
+                  fontSize: "0.8rem",
+                  "&.Mui-selected": {
+                    bgcolor: "primary.main",
+                    color: "primary.contrastText",
+                    "&:hover": {
+                      bgcolor: "primary.dark",
+                    },
+                  },
+                },
+              }}
             >
-              <ToggleButton value="ALL" sx={{ px: 1.5, py: 0.5, textTransform: "none", fontWeight: 600 }}>
+              <ToggleButton value="ALL" sx={{ flex: { xs: 1, sm: "initial" } }}>
                 Todos
               </ToggleButton>
-              <ToggleButton value="ACTIVE" sx={{ px: 1.5, py: 0.5, textTransform: "none", fontWeight: 600 }}>
+              <ToggleButton value="ACTIVE" sx={{ flex: { xs: 1, sm: "initial" } }}>
                 Activos
               </ToggleButton>
-              <ToggleButton value="INACTIVE" sx={{ px: 1.5, py: 0.5, textTransform: "none", fontWeight: 600 }}>
+              <ToggleButton value="INACTIVE" sx={{ flex: { xs: 1, sm: "initial" } }}>
                 Inactivos
               </ToggleButton>
             </ToggleButtonGroup>
           )}
-          <Button
-            variant="outlined"
-            startIcon={<RefreshIcon />}
-            onClick={fetchData}
-            disabled={loading}
-          >
-            Refrescar
-          </Button>
-          {onCreate && !hideCreateButton && (
+
+          <Stack direction="row" spacing={1} sx={{ width: { xs: "100%", sm: "auto" } }}>
             <Button
-              variant="contained"
-              startIcon={<AddIcon />}
-              onClick={onCreate}
+              variant="outlined"
+              startIcon={<RefreshIcon />}
+              onClick={fetchData}
               disabled={loading}
+              sx={{
+                flex: { xs: 1, sm: "initial" },
+                textTransform: "none",
+                fontWeight: 600,
+                fontSize: { xs: "0.8rem", sm: "0.85rem" },
+                py: { xs: 0.75, sm: 0.65 },
+                px: { xs: 1.5, sm: 2 },
+                borderRadius: 2,
+                bgcolor: "background.paper",
+                borderColor: "divider",
+                color: "text.primary",
+                boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
+                "&:hover": {
+                  borderColor: "primary.main",
+                  bgcolor: "action.hover",
+                },
+                whiteSpace: "nowrap",
+              }}
             >
-              Crear Nuevo
+              Refrescar
             </Button>
-          )}
+            {onCreate && !hideCreateButton && (
+              <Button
+                variant="contained"
+                startIcon={<AddIcon />}
+                onClick={onCreate}
+                disabled={loading}
+                sx={{
+                  flex: { xs: 1, sm: "initial" },
+                  textTransform: "none",
+                  fontWeight: 600,
+                  fontSize: { xs: "0.8rem", sm: "0.85rem" },
+                  py: { xs: 0.75, sm: 0.65 },
+                  px: { xs: 1.8, sm: 2.2 },
+                  borderRadius: 2,
+                  boxShadow: "0 2px 8px rgba(25, 118, 210, 0.25)",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                Crear Nuevo
+              </Button>
+            )}
+          </Stack>
         </Stack>
       </Stack>
 
@@ -315,7 +389,19 @@ export default function DataTable({
         </Alert>
       )}
 
-      <Paper sx={{ height: 500, width: "100%", p: 2, position: "relative" }}>
+      <Paper
+        elevation={0}
+        sx={{
+          height: { xs: 460, sm: 520, md: 580 },
+          width: "100%",
+          p: { xs: 0.5, sm: 1.5, md: 2 },
+          position: "relative",
+          borderRadius: 2,
+          border: "1px solid",
+          borderColor: "divider",
+          overflowX: "auto",
+        }}
+      >
         {loading && (
           <Box
             sx={{
@@ -355,7 +441,13 @@ export default function DataTable({
             columnMenuHideColumn: "Ocultar columna",
             columnMenuShowColumns: "Mostrar columnas",
           }}
-          sx={{ border: "none" }}
+          sx={{
+            border: "none",
+            "& .MuiDataGrid-cell": {
+              display: "flex",
+              alignItems: "center",
+            },
+          }}
         />
       </Paper>
 

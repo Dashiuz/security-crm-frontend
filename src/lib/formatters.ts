@@ -38,6 +38,23 @@ export const formatTime = (params: any): string => {
 };
 
 /**
+ * Formats a time, ISO datetime, or Date object to HH:mm for HTML5 <input type="time">
+ */
+export const formatTimeToHHmm = (value: any): string => {
+  if (!value) return "";
+  try {
+    if (typeof value === "string" && /^\d{2}:\d{2}/.test(value)) {
+      return value.slice(0, 5);
+    }
+    const d = dayjs(value);
+    if (!d.isValid()) return "";
+    return d.format("HH:mm");
+  } catch {
+    return "";
+  }
+};
+
+/**
  * Formats a datetime string or object to DD-MM-YYYY HH:mm:ss
  */
 export const formatDateTime = (params: any): string => {

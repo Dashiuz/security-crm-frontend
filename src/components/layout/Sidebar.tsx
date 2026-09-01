@@ -352,10 +352,10 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
   return (
     <Box
       component="nav"
-      sx={{ width: { sm: drawerWidth }, flexShrink: { sm: 0 } }}
+      sx={{ width: { lg: drawerWidth }, flexShrink: { lg: 0 } }}
       aria-label="mailbox folders"
     >
-      {/* Mobile drawer */}
+      {/* Mobile drawer (phones portrait & landscape, tablets) */}
       <Drawer
         variant="temporary"
         open={open}
@@ -364,18 +364,18 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
           keepMounted: true,
         }}
         sx={{
-          display: { xs: "block", sm: "none" },
+          display: { xs: "block", lg: "none" },
           "& .MuiDrawer-paper": { boxSizing: "border-box", width: drawerWidth },
         }}
       >
         {drawerContent}
       </Drawer>
 
-      {/* Desktop drawer */}
+      {/* Desktop drawer (large screens and desktops) */}
       <Drawer
         variant="permanent"
         sx={{
-          display: { xs: "none", sm: "block" },
+          display: { xs: "none", lg: "block" },
           "& .MuiDrawer-paper": {
             boxSizing: "border-box",
             width: drawerWidth,

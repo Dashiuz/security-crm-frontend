@@ -46,9 +46,12 @@ export class HttpClient {
     const url = `${API_BASE_URL}${endpoint}`;
     const token = tokenStore.getToken();
 
-    const headers: Record<string, string> = {
-      "Content-Type": "application/json",
-    };
+    const headers: Record<string, string> = {};
+
+    // Only set Content-Type to JSON if body is NOT FormData
+    if (!(options.body instanceof FormData)) {
+      headers["Content-Type"] = "application/json";
+    }
 
     if (token) {
       headers["Authorization"] = `Bearer ${token}`;
@@ -123,7 +126,15 @@ export class HttpClient {
     return this.request<T>(endpoint, {
       ...options,
       method: "POST",
-      body: body ? JSON.stringify(body) : undefined,
+      body: body instanceof FormData ? body : body ? JSON.stringify(body) : undefined,
+    });
+  }
+
+  static upload<T>(endpoint: string, formData: FormData, options?: RequestInit) {
+    return this.request<T>(endpoint, {
+      ...options,
+      method: "POST",
+      body: formData,
     });
   }
 

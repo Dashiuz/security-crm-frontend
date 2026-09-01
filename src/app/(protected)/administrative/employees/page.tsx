@@ -6,14 +6,17 @@ import DataTable from "@/components/common/DataTable";
 import FormDialog, { FormField } from "@/components/common/FormDialog";
 import DetailDialog from "@/components/common/DetailDialog";
 import PromptConfirmDialog from "@/components/common/PromptConfirmDialog";
+import ImageUploadCapture from "@/components/common/ImageUploadCapture";
 import { GridColDef, GridActionsCellItem } from "@mui/x-data-grid";
 import {
   PersonOff as PersonOffIcon,
   PersonAdd as PersonAddIcon,
+  Badge as BadgeIcon,
 } from "@mui/icons-material";
-import { Chip } from "@mui/material";
+import { Chip, Box, Avatar, Typography, Stack } from "@mui/material";
 import { z } from "zod";
 import { HttpClient } from "@/lib/api/client";
+import { StorageApi, MediaTypeCategory } from "@/lib/api/storage";
 
 const schema = z.object({
   firstName: z.string().min(1, "El primer nombre es requerido").max(100),
@@ -36,36 +39,6 @@ const schema = z.object({
 
 type EmployeeForm = z.infer<typeof schema>;
 
-const columns: GridColDef[] = [
-  {
-    field: "fullName",
-    headerName: "Nombre Completo",
-    width: 230,
-  },
-  { field: "document", headerName: "Documento", width: 120 },
-  {
-    field: "clientName",
-    headerName: "Cliente / Conjunto",
-    width: 200,
-    valueGetter: (value: any) => value || "Sin asignar",
-  },
-  { field: "email", headerName: "Email", width: 170 },
-  { field: "phone", headerName: "Teléfono", width: 110 },
-  {
-    field: "departmentName",
-    headerName: "Departamento",
-    width: 140,
-    valueGetter: (value: any) => value || "N/A",
-  },
-  {
-    field: "positionName",
-    headerName: "Cargo",
-    width: 140,
-    valueGetter: (value: any) => value || "N/A",
-  },
-  { field: "isActive", headerName: "Activo", type: "boolean", width: 80 },
-];
-
 export default function EmployeesPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -74,10 +47,15 @@ export default function EmployeesPage() {
   >();
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [loading, setLoading] = useState(false);
-  const { showError } = useNotification();
+  const { showError, showSuccess } = useNotification();
   const [detailEmployee, setDetailEmployee] = useState<any | null>(null);
+  const [detailAvatarUrl, setDetailAvatarUrl] = useState<string | null>(null);
   const [retireEmployeeData, setRetireEmployeeData] = useState<any | null>(null);
   const [reactivateEmployeeData, setReactivateEmployeeData] = useState<any | null>(null);
+
+  // Avatar / S3 States
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [existingAvatarUrl, setExistingAvatarUrl] = useState<string | null>(null);
 
   const [clients, setClients] = useState<{ value: string; label: string }[]>([]);
   const [departments, setDepartments] = useState<
@@ -90,32 +68,38 @@ export default function EmployeesPage() {
   useEffect(() => {
     const fetchRelations = async () => {
       try {
-        const [cls, depts, posts] = await Promise.all([
+        const [clsRes, deptsRes, postsRes] = await Promise.allSettled([
           HttpClient.get<any[]>("/client"),
           HttpClient.get<any[]>("/department"),
           HttpClient.get<any[]>("/position"),
         ]);
 
-        const sortedCls = [...(cls || [])].sort((a, b) =>
-          a.name.localeCompare(b.name),
-        );
-        const sortedDepts = [...depts].sort((a, b) =>
-          a.name.localeCompare(b.name),
-        );
-        const sortedPosts = [...posts].sort((a, b) =>
-          a.name.localeCompare(b.name),
-        );
+        if (clsRes.status === "fulfilled" && Array.isArray(clsRes.value)) {
+          const sortedCls = [...clsRes.value].sort((a, b) =>
+            a.name.localeCompare(b.name),
+          );
+          setClients(
+            sortedCls.map((c) => ({ value: c.id, label: `${c.name} (${c.internalCode})` })),
+          );
+        }
 
-        setClients(
-          sortedCls.map((c) => ({ value: c.id, label: `${c.name} (${c.internalCode})` })),
-        );
-        setDepartments(
-          sortedDepts.map((d) => ({ value: d.id, label: d.name })),
-        );
-        setPositions(sortedPosts.map((p) => ({ value: p.id, label: p.name })));
+        if (deptsRes.status === "fulfilled" && Array.isArray(deptsRes.value)) {
+          const sortedDepts = [...deptsRes.value].sort((a, b) =>
+            a.name.localeCompare(b.name),
+          );
+          setDepartments(
+            sortedDepts.map((d) => ({ value: d.id, label: d.name })),
+          );
+        }
+
+        if (postsRes.status === "fulfilled" && Array.isArray(postsRes.value)) {
+          const sortedPosts = [...postsRes.value].sort((a, b) =>
+            a.name.localeCompare(b.name),
+          );
+          setPositions(sortedPosts.map((p) => ({ value: p.id, label: p.name })));
+        }
       } catch (error: any) {
         console.error("Error fetching relationships details:", error);
-        showError("No se pudieron cargar los datos relacionales.");
       }
     };
     fetchRelations();
@@ -176,6 +160,8 @@ export default function EmployeesPage() {
 
   const handleCreate = () => {
     setSelectedId(null);
+    setAvatarFile(null);
+    setExistingAvatarUrl(null);
     setDefaultValues({
       firstName: "",
       secondName: "",
@@ -196,8 +182,10 @@ export default function EmployeesPage() {
     setDialogOpen(true);
   };
 
-  const handleEdit = async (id: string, row?: any) => {
+  const handleEdit = async (id: string) => {
     setLoading(true);
+    setAvatarFile(null);
+    setExistingAvatarUrl(null);
     try {
       const data = await HttpClient.get<any>(`/employee/any/${id}`);
       setSelectedId(id);
@@ -206,22 +194,42 @@ export default function EmployeesPage() {
         birthdate: data.birthdate?.split("T")[0],
         entryDate: data.entryDate?.split("T")[0],
       });
+
+      // Load avatar from S3 if exists
+      const mediaList = await StorageApi.getByEntity(MediaTypeCategory.EMPLOYEE, id);
+      if (mediaList && mediaList.length > 0) {
+        setExistingAvatarUrl(mediaList[0].presignedUrl || null);
+      }
+
       setDialogOpen(true);
-    } catch (error) {
+    } catch {
       showError("Error al cargar los datos del empleado");
     } finally {
       setLoading(false);
     }
   };
 
-  const handleView = (row: any) => {
+  const handleView = async (row: any) => {
     setDetailEmployee(row);
+    setDetailAvatarUrl(null);
+    try {
+      if (row.mediaAttachments && row.mediaAttachments.length > 0) {
+        const presigned = await StorageApi.getPresignedUrl(row.mediaAttachments[0].id);
+        setDetailAvatarUrl(presigned.presignedUrl);
+      } else {
+        const mediaList = await StorageApi.getByEntity(MediaTypeCategory.EMPLOYEE, row.id);
+        if (mediaList && mediaList.length > 0) {
+          setDetailAvatarUrl(mediaList[0].presignedUrl || null);
+        }
+      }
+    } catch {}
   };
 
   const handleRetireConfirm = async () => {
     if (!retireEmployeeData) return;
     try {
       await HttpClient.patch(`/employee/${retireEmployeeData.id}/retire`, {});
+      showSuccess("Empleado retirado del sistema");
       setRefreshTrigger((prev) => prev + 1);
     } catch (error: any) {
       showError(error.message || "Error al dar de baja al empleado");
@@ -232,6 +240,7 @@ export default function EmployeesPage() {
     if (!reactivateEmployeeData) return;
     try {
       await HttpClient.patch(`/employee/${reactivateEmployeeData.id}/reactivate`, {});
+      showSuccess("Empleado reactivado exitosamente");
       setRefreshTrigger((prev) => prev + 1);
     } catch (error: any) {
       showError(error.message || "Error al reactivar al empleado");
@@ -265,17 +274,106 @@ export default function EmployeesPage() {
 
   const handleSubmit = async (data: EmployeeForm) => {
     try {
+      let savedEmployee: any;
       if (selectedId) {
-        await HttpClient.patch(`/employee/${selectedId}`, data);
+        savedEmployee = await HttpClient.patch(`/employee/${selectedId}`, data);
       } else {
-        await HttpClient.post("/employee", data);
+        savedEmployee = await HttpClient.post("/employee", data);
       }
+
+      const entityId = selectedId || savedEmployee?.id;
+
+      // Upload Avatar to S3 if attached
+      if (avatarFile && entityId) {
+        try {
+          await StorageApi.uploadMedia({
+            file: avatarFile,
+            entityType: MediaTypeCategory.EMPLOYEE,
+            entityId,
+            category: "avatar",
+          });
+          showSuccess("Fotografía del empleado sincronizada en AWS S3");
+        } catch (uploadErr) {
+          console.error("S3 upload error:", uploadErr);
+          showError("Empleado guardado, pero ocurrió un problema al subir la foto a S3.");
+        }
+      }
+
       setRefreshTrigger((prev) => prev + 1);
     } catch (error: any) {
       showError(error.message || "Error al guardar el empleado");
       throw error;
     }
   };
+
+  const columns: GridColDef[] = [
+    {
+      field: "fullName",
+      headerName: "Empleado",
+      width: 250,
+      renderCell: (params) => {
+        const initials = params.row.fullName
+          ? params.row.fullName
+              .split(" ")
+              .map((n: string) => n[0])
+              .slice(0, 2)
+              .join("")
+          : "EM";
+        const avatarSrc = params.row.avatarUrl || (params.row.mediaAttachments?.[0]?.url || undefined);
+        return (
+          <Box sx={{ display: "flex", alignItems: "center", height: "100%", gap: 1.5 }}>
+            <Avatar
+              sx={{
+                width: 36,
+                height: 36,
+                bgcolor: avatarSrc ? "transparent" : "primary.main",
+                fontSize: "0.85rem",
+                fontWeight: 700,
+                border: "1px solid",
+                borderColor: "divider",
+                flexShrink: 0,
+              }}
+              src={avatarSrc}
+            >
+              {initials}
+            </Avatar>
+            <Box sx={{ display: "flex", flexDirection: "column", justifyContent: "center" }}>
+              <Typography variant="body2" sx={{ fontWeight: 600, lineHeight: 1.15 }}>
+                {params.row.fullName}
+              </Typography>
+              <Typography
+                variant="caption"
+                sx={{ color: "text.secondary", lineHeight: 1, mt: "2px", fontSize: "0.75rem" }}
+              >
+                {params.row.documentType || "CC"}: {params.row.document}
+              </Typography>
+            </Box>
+          </Box>
+        );
+      },
+    },
+    {
+      field: "clientName",
+      headerName: "Cliente / Conjunto",
+      width: 200,
+      valueGetter: (value: any) => value || "Sin asignar",
+    },
+    { field: "email", headerName: "Email", width: 170 },
+    { field: "phone", headerName: "Teléfono", width: 110 },
+    {
+      field: "departmentName",
+      headerName: "Departamento",
+      width: 140,
+      valueGetter: (value: any) => value || "N/A",
+    },
+    {
+      field: "positionName",
+      headerName: "Cargo",
+      width: 140,
+      valueGetter: (value: any) => value || "N/A",
+    },
+    { field: "isActive", headerName: "Activo", type: "boolean", width: 80 },
+  ];
 
   return (
     <>
@@ -289,16 +387,59 @@ export default function EmployeesPage() {
         onView={handleView}
         customActions={customActions}
         refreshTrigger={refreshTrigger}
-        infoDescription="Registro y control de la información del personal de la empresa, incluyendo datos de identificación, contacto y vinculación organizacional."
-        infoInstructions={`Utiliza el botón 'Crear' para registrar un nuevo empleado.
-Haz clic en el icono de ojo para ver los detalles completos del empleado.
-Haz clic en el icono de baja para retirar al empleado o en la persona con signo más para reactivarlo (en ambos casos especificando su cédula).`}
+        infoDescription="Registro y control de la información del personal de la empresa, incluyendo fotografía en vivo, datos de identificación, contacto y vinculación organizacional."
+        infoInstructions={`Utiliza el botón 'Crear' para registrar un nuevo empleado con captura de foto en vivo o subida de archivo.
+Haz clic en el icono de ojo para ver los detalles y fotografía en alta resolución del empleado.
+Haz clic en el icono de baja para retirar al empleado o en la persona con signo más para reactivarlo.`}
       />
 
       <DetailDialog
         open={Boolean(detailEmployee)}
         onClose={() => setDetailEmployee(null)}
         title="Detalles del Empleado"
+        headerContent={
+          detailEmployee && (
+            <Box
+              sx={{
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                pb: 2,
+                mb: 2,
+                borderBottom: "1px solid",
+                borderColor: "divider",
+              }}
+            >
+              <Avatar
+                src={detailAvatarUrl || detailEmployee?.avatarUrl || undefined}
+                sx={{
+                  width: 90,
+                  height: 90,
+                  bgcolor: "primary.main",
+                  fontSize: "1.8rem",
+                  fontWeight: 700,
+                  boxShadow: "0 4px 14px rgba(0,0,0,0.15)",
+                  mb: 1.5,
+                }}
+              >
+                {detailEmployee.fullName
+                  ? detailEmployee.fullName
+                      .split(" ")
+                      .map((n: string) => n[0])
+                      .slice(0, 2)
+                      .join("")
+                  : "EM"}
+              </Avatar>
+              <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                {detailEmployee.fullName}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                {detailEmployee.positionName || "Sin Cargo"} • {detailEmployee.departmentName || "Sin Departamento"}
+              </Typography>
+            </Box>
+          )
+        }
         fields={
           detailEmployee
             ? [
@@ -375,6 +516,18 @@ Haz clic en el icono de baja para retirar al empleado o en la persona con signo 
         fields={fields}
         defaultValues={defaultValues}
         loading={loading}
+        topContent={
+          <Box sx={{ mb: 3 }}>
+            <ImageUploadCapture
+              label="Fotografía del Empleado"
+              variant="avatar"
+              value={avatarFile}
+              previewUrl={existingAvatarUrl}
+              onChange={setAvatarFile}
+              helperText="Toma una foto en vivo con la cámara o selecciona una imagen desde tu dispositivo para el perfil del empleado."
+            />
+          </Box>
+        }
       />
     </>
   );
