@@ -60,26 +60,33 @@ export default function Navbar({ onMenuClick }: NavbarProps) {
           aria-label="open drawer"
           edge="start"
           onClick={onMenuClick}
-          sx={{ mr: 2, display: { sm: "none" } }}
+          sx={{ mr: 2, display: { lg: "none" } }}
         >
           <MenuIcon />
         </IconButton>
-        <Box sx={{ flexGrow: 1, display: "flex", alignItems: "center", gap: 3.0 }}>
+        <Box sx={{ flexGrow: 1, display: "flex", alignItems: "center", gap: { xs: 1, sm: 2, md: 3 }, minWidth: 0, overflow: "hidden" }}>
           <Typography
             variant="h6"
             noWrap
             component="div"
-            sx={{ fontWeight: "bold", letterSpacing: 1 }}
+            sx={{
+              fontWeight: "bold",
+              letterSpacing: { xs: 0.5, sm: 1 },
+              fontSize: { xs: "0.95rem", sm: "1.15rem", md: "1.25rem" },
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+            }}
           >
             {tenant?.name || "NOXIA CRM"}
           </Typography>
 
           {Boolean(session?.user?.clientName || session?.user?.client?.name) && (
             <Chip
-              icon={<ClientIcon style={{ color: "#fff", fontSize: "1.1rem" }} />}
+              icon={<ClientIcon style={{ color: "#fff", fontSize: "1rem" }} />}
               label={`Conjunto: ${session?.user?.clientName || session?.user?.client?.name}`}
               size="small"
               sx={{
+                display: { xs: "none", md: "inline-flex" },
                 bgcolor: "rgba(255, 255, 255, 0.15)",
                 color: "#fff",
                 fontWeight: 600,

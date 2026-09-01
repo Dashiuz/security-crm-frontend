@@ -17,21 +17,29 @@ export default function ProtectedLayout({
   };
 
   return (
-    <Box sx={{ display: "flex" }}>
+    <Box sx={{ display: "flex", minHeight: "100vh", bgcolor: "background.default" }}>
       <Navbar onMenuClick={handleDrawerToggle} />
       <Sidebar open={mobileOpen} onClose={handleDrawerToggle} />
       <Box
         component="main"
         sx={{
           flexGrow: 1,
-          p: 3,
-          width: { sm: `calc(100% - 260px)` },
+          p: { xs: 1, sm: 2, md: 3 },
+          width: { xs: "100%", lg: `calc(100% - 260px)` },
           minHeight: "100vh",
-          bgcolor: "background.default",
+          overflowX: "hidden",
         }}
       >
         <Toolbar />
-        <Container maxWidth="lg" sx={{ mt: 2, mb: 4 }}>
+        <Container
+          maxWidth="xl"
+          disableGutters
+          sx={{
+            px: { xs: 0.5, sm: 1.5, md: 2 },
+            mt: { xs: 1, sm: 2 },
+            mb: { xs: 2, sm: 4 },
+          }}
+        >
           {children}
         </Container>
       </Box>

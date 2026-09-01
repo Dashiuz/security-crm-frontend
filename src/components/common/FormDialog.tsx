@@ -45,6 +45,8 @@ interface FormDialogProps<T extends FieldValues> {
   fields: FormField<T>[];
   defaultValues?: DefaultValues<T>;
   loading?: boolean;
+  children?: React.ReactNode;
+  topContent?: React.ReactNode;
 }
 
 export default function FormDialog<T extends FieldValues>({
@@ -57,6 +59,8 @@ export default function FormDialog<T extends FieldValues>({
   fields,
   defaultValues,
   loading,
+  children,
+  topContent,
 }: FormDialogProps<T>) {
   const {
     handleSubmit,
@@ -126,11 +130,14 @@ export default function FormDialog<T extends FieldValues>({
       onClose={onClose} 
       maxWidth="sm" 
       fullWidth
-      PaperProps={{ sx: { borderRadius: 2.5 } }}
+      PaperProps={{ sx: { borderRadius: { xs: 2, sm: 2.5 }, m: { xs: 1.5, sm: 3 } } }}
     >
-      <DialogTitle sx={{ pb: 1, fontWeight: 700 }}>{title}</DialogTitle>
+      <DialogTitle sx={{ pb: 1, fontWeight: 700, fontSize: { xs: "1.1rem", sm: "1.25rem" } }}>
+        {title}
+      </DialogTitle>
       <Box component="form" onSubmit={handleSubmit(handleFormSubmit as any)}>
-        <DialogContent dividers sx={{ pt: 2 }}>
+        <DialogContent dividers sx={{ pt: 2, px: { xs: 2, sm: 3 } }}>
+          {topContent}
           <Stack spacing={2.5}>
             {fields.map((field) => {
               const isHidden =
@@ -292,12 +299,13 @@ export default function FormDialog<T extends FieldValues>({
               );
             })}
           </Stack>
+          {children}
         </DialogContent>
-        <DialogActions sx={{ px: 3, py: 2 }}>
-          <Button onClick={onClose} disabled={isPending} color="inherit">
+        <DialogActions sx={{ px: { xs: 2, sm: 3 }, py: 2, flexDirection: { xs: "column-reverse", sm: "row" }, gap: { xs: 1, sm: 0 } }}>
+          <Button onClick={onClose} disabled={isPending} color="inherit" sx={{ width: { xs: "100%", sm: "auto" } }}>
             Cancelar
           </Button>
-          <Button type="submit" variant="contained" disabled={isPending} sx={{ fontWeight: 600 }}>
+          <Button type="submit" variant="contained" disabled={isPending} sx={{ fontWeight: 600, width: { xs: "100%", sm: "auto" } }}>
             {isPending ? "Guardando..." : "Guardar"}
           </Button>
         </DialogActions>

@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNotification } from "@/providers/NotificationProvider";
 import { useAuth } from "@/components/AuthContext";
 import DataTable from "@/components/common/DataTable";
+import DetailDialog from "@/components/common/DetailDialog";
 import { GridColDef } from "@mui/x-data-grid";
 import {
   Box,
@@ -26,7 +27,9 @@ import {
   IconButton,
   Card,
   CardContent,
-  Divider,
+  CircularProgress,
+  Tabs,
+  Tab,
 } from "@mui/material";
 import {
   LocalShipping as LocalShippingIcon,
@@ -34,14 +37,12 @@ import {
   Person as PersonIcon,
   CheckCircle as CheckCircleIcon,
   CameraAlt as CameraIcon,
-  UploadFile as UploadIcon,
-  DeleteOutline as DeleteOutlineIcon,
-  CloudDone as CloudDoneIcon,
-  Visibility as VisibilityIcon,
   Inventory as PackageIcon,
 } from "@mui/icons-material";
+import ImageUploadCapture from "@/components/common/ImageUploadCapture";
 import { HttpClient } from "@/lib/api/client";
-import { formatDate, formatTime } from "@/lib/formatters";
+import { StorageApi, MediaTypeCategory } from "@/lib/api/storage";
+import { formatDate, formatTime, formatDateTime, formatTimeToHHmm } from "@/lib/formatters";
 
 interface UnitOption {
   id: string;
@@ -89,18 +90,27 @@ export default function CorrespondencePage() {
     observations: "",
   });
 
-  // Modal de Entrega con Evidencia Fotográfica (Mockup S3)
+  // Modal de Entrega con Evidencias Fotográficas
   const [deliveryDialogOpen, setDeliveryDialogOpen] = useState(false);
   const [selectedRecordForDelivery, setSelectedRecordForDelivery] = useState<any>(null);
   const [deliveredToName, setDeliveredToName] = useState("");
   const [deliveryNotes, setDeliveryNotes] = useState("");
-  const [evidencePhoto, setEvidencePhoto] = useState<string | null>(null);
+  const [receptionPhotoUrlForDelivery, setReceptionPhotoUrlForDelivery] = useState<string | null>(null);
+  const [evidenceDeliveryFile, setEvidenceDeliveryFile] = useState<File | null>(null);
+  const [existingDeliveryMediaUrl, setExistingDeliveryMediaUrl] = useState<string | null>(null);
+  const [evidenceReceptionFile, setEvidenceReceptionFile] = useState<File | null>(null);
+  const [existingReceptionMediaUrl, setExistingReceptionMediaUrl] = useState<string | null>(null);
   const [delivering, setDelivering] = useState(false);
 
-  // Modal de Vista Previa de Evidencia
-  const [previewPhotoUrl, setPreviewPhotoUrl] = useState<string | null>(null);
+  // Modal de Detalle
+  const [detailRecord, setDetailRecord] = useState<any | null>(null);
+  const [detailPhotos, setDetailPhotos] = useState<{ receptionUrl?: string | null; deliveryUrl?: string | null }>({});
 
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  // Modal de Vista Previa de Evidencia
+  const [previewModalOpen, setPreviewModalOpen] = useState(false);
+  const [previewPhotos, setPreviewPhotos] = useState<{ receptionUrl?: string | null; deliveryUrl?: string | null }>({});
+  const [previewTab, setPreviewTab] = useState<number>(0);
+  const [previewLoading, setPreviewLoading] = useState(false);
 
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const { showError, showSuccess } = useNotification();
@@ -171,35 +181,39 @@ export default function CorrespondencePage() {
   const handleOpenCreate = () => {
     const now = new Date();
     const currentTime = now.toTimeString().split(" ")[0].substring(0, 5);
+    setEvidenceReceptionFile(null);
+    setExistingReceptionMediaUrl(null);
+    setIsEditing(false);
+    setEditId(null);
     setFormData({
       date: now.toISOString().split("T")[0],
-      time: currentTime + ":00",
-      receivedTime: currentTime + ":00",
+      time: currentTime,
+      receivedTime: currentTime,
       destination: "",
       unitId: "",
       recipientResidentId: "",
       sender: "",
       courierCompany: "",
       trackingNumber: "",
-      receivedByName: session?.user?.fullName || "Portería Principal",
-      correspondenceType: "BOX",
+      receivedByName: session?.user?.fullName || "",
+      correspondenceType: "PACKAGE",
       observations: "",
     });
-    setIsEditing(false);
-    setEditId(null);
     setDialogOpen(true);
   };
 
   // Handler: Editar paquete
   const handleEdit = async (id: string) => {
     try {
+      setEvidenceReceptionFile(null);
+      setExistingReceptionMediaUrl(null);
       const data = await HttpClient.get<any>(`/operation/minuta/correspondence/${id}`);
       setEditId(id);
       setIsEditing(true);
       setFormData({
         date: data.date ? new Date(data.date).toISOString().split("T")[0] : "",
-        time: data.time ? formatTime(data.time) : "",
-        receivedTime: data.receivedTime ? formatTime(data.receivedTime) : "",
+        time: data.time ? formatTimeToHHmm(data.time) : "",
+        receivedTime: data.receivedTime ? formatTimeToHHmm(data.receivedTime) : (data.time ? formatTimeToHHmm(data.time) : ""),
         destination: data.destination || "",
         unitId: data.unitId || "",
         recipientResidentId: data.recipientResidentId || "",
@@ -207,9 +221,17 @@ export default function CorrespondencePage() {
         courierCompany: data.courierCompany || "",
         trackingNumber: data.trackingNumber || "",
         receivedByName: data.receivedByName || "",
-        correspondenceType: data.correspondenceType || "BOX",
+        correspondenceType: data.correspondenceType || "PACKAGE",
         observations: data.observations || "",
       });
+
+      // Cargar adjuntos de recepción existentes
+      const mediaList = await StorageApi.getByEntity(MediaTypeCategory.CORRESPONDENCE, id);
+      if (mediaList && mediaList.length > 0) {
+        const reception = mediaList.find((m: any) => m.s3Key?.includes("reception")) || mediaList[0];
+        setExistingReceptionMediaUrl(reception.presignedUrl || null);
+      }
+
       setDialogOpen(true);
     } catch {
       showError("Error al cargar la información del paquete");
@@ -238,11 +260,11 @@ export default function CorrespondencePage() {
     }));
   };
 
-  // Handler: Guardar paquete en recepción
+  // Handler: Guardar Recepción
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.destination.trim()) {
-      showError("El destino o unidad es requerido");
+      showError("Debes especificar el destino (Unidad o Apartamento)");
       return;
     }
 
@@ -266,12 +288,29 @@ export default function CorrespondencePage() {
         recipientResidentId: formData.recipientResidentId || null,
       };
 
+      let savedRecord: any;
       if (isEditing && editId) {
-        await HttpClient.patch(`/operation/minuta/correspondence/${editId}`, payload);
+        savedRecord = await HttpClient.patch(`/operation/minuta/correspondence/${editId}`, payload);
         showSuccess("Correspondencia actualizada exitosamente");
       } else {
-        await HttpClient.post("/operation/minuta/correspondence", payload);
+        savedRecord = await HttpClient.post("/operation/minuta/correspondence", payload);
         showSuccess("Correspondencia/domicilio registrado en portería");
+      }
+
+      const entityId = editId || savedRecord?.id;
+      if (evidenceReceptionFile && entityId) {
+        try {
+          await StorageApi.uploadMedia({
+            file: evidenceReceptionFile,
+            entityType: MediaTypeCategory.CORRESPONDENCE,
+            entityId,
+            clientId: activeClientId || null,
+            subType: "reception",
+          });
+          showSuccess("Foto del paquete en recepción guardada");
+        } catch (uploadErr) {
+          console.error("Upload error:", uploadErr);
+        }
       }
 
       setDialogOpen(false);
@@ -283,84 +322,32 @@ export default function CorrespondencePage() {
     }
   };
 
-  // Handler: Abrir Modal de Entrega con Evidencia Mockup
-  const handleOpenDelivery = (row: any) => {
+  // Handler: Abrir Modal de Entrega
+  const handleOpenDelivery = async (row: any) => {
     setSelectedRecordForDelivery(row);
     setDeliveredToName(
       row.recipientResidentName ||
         (row.recipientResident ? `${row.recipientResident.firstName} ${row.recipientResident.lastName}` : "")
     );
     setDeliveryNotes("");
-    setEvidencePhoto(null);
+    setEvidenceDeliveryFile(null);
+    setExistingDeliveryMediaUrl(null);
+    setReceptionPhotoUrlForDelivery(null);
+
+    // Cargar fotos asociadas al paquete
+    try {
+      const mediaList = await StorageApi.getByEntity(MediaTypeCategory.CORRESPONDENCE, row.id);
+      if (mediaList && mediaList.length > 0) {
+        const reception = mediaList.find((m: any) => m.s3Key?.includes("reception")) || mediaList[0];
+        const delivery = mediaList.find((m: any) => m.s3Key?.includes("delivery"));
+        if (reception) setReceptionPhotoUrlForDelivery(reception.presignedUrl || null);
+        if (delivery) setExistingDeliveryMediaUrl(delivery.presignedUrl || null);
+      } else if (row.deliveryEvidenceUrl && row.deliveryEvidenceUrl.startsWith("http")) {
+        setExistingDeliveryMediaUrl(row.deliveryEvidenceUrl);
+      }
+    } catch {}
+
     setDeliveryDialogOpen(true);
-  };
-
-  // Handler: Simulación de Captura Fotográfica para S3 Mockup
-  const handleSimulateCapture = () => {
-    const canvas = document.createElement("canvas");
-    canvas.width = 640;
-    canvas.height = 480;
-    const ctx = canvas.getContext("2d");
-    if (ctx) {
-      // Fondo degradado tecnológico
-      const grad = ctx.createLinearGradient(0, 0, 640, 480);
-      grad.addColorStop(0, "#1e293b");
-      grad.addColorStop(1, "#0f172a");
-      ctx.fillStyle = grad;
-      ctx.fillRect(0, 0, 640, 480);
-
-      // Marco de visor
-      ctx.strokeStyle = "#38bdf8";
-      ctx.lineWidth = 4;
-      ctx.strokeRect(30, 30, 580, 420);
-
-      // Textos de watermark
-      ctx.fillStyle = "#38bdf8";
-      ctx.font = "bold 22px sans-serif";
-      ctx.fillText("NOXIA SECURITY - COMPROBANTE DE ENTREGA", 50, 70);
-
-      ctx.fillStyle = "#ffffff";
-      ctx.font = "18px sans-serif";
-      ctx.fillText(`Destino: ${selectedRecordForDelivery?.unitName || selectedRecordForDelivery?.destination || "Unidad"}`, 50, 130);
-      ctx.fillText(`Guía: ${selectedRecordForDelivery?.trackingNumber || "Sin Guía"}`, 50, 170);
-      ctx.fillText(`Empresa: ${selectedRecordForDelivery?.courierCompany || "Mensajería Directa"}`, 50, 210);
-      ctx.fillText(`Receptor: ${deliveredToName || "Titular"}`, 50, 250);
-
-      ctx.fillStyle = "#94a3b8";
-      ctx.font = "15px sans-serif";
-      ctx.fillText(`Fecha y Hora: ${new Date().toLocaleString()}`, 50, 310);
-      ctx.fillText("Estado: EVIDENCIA VALIDADA PARA AMAZON S3", 50, 350);
-
-      // Sello Mockup
-      ctx.strokeStyle = "#22c55e";
-      ctx.lineWidth = 3;
-      ctx.beginPath();
-      ctx.arc(520, 380, 45, 0, 2 * Math.PI);
-      ctx.stroke();
-
-      ctx.fillStyle = "#22c55e";
-      ctx.font = "bold 14px sans-serif";
-      ctx.textAlign = "center";
-      ctx.fillText("ENTREGADO", 520, 375);
-      ctx.fillText("S3 MOCK", 520, 395);
-
-      const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
-      setEvidencePhoto(dataUrl);
-      showSuccess("Fotografía simulada de entrega generada (Mockup S3)");
-    }
-  };
-
-  // Handler: Subida de imagen real desde archivo o cámara
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        setEvidencePhoto(event.target?.result as string);
-        showSuccess("Fotografía cargada como evidencia de entrega");
-      };
-      reader.readAsDataURL(file);
-    }
   };
 
   // Handler: Confirmar Entrega
@@ -372,11 +359,27 @@ export default function CorrespondencePage() {
 
     setDelivering(true);
     try {
+      let uploadedUrl: string | undefined = undefined;
+
+      // 1. Subir fotografía de entrega si se adjuntó
+      if (evidenceDeliveryFile) {
+        try {
+          const media = await StorageApi.uploadMedia({
+            file: evidenceDeliveryFile,
+            entityType: MediaTypeCategory.CORRESPONDENCE,
+            entityId: selectedRecordForDelivery.id,
+            clientId: activeClientId || null,
+            subType: "delivery",
+          });
+          uploadedUrl = media.url;
+        } catch (s3Err) {
+          console.error("Error subiendo foto de entrega:", s3Err);
+        }
+      }
+
       const payload = {
         deliveredToName: deliveredToName.trim(),
-        deliveryEvidenceUrl:
-          evidencePhoto ||
-          `https://s3.amazonaws.com/noxia-evidence/correspondence/${selectedRecordForDelivery.id}_mock.jpg`,
+        deliveryEvidenceUrl: uploadedUrl || selectedRecordForDelivery.deliveryEvidenceUrl || null,
         deliveryNotes: deliveryNotes.trim() || null,
       };
 
@@ -395,6 +398,61 @@ export default function CorrespondencePage() {
     }
   };
 
+  // Handler: Ver detalle completo del registro
+  const handleViewDetail = async (row: any) => {
+    setDetailRecord(row);
+    setDetailPhotos({});
+    try {
+      const mediaList = await StorageApi.getByEntity(MediaTypeCategory.CORRESPONDENCE, row.id);
+      if (mediaList && mediaList.length > 0) {
+        const reception = mediaList.find((m: any) => m.s3Key?.includes("reception")) || mediaList[0];
+        const delivery = mediaList.find((m: any) => m.s3Key?.includes("delivery"));
+        setDetailPhotos({
+          receptionUrl: reception?.presignedUrl || null,
+          deliveryUrl: delivery?.presignedUrl || row.deliveryEvidenceUrl || null,
+        });
+      } else if (row.deliveryEvidenceUrl) {
+        setDetailPhotos({
+          receptionUrl: null,
+          deliveryUrl: row.deliveryEvidenceUrl,
+        });
+      }
+    } catch {}
+  };
+
+  // Handler: Ver evidencia fotográfica modal
+  const handleViewEvidence = async (row: any) => {
+    setPreviewLoading(true);
+    setPreviewPhotos({});
+    setPreviewTab(0);
+    setPreviewModalOpen(true);
+
+    try {
+      const mediaList = await StorageApi.getByEntity(MediaTypeCategory.CORRESPONDENCE, row.id);
+      if (mediaList && mediaList.length > 0) {
+        const reception = mediaList.find((m: any) => m.s3Key?.includes("reception")) || mediaList[0];
+        const delivery = mediaList.find((m: any) => m.s3Key?.includes("delivery"));
+        setPreviewPhotos({
+          receptionUrl: reception?.presignedUrl || null,
+          deliveryUrl: delivery?.presignedUrl || row.deliveryEvidenceUrl || null,
+        });
+        if (!reception && delivery) setPreviewTab(1);
+      } else if (row.deliveryEvidenceUrl) {
+        setPreviewPhotos({
+          receptionUrl: null,
+          deliveryUrl: row.deliveryEvidenceUrl,
+        });
+        setPreviewTab(1);
+      } else {
+        showError("No hay fotografías asociadas a este paquete");
+      }
+    } catch {
+      showError("Error al obtener la evidencia fotográfica");
+    } finally {
+      setPreviewLoading(false);
+    }
+  };
+
   // Handler: Eliminar
   const handleDelete = async (id: string) => {
     try {
@@ -402,21 +460,16 @@ export default function CorrespondencePage() {
       showSuccess("Registro de correspondencia eliminado");
       setRefreshTrigger((prev) => prev + 1);
     } catch (err: any) {
-      showError(err.message || "Error al eliminar");
+      showError(err.message || "Error al eliminar el registro");
     }
   };
-
-  // Filtrar residentes según la unidad seleccionada
-  const availableResidents = formData.unitId
-    ? residents.filter((r) => r.unitId === formData.unitId)
-    : residents;
 
   const endpoint = activeClientId
     ? `/operation/minuta/correspondence?clientId=${activeClientId}`
     : "/operation/minuta/correspondence";
 
   const columns: GridColDef[] = [
-    { field: "id", headerName: "ID", width: 80 },
+    { field: "id", headerName: "ID", width: 60 },
     {
       field: "date",
       headerName: "Fecha",
@@ -432,7 +485,7 @@ export default function CorrespondencePage() {
     {
       field: "destination",
       headerName: "Unidad / Destino",
-      width: 160,
+      width: 150,
       renderCell: (params) => {
         const dest =
           params.row.unitName ||
@@ -440,9 +493,9 @@ export default function CorrespondencePage() {
           params.row.destination ||
           "—";
         return (
-          <Box sx={{ display: "flex", alignItems: "center", gap: 0.8 }}>
+          <Box sx={{ display: "flex", alignItems: "center", height: "100%", gap: 0.8 }}>
             <HomeWorkIcon sx={{ fontSize: 18, color: "primary.main" }} />
-            <Typography variant="body2" sx={{ fontWeight: 600 }}>
+            <Typography variant="body2" sx={{ fontWeight: 600, lineHeight: 1.2 }}>
               {dest}
             </Typography>
           </Box>
@@ -452,7 +505,7 @@ export default function CorrespondencePage() {
     {
       field: "recipientResidentName",
       headerName: "Destinatario",
-      width: 180,
+      width: 170,
       renderCell: (params) => {
         const res =
           params.row.recipientResidentName ||
@@ -460,9 +513,11 @@ export default function CorrespondencePage() {
             ? `${params.row.recipientResident.firstName} ${params.row.recipientResident.lastName}`
             : "—");
         return (
-          <Box sx={{ display: "flex", alignItems: "center", gap: 0.6 }}>
+          <Box sx={{ display: "flex", alignItems: "center", height: "100%", gap: 0.6 }}>
             <PersonIcon sx={{ fontSize: 17, color: "text.secondary" }} />
-            <Typography variant="body2">{res}</Typography>
+            <Typography variant="body2" sx={{ lineHeight: 1.2 }}>
+              {res}
+            </Typography>
           </Box>
         );
       },
@@ -470,24 +525,65 @@ export default function CorrespondencePage() {
     {
       field: "courierCompany",
       headerName: "Mensajería",
-      width: 140,
-      renderCell: (params) => params.value || "Entrega Directa",
+      width: 130,
+      renderCell: (params) => (
+        <Box sx={{ display: "flex", alignItems: "center", height: "100%" }}>
+          <Typography variant="body2" sx={{ lineHeight: 1.2 }}>
+            {params.value || "Directa"}
+          </Typography>
+        </Box>
+      ),
     },
     {
       field: "trackingNumber",
       headerName: "N° Guía",
-      width: 130,
-      renderCell: (params) =>
-        params.value ? (
-          <Chip
-            size="small"
-            icon={<PackageIcon sx={{ fontSize: 14 }} />}
-            label={params.value}
-            sx={{ fontWeight: 600, fontSize: "0.72rem" }}
-          />
-        ) : (
-          "—"
-        ),
+      width: 120,
+      renderCell: (params) => (
+        <Box sx={{ display: "flex", alignItems: "center", height: "100%" }}>
+          {params.value ? (
+            <Chip
+              size="small"
+              icon={<PackageIcon sx={{ fontSize: 14 }} />}
+              label={params.value}
+              sx={{ fontWeight: 600, fontSize: "0.72rem" }}
+            />
+          ) : (
+            <Typography variant="body2" sx={{ color: "text.disabled" }}>
+              —
+            </Typography>
+          )}
+        </Box>
+      ),
+    },
+    {
+      field: "evidence",
+      headerName: "Evidencia",
+      width: 100,
+      sortable: false,
+      renderCell: (params) => {
+        const hasMedia =
+          (params.row.mediaAttachments && params.row.mediaAttachments.length > 0) ||
+          Boolean(params.row.deliveryEvidenceUrl);
+        return (
+          <Box sx={{ display: "flex", alignItems: "center", height: "100%" }}>
+            {!hasMedia ? (
+              <Typography variant="caption" sx={{ color: "text.disabled" }}>
+                —
+              </Typography>
+            ) : (
+              <Tooltip title="Ver evidencia fotográfica">
+                <IconButton
+                  size="small"
+                  color="primary"
+                  onClick={() => handleViewEvidence(params.row)}
+                >
+                  <CameraIcon sx={{ fontSize: 18 }} />
+                </IconButton>
+              </Tooltip>
+            )}
+          </Box>
+        );
+      },
     },
     {
       field: "deliveryAction",
@@ -496,9 +592,9 @@ export default function CorrespondencePage() {
       sortable: false,
       renderCell: (params) => {
         const isDelivered = params.row.status === "DELIVERED";
-        if (isDelivered) {
-          return (
-            <Stack direction="row" spacing={0.5} alignItems="center">
+        return (
+          <Box sx={{ display: "flex", alignItems: "center", height: "100%" }}>
+            {isDelivered ? (
               <Chip
                 size="small"
                 icon={<CheckCircleIcon sx={{ fontSize: 15 }} />}
@@ -506,71 +602,60 @@ export default function CorrespondencePage() {
                 color="success"
                 sx={{ fontWeight: 600, fontSize: "0.73rem" }}
               />
-              {params.row.deliveryEvidenceUrl && (
-                <Tooltip title="Ver evidencia fotográfica">
-                  <IconButton
-                    size="small"
-                    color="primary"
-                    onClick={() => setPreviewPhotoUrl(params.row.deliveryEvidenceUrl)}
-                  >
-                    <VisibilityIcon sx={{ fontSize: 16 }} />
-                  </IconButton>
-                </Tooltip>
-              )}
-            </Stack>
-          );
-        }
-        return (
-          <Button
-            size="small"
-            variant="contained"
-            color="primary"
-            startIcon={<LocalShippingIcon sx={{ fontSize: 15 }} />}
-            onClick={() => handleOpenDelivery(params.row)}
-            sx={{
-              textTransform: "none",
-              fontSize: "0.75rem",
-              fontWeight: 600,
-              py: 0.3,
-              px: 1.2,
-              borderRadius: 1.5,
-              boxShadow: "none",
-            }}
-          >
-            Entregar al Residente
-          </Button>
+            ) : (
+              <Button
+                size="small"
+                variant="contained"
+                color="primary"
+                startIcon={<LocalShippingIcon sx={{ fontSize: 15 }} />}
+                onClick={() => handleOpenDelivery(params.row)}
+                sx={{
+                  textTransform: "none",
+                  fontSize: "0.75rem",
+                  fontWeight: 600,
+                  py: 0.3,
+                  px: 1.2,
+                  borderRadius: 1.5,
+                  boxShadow: "none",
+                }}
+              >
+                Entregar al Residente
+              </Button>
+            )}
+          </Box>
         );
       },
-    },
-    {
-      field: "createdBy",
-      headerName: "Portero",
-      width: 140,
-      valueGetter: (value: any) => value || "Sistema",
     },
   ];
 
   return (
     <>
-      {/* Selector de Cliente para usuarios globales */}
       {isGlobalUser && (
         <Paper
           elevation={0}
           sx={{
-            p: 2,
+            p: { xs: 1.5, sm: 2 },
             mb: 2,
             borderRadius: 2,
             border: "1px solid",
             borderColor: "divider",
             display: "flex",
-            alignItems: "center",
-            gap: 2,
+            flexDirection: { xs: "column", sm: "row" },
+            alignItems: { xs: "stretch", sm: "center" },
+            gap: { xs: 1, sm: 2 },
           }}
         >
-          <Typography variant="body2" sx={{ fontWeight: 600, minWidth: 160 }}>
+          <Typography
+            variant="body2"
+            sx={{
+              fontWeight: 600,
+              minWidth: { xs: "auto", sm: 160 },
+              fontSize: { xs: "0.85rem", sm: "0.9rem" },
+            }}
+          >
             Conjunto / Cliente Activo:
           </Typography>
-          <FormControl size="small" sx={{ minWidth: 280 }}>
+          <FormControl size="small" sx={{ width: { xs: "100%", sm: 280 } }}>
             <Select
               value={selectedClientId}
               onChange={(e) => setSelectedClientId(e.target.value)}
@@ -594,111 +679,185 @@ export default function CorrespondencePage() {
         onCreate={canCreate ? handleOpenCreate : undefined}
         onEdit={canEdit ? (id) => handleEdit(id) : undefined}
         onDelete={canDelete ? handleDelete : undefined}
+        onView={handleViewDetail}
         refreshTrigger={refreshTrigger}
-        infoDescription="Recepción de correspondencia, encomiendas y paquetes en portería para su posterior entrega a los residentes."
-        infoInstructions={`1. Registra cada paquete o domicilio recibido vinculando la Unidad (apartamento) y destinatario.
-2. Al momento de entregar el paquete al residente en portería, pulsa 'Entregar al Residente', toma la fotografía de evidencia (Mockup S3) y confirma la entrega.`}
+        infoDescription="Control integral de paquetes, encomiendas y correspondencia recibida en portería y entregada a residentes."
+        infoInstructions={`1. Registra el paquete asociándolo a una Unidad/Apartamento con fotografía en recepción.
+2. Al entregar al residente, pulsa 'Entregar al Residente' para capturar la fotografía de entrega y registrar la firma de recepción.`}
       />
 
-      {/* Modal de Registro de Correspondencia */}
+      {/* Modal Detalle de Correspondencia */}
+      <DetailDialog
+        open={Boolean(detailRecord)}
+        onClose={() => setDetailRecord(null)}
+        title="Detalles del Paquete / Correspondencia"
+        headerContent={
+          (detailPhotos.receptionUrl || detailPhotos.deliveryUrl) && (
+            <Grid container spacing={2} sx={{ mb: 2 }}>
+              {detailPhotos.receptionUrl && (
+                <Grid size={detailPhotos.deliveryUrl ? 6 : 12}>
+                  <Typography variant="caption" sx={{ fontWeight: 700, color: "text.secondary", display: "block", mb: 0.5, textAlign: "center" }}>
+                    Foto en Recepción
+                  </Typography>
+                  <Box
+                    component="img"
+                    src={detailPhotos.receptionUrl}
+                    alt="Foto Recepción"
+                    sx={{ width: "100%", maxHeight: 180, objectFit: "contain", borderRadius: 2, border: "1px solid", borderColor: "divider", bgcolor: "black" }}
+                  />
+                </Grid>
+              )}
+              {detailPhotos.deliveryUrl && (
+                <Grid size={detailPhotos.receptionUrl ? 6 : 12}>
+                  <Typography variant="caption" sx={{ fontWeight: 700, color: "text.secondary", display: "block", mb: 0.5, textAlign: "center" }}>
+                    Foto en Entrega
+                  </Typography>
+                  <Box
+                    component="img"
+                    src={detailPhotos.deliveryUrl}
+                    alt="Foto Entrega"
+                    sx={{ width: "100%", maxHeight: 180, objectFit: "contain", borderRadius: 2, border: "1px solid", borderColor: "divider", bgcolor: "black" }}
+                  />
+                </Grid>
+              )}
+            </Grid>
+          )
+        }
+        fields={
+          detailRecord
+            ? [
+                { label: "ID Registro", value: detailRecord.id },
+                { label: "Fecha Recepción", value: formatDate(detailRecord.date) },
+                { label: "Hora Recepción", value: formatTime(detailRecord.receivedTime || detailRecord.time) },
+                {
+                  label: "Destino (Unidad)",
+                  value: detailRecord.unitName || detailRecord.destination || "N/A",
+                },
+                {
+                  label: "Destinatario",
+                  value: detailRecord.recipientResidentName || "Sin especificar",
+                },
+                { label: "Remitente", value: detailRecord.sender || "N/A" },
+                { label: "Empresa de Mensajería", value: detailRecord.courierCompany || "Directa" },
+                { label: "Número de Guía", value: detailRecord.trackingNumber || "Sin N°" },
+                {
+                  label: "Estado",
+                  value: (
+                    <Chip
+                      size="small"
+                      label={detailRecord.status === "DELIVERED" ? "Entregado" : "En Portería"}
+                      color={detailRecord.status === "DELIVERED" ? "success" : "warning"}
+                    />
+                  ),
+                },
+                { label: "Reclamado / Recibido Por", value: detailRecord.deliveredToName || "Pendiente de entrega" },
+                {
+                  label: "Fecha de Entrega",
+                  value: detailRecord.deliveredAt ? formatDateTime(detailRecord.deliveredAt) : "No entregado",
+                },
+                { label: "Recepcionado Por (Guardia)", value: detailRecord.receivedByName || detailRecord.createdBy || "Sistema" },
+                { label: "Observaciones / Estado del Paquete", value: detailRecord.observations || "Sin observaciones" },
+                { label: "Notas de Entrega", value: detailRecord.deliveryNotes || "Sin notas" },
+              ]
+            : []
+        }
+      />
+
+      {/* Modal de Registro / Edición de Recepción de Paquete */}
       <Dialog
         open={dialogOpen}
         onClose={() => !submitting && setDialogOpen(false)}
         maxWidth="md"
         fullWidth
-        PaperProps={{ sx: { borderRadius: 2.5 } }}
+        PaperProps={{ sx: { borderRadius: { xs: 2, sm: 2.5 }, m: { xs: 1.5, sm: 3 } } }}
       >
         <form onSubmit={handleSubmit}>
-          <DialogTitle sx={{ pb: 1, fontWeight: 700 }}>
-            {isEditing ? "Editar Correspondencia" : "Recepción de Paquete / Domicilio"}
+          <DialogTitle sx={{ pb: 1, fontWeight: 700, fontSize: { xs: "1.1rem", sm: "1.25rem" } }}>
+            {isEditing ? "Actualizar Paquete" : "Nuevo Ingreso de Paquete / Domicilio"}
           </DialogTitle>
-          <DialogContent dividers sx={{ pt: 2 }}>
+          <DialogContent dividers sx={{ pt: 2, px: { xs: 2, sm: 3 } }}>
             <Grid container spacing={2}>
-              {/* Sección Destino */}
-              <Grid size={12}>
-                <Typography
-                  variant="subtitle2"
-                  sx={{ color: "primary.main", fontWeight: 700, mb: 1, display: "flex", alignItems: "center", gap: 0.5 }}
-                >
-                  <HomeWorkIcon sx={{ fontSize: 18 }} /> 1. Unidad Habitacional y Destinatario
-                </Typography>
+              <Grid size={{ xs: 12, sm: 6 }}>
+                <TextField
+                  fullWidth
+                  size="small"
+                  type="date"
+                  label="Fecha"
+                  InputLabelProps={{ shrink: true }}
+                  value={formData.date}
+                  onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                  required
+                />
+              </Grid>
+              <Grid size={{ xs: 12, sm: 6 }}>
+                <TextField
+                  fullWidth
+                  size="small"
+                  type="time"
+                  label="Hora de Recepción"
+                  InputLabelProps={{ shrink: true }}
+                  value={formData.receivedTime || formData.time}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      time: e.target.value,
+                      receivedTime: e.target.value,
+                    })
+                  }
+                  required
+                />
               </Grid>
 
+              {/* Selector de Unidad */}
               <Grid size={{ xs: 12, sm: 6 }}>
-                <FormControl fullWidth size="small">
-                  <InputLabel id="corr-unit-label">Apartamento / Unidad</InputLabel>
+                <FormControl fullWidth size="small" required>
+                  <InputLabel id="unit-select-label">Unidad / Apartamento</InputLabel>
                   <Select
-                    labelId="corr-unit-label"
-                    label="Apartamento / Unidad"
+                    labelId="unit-select-label"
+                    label="Unidad / Apartamento"
                     value={formData.unitId}
                     onChange={(e) => handleSelectUnit(e.target.value)}
                   >
-                    <MenuItem value="">
-                      <em>-- Seleccionar Unidad --</em>
-                    </MenuItem>
                     {units.map((u) => (
                       <MenuItem key={u.id} value={u.id}>
-                        {u.unitName} {u.tower?.towerName ? `(Torre ${u.tower.towerName})` : ""}
+                        {u.unitName} {u.tower ? `(${u.tower.towerName})` : ""}
                       </MenuItem>
                     ))}
                   </Select>
                 </FormControl>
               </Grid>
 
+              {/* Selector de Residente Destinatario */}
               <Grid size={{ xs: 12, sm: 6 }}>
                 <FormControl fullWidth size="small">
-                  <InputLabel id="corr-resident-label">Residente Destinatario</InputLabel>
+                  <InputLabel id="resident-select-label">Residente Destinatario</InputLabel>
                   <Select
-                    labelId="corr-resident-label"
+                    labelId="resident-select-label"
                     label="Residente Destinatario"
                     value={formData.recipientResidentId}
                     onChange={(e) => handleSelectResident(e.target.value)}
                   >
-                    <MenuItem value="">
-                      <em>-- Seleccionar Residente --</em>
-                    </MenuItem>
-                    {availableResidents.map((r) => (
-                      <MenuItem key={r.id} value={r.id}>
-                        {r.firstName} {r.lastName} {r.unit?.unitName ? `[${r.unit.unitName}]` : ""}
-                      </MenuItem>
-                    ))}
+                    <MenuItem value="">— Seleccionar (Opcional) —</MenuItem>
+                    {residents
+                      .filter((r) => !formData.unitId || r.unitId === formData.unitId)
+                      .map((r) => (
+                        <MenuItem key={r.id} value={r.id}>
+                          {r.firstName} {r.lastName}
+                        </MenuItem>
+                      ))}
                   </Select>
                 </FormControl>
-              </Grid>
-
-              <Grid size={12}>
-                <TextField
-                  fullWidth
-                  size="small"
-                  required
-                  label="Destino (Texto Libre / Snapshot)"
-                  value={formData.destination}
-                  onChange={(e) => setFormData({ ...formData, destination: e.target.value })}
-                  placeholder="Ej: Torre 2 - Apartamento 401"
-                />
-              </Grid>
-
-              {/* Sección Paquetería */}
-              <Grid size={12} sx={{ mt: 1 }}>
-                <Typography
-                  variant="subtitle2"
-                  sx={{ color: "primary.main", fontWeight: 700, mb: 1, display: "flex", alignItems: "center", gap: 0.5 }}
-                >
-                  <PackageIcon sx={{ fontSize: 18 }} /> 2. Información del Paquete / Mensajería
-                </Typography>
               </Grid>
 
               <Grid size={{ xs: 12, sm: 6 }}>
                 <TextField
                   fullWidth
                   size="small"
-                  label="Empresa de Mensajería / Domicilio"
+                  label="Empresa de Mensajería (Servientrega, DHL, etc.)"
                   value={formData.courierCompany}
                   onChange={(e) => setFormData({ ...formData, courierCompany: e.target.value })}
-                  placeholder="Ej: Servientrega, Coordinadora, Rappi, Amazon"
                 />
               </Grid>
-
               <Grid size={{ xs: 12, sm: 6 }}>
                 <TextField
                   fullWidth
@@ -706,10 +865,18 @@ export default function CorrespondencePage() {
                   label="Número de Guía / Tracking"
                   value={formData.trackingNumber}
                   onChange={(e) => setFormData({ ...formData, trackingNumber: e.target.value })}
-                  placeholder="Ej: TRK-98765432"
                 />
               </Grid>
 
+              <Grid size={{ xs: 12, sm: 6 }}>
+                <TextField
+                  fullWidth
+                  size="small"
+                  label="Remitente / Tienda (Ej: MercadoLibre, Amazon)"
+                  value={formData.sender}
+                  onChange={(e) => setFormData({ ...formData, sender: e.target.value })}
+                />
+              </Grid>
               <Grid size={{ xs: 12, sm: 6 }}>
                 <FormControl fullWidth size="small">
                   <InputLabel id="corr-type-label">Tipo de Correspondencia</InputLabel>
@@ -719,46 +886,13 @@ export default function CorrespondencePage() {
                     value={formData.correspondenceType}
                     onChange={(e) => setFormData({ ...formData, correspondenceType: e.target.value })}
                   >
-                    <MenuItem value="BOX">Paquete / Encomienda</MenuItem>
-                    <MenuItem value="ENVELOPE">Sobre / Carta / Factura</MenuItem>
+                    <MenuItem value="PACKAGE">Paquete / Caja</MenuItem>
+                    <MenuItem value="LETTER">Sobre / Carta</MenuItem>
+                    <MenuItem value="DOCUMENT">Documento</MenuItem>
+                    <MenuItem value="FOOD_DELIVERY">Domicilio / Comida</MenuItem>
                     <MenuItem value="OTHER">Otro</MenuItem>
                   </Select>
                 </FormControl>
-              </Grid>
-
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <TextField
-                  fullWidth
-                  size="small"
-                  label="Remitente"
-                  value={formData.sender}
-                  onChange={(e) => setFormData({ ...formData, sender: e.target.value })}
-                  placeholder="Ej: MercadoLibre, Banco de Bogotá"
-                />
-              </Grid>
-
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <TextField
-                  fullWidth
-                  size="small"
-                  type="date"
-                  label="Fecha Recepción"
-                  value={formData.date}
-                  onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                  InputLabelProps={{ shrink: true }}
-                />
-              </Grid>
-
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <TextField
-                  fullWidth
-                  size="small"
-                  type="time"
-                  label="Hora Recepción"
-                  value={formData.receivedTime}
-                  onChange={(e) => setFormData({ ...formData, receivedTime: e.target.value })}
-                  InputLabelProps={{ shrink: true }}
-                />
               </Grid>
 
               <Grid size={12}>
@@ -773,31 +907,43 @@ export default function CorrespondencePage() {
                   placeholder="Ej: Caja cerrada, sin roturas evidentes..."
                 />
               </Grid>
+
+              {/* Fotografía de Recepción del Paquete */}
+              <Grid size={12}>
+                <ImageUploadCapture
+                  label="Foto del Paquete en Recepción"
+                  variant="evidence"
+                  value={evidenceReceptionFile}
+                  previewUrl={existingReceptionMediaUrl}
+                  onChange={setEvidenceReceptionFile}
+                  helperText="Toma una foto del paquete recibido para constatar su estado inicial en portería."
+                />
+              </Grid>
             </Grid>
           </DialogContent>
-          <DialogActions sx={{ px: 3, py: 2 }}>
-            <Button onClick={() => setDialogOpen(false)} color="inherit" disabled={submitting}>
+          <DialogActions sx={{ px: { xs: 2, sm: 3 }, py: 2, flexDirection: { xs: "column-reverse", sm: "row" }, gap: { xs: 1, sm: 0 } }}>
+            <Button onClick={() => setDialogOpen(false)} color="inherit" disabled={submitting} sx={{ width: { xs: "100%", sm: "auto" } }}>
               Cancelar
             </Button>
-            <Button type="submit" variant="contained" disabled={submitting} sx={{ fontWeight: 600 }}>
+            <Button type="submit" variant="contained" disabled={submitting} sx={{ fontWeight: 600, width: { xs: "100%", sm: "auto" } }}>
               {submitting ? "Guardando..." : isEditing ? "Actualizar" : "Registrar en Portería"}
             </Button>
           </DialogActions>
         </form>
       </Dialog>
 
-      {/* Modal de Entrega al Residente con Evidencia Fotográfica (Mockup S3) */}
+      {/* Modal de Entrega al Residente con Doble Evidencia */}
       <Dialog
         open={deliveryDialogOpen}
         onClose={() => !delivering && setDeliveryDialogOpen(false)}
         maxWidth="sm"
         fullWidth
-        PaperProps={{ sx: { borderRadius: 2.5 } }}
+        PaperProps={{ sx: { borderRadius: { xs: 2, sm: 2.5 }, m: { xs: 1.5, sm: 3 } } }}
       >
-        <DialogTitle sx={{ pb: 1, fontWeight: 700, display: "flex", alignItems: "center", gap: 1 }}>
+        <DialogTitle sx={{ pb: 1, fontWeight: 700, fontSize: { xs: "1.05rem", sm: "1.25rem" }, display: "flex", alignItems: "center", gap: 1 }}>
           <LocalShippingIcon color="primary" /> Entrega de Paquete al Residente
         </DialogTitle>
-        <DialogContent dividers sx={{ pt: 2 }}>
+        <DialogContent dividers sx={{ pt: 2, px: { xs: 2, sm: 3 } }}>
           <Stack spacing={2.5}>
             {/* Card resumen del paquete */}
             <Card variant="outlined" sx={{ bgcolor: "action.hover", borderRadius: 2 }}>
@@ -823,6 +969,21 @@ export default function CorrespondencePage() {
               </CardContent>
             </Card>
 
+            {/* Preview de la Foto del Paquete en Recepción */}
+            {receptionPhotoUrlForDelivery && (
+              <Box sx={{ border: "1px solid", borderColor: "divider", borderRadius: 2, p: 1.5, bgcolor: "background.paper" }}>
+                <Typography variant="caption" sx={{ fontWeight: 700, color: "text.secondary", display: "block", mb: 1 }}>
+                  📦 Fotografía del Paquete al ser Recibido en Portería:
+                </Typography>
+                <Box
+                  component="img"
+                  src={receptionPhotoUrlForDelivery}
+                  alt="Foto Recepción"
+                  sx={{ width: "100%", maxHeight: 160, objectFit: "contain", borderRadius: 1.5, bgcolor: "black" }}
+                />
+              </Box>
+            )}
+
             {/* Input persona que reclama */}
             <TextField
               fullWidth
@@ -834,104 +995,16 @@ export default function CorrespondencePage() {
               helperText="Indica el nombre completo de la persona o residente que recibe"
             />
 
-            {/* Módulo de Evidencia Fotográfica (Mockup S3) */}
+            {/* Input para la Segunda Fotografía: Foto del Residente Recibiendo */}
             <Box>
-              <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1, display: "flex", alignItems: "center", gap: 0.5 }}>
-                <CameraIcon sx={{ fontSize: 18, color: "primary.main" }} /> Evidencia Fotográfica de Entrega (Mockup S3)
-              </Typography>
-
-              <input
-                type="file"
-                accept="image/*"
-                capture="environment"
-                ref={fileInputRef}
-                style={{ display: "none" }}
-                onChange={handleFileChange}
+              <ImageUploadCapture
+                label="Foto del Residente Recibiendo el Paquete"
+                variant="evidence"
+                value={evidenceDeliveryFile}
+                previewUrl={existingDeliveryMediaUrl}
+                onChange={setEvidenceDeliveryFile}
+                helperText="Captura una foto de entrega en vivo o selecciona un archivo para soporte de entrega."
               />
-
-              {evidencePhoto ? (
-                <Box
-                  sx={{
-                    border: "2px solid",
-                    borderColor: "success.main",
-                    borderRadius: 2,
-                    p: 1,
-                    textAlign: "center",
-                    bgcolor: "background.paper",
-                  }}
-                >
-                  <Box
-                    component="img"
-                    src={evidencePhoto}
-                    alt="Evidencia de entrega"
-                    sx={{
-                      width: "100%",
-                      maxHeight: 220,
-                      objectFit: "contain",
-                      borderRadius: 1.5,
-                    }}
-                  />
-                  <Stack direction="row" spacing={1} justifyContent="center" alignItems="center" sx={{ mt: 1 }}>
-                    <Chip
-                      size="small"
-                      icon={<CloudDoneIcon sx={{ fontSize: 15 }} />}
-                      label="Evidencia Lista para Amazon S3 (Mockup)"
-                      color="success"
-                      sx={{ fontWeight: 600, fontSize: "0.75rem" }}
-                    />
-                    <Button
-                      size="small"
-                      color="error"
-                      variant="outlined"
-                      startIcon={<DeleteOutlineIcon sx={{ fontSize: 15 }} />}
-                      onClick={() => setEvidencePhoto(null)}
-                      sx={{ textTransform: "none", fontSize: "0.75rem" }}
-                    >
-                      Quitar
-                    </Button>
-                  </Stack>
-                </Box>
-              ) : (
-                <Box
-                  sx={{
-                    border: "2px dashed",
-                    borderColor: "primary.light",
-                    borderRadius: 2,
-                    p: 2.5,
-                    textAlign: "center",
-                    bgcolor: "action.hover",
-                  }}
-                >
-                  <CameraIcon sx={{ fontSize: 38, color: "primary.main", mb: 0.5 }} />
-                  <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                    Captura la foto de recepción como soporte
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1.5 }}>
-                    Esta evidencia se almacenará en Amazon S3 para auditoría y respaldo de la entrega.
-                  </Typography>
-                  <Stack direction="row" spacing={1} justifyContent="center" flexWrap="wrap">
-                    <Button
-                      size="small"
-                      variant="outlined"
-                      startIcon={<UploadIcon sx={{ fontSize: 16 }} />}
-                      onClick={() => fileInputRef.current?.click()}
-                      sx={{ textTransform: "none", fontSize: "0.75rem" }}
-                    >
-                      Subir / Cámara
-                    </Button>
-                    <Button
-                      size="small"
-                      variant="contained"
-                      color="secondary"
-                      startIcon={<CameraIcon sx={{ fontSize: 16 }} />}
-                      onClick={handleSimulateCapture}
-                      sx={{ textTransform: "none", fontSize: "0.75rem", fontWeight: 600 }}
-                    >
-                      Simular Foto Rápida (Mockup S3)
-                    </Button>
-                  </Stack>
-                </Box>
-              )}
             </Box>
 
             <TextField
@@ -946,8 +1019,8 @@ export default function CorrespondencePage() {
             />
           </Stack>
         </DialogContent>
-        <DialogActions sx={{ px: 3, py: 2 }}>
-          <Button onClick={() => setDeliveryDialogOpen(false)} color="inherit" disabled={delivering}>
+        <DialogActions sx={{ px: { xs: 2, sm: 3 }, py: 2, flexDirection: { xs: "column-reverse", sm: "row" }, gap: { xs: 1, sm: 0 } }}>
+          <Button onClick={() => setDeliveryDialogOpen(false)} color="inherit" disabled={delivering} sx={{ width: { xs: "100%", sm: "auto" } }}>
             Cancelar
           </Button>
           <Button
@@ -956,36 +1029,66 @@ export default function CorrespondencePage() {
             color="success"
             disabled={delivering || !deliveredToName.trim()}
             startIcon={<CheckCircleIcon />}
-            sx={{ fontWeight: 600 }}
+            sx={{ fontWeight: 600, width: { xs: "100%", sm: "auto" } }}
           >
             {delivering ? "Procesando Entrega..." : "Confirmar y Entregar Paquete"}
           </Button>
         </DialogActions>
       </Dialog>
 
-      {/* Modal de Previsualización de Foto Guardada */}
+      {/* Modal de Previsualización de Evidencia */}
       <Dialog
-        open={Boolean(previewPhotoUrl)}
-        onClose={() => setPreviewPhotoUrl(null)}
-        maxWidth="sm"
+        open={previewModalOpen}
+        onClose={() => setPreviewModalOpen(false)}
+        maxWidth="md"
         fullWidth
-        PaperProps={{ sx: { borderRadius: 2 } }}
+        PaperProps={{ sx: { borderRadius: { xs: 2, sm: 2.5 }, m: { xs: 1.5, sm: 3 } } }}
       >
-        <DialogTitle sx={{ pb: 1, fontWeight: 700 }}>
-          Soporte Fotográfico de Entrega
+        <DialogTitle sx={{ pb: 0, fontWeight: 700, fontSize: { xs: "1.1rem", sm: "1.25rem" } }}>
+          Soporte Fotográfico de Correspondencia
         </DialogTitle>
-        <DialogContent dividers sx={{ p: 2, textAlign: "center" }}>
-          {previewPhotoUrl && (
-            <Box
-              component="img"
-              src={previewPhotoUrl}
-              alt="Evidencia"
-              sx={{ width: "100%", maxHeight: 400, objectFit: "contain", borderRadius: 1.5 }}
-            />
+        <DialogContent dividers sx={{ p: { xs: 1.5, sm: 2 } }}>
+          {previewLoading ? (
+            <Box sx={{ py: 6, textAlign: "center" }}>
+              <CircularProgress color="primary" />
+            </Box>
+          ) : (
+            <Box>
+              <Tabs
+                value={previewTab}
+                onChange={(_, val) => setPreviewTab(val)}
+                sx={{ mb: 2, borderBottom: 1, borderColor: "divider" }}
+              >
+                <Tab label="Foto en Recepción" disabled={!previewPhotos.receptionUrl} />
+                <Tab label="Foto en Entrega" disabled={!previewPhotos.deliveryUrl} />
+              </Tabs>
+
+              {previewTab === 0 && previewPhotos.receptionUrl && (
+                <Box sx={{ bgcolor: "black", textAlign: "center", borderRadius: 2, p: 1 }}>
+                  <Box
+                    component="img"
+                    src={previewPhotos.receptionUrl}
+                    alt="Foto Recepción"
+                    sx={{ maxWidth: "100%", maxHeight: "65vh", objectFit: "contain", borderRadius: 1 }}
+                  />
+                </Box>
+              )}
+
+              {previewTab === 1 && previewPhotos.deliveryUrl && (
+                <Box sx={{ bgcolor: "black", textAlign: "center", borderRadius: 2, p: 1 }}>
+                  <Box
+                    component="img"
+                    src={previewPhotos.deliveryUrl}
+                    alt="Foto Entrega"
+                    sx={{ maxWidth: "100%", maxHeight: "65vh", objectFit: "contain", borderRadius: 1 }}
+                  />
+                </Box>
+              )}
+            </Box>
           )}
         </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setPreviewPhotoUrl(null)}>Cerrar</Button>
+        <DialogActions sx={{ px: 2, py: 1 }}>
+          <Button onClick={() => setPreviewModalOpen(false)}>Cerrar</Button>
         </DialogActions>
       </Dialog>
     </>

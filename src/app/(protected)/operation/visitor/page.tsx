@@ -24,6 +24,7 @@ import {
   Typography,
   Tooltip,
   IconButton,
+  CircularProgress,
 } from "@mui/material";
 import {
   Logout as LogoutIcon,
@@ -33,9 +34,13 @@ import {
   Badge as BadgeIcon,
   AccessTime as TimeIcon,
   Refresh as RefreshIcon,
+  CameraAlt as CameraIcon,
 } from "@mui/icons-material";
+import ImageUploadCapture from "@/components/common/ImageUploadCapture";
+import DetailDialog from "@/components/common/DetailDialog";
 import { HttpClient } from "@/lib/api/client";
-import { formatDate, formatTime } from "@/lib/formatters";
+import { StorageApi, MediaTypeCategory } from "@/lib/api/storage";
+import { formatDate, formatTime, formatDateTime, formatTimeToHHmm } from "@/lib/formatters";
 
 interface UnitOption {
   id: string;
@@ -89,6 +94,13 @@ export default function VisitorControlPage() {
     plate: "",
     observations: "",
   });
+
+  const [evidenceFile, setEvidenceFile] = useState<File | null>(null);
+  const [existingMediaUrl, setExistingMediaUrl] = useState<string | null>(null);
+  const [previewModalUrl, setPreviewModalUrl] = useState<string | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [detailRecord, setDetailRecord] = useState<any | null>(null);
+  const [detailImageUrl, setDetailImageUrl] = useState<string | null>(null);
 
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const { showError, showSuccess } = useNotification();
@@ -159,6 +171,8 @@ export default function VisitorControlPage() {
   const handleOpenCreate = () => {
     const now = new Date();
     const currentTime = now.toTimeString().split(" ")[0].substring(0, 5);
+    setEvidenceFile(null);
+    setExistingMediaUrl(null);
     setFormData({
       date: now.toISOString().split("T")[0],
       time: currentTime + ":00",
@@ -188,14 +202,16 @@ export default function VisitorControlPage() {
   // Handler: Editar registro
   const handleEdit = async (id: string) => {
     try {
+      setEvidenceFile(null);
+      setExistingMediaUrl(null);
       const data = await HttpClient.get<any>(`/operation/minuta/visitor/${id}`);
       setEditId(id);
       setIsEditing(true);
       setFormData({
         date: data.date ? new Date(data.date).toISOString().split("T")[0] : "",
-        time: data.time ? formatTime(data.time) : "",
-        entryTime: data.entryTime ? formatTime(data.entryTime) : "",
-        exitTime: data.exitTime ? formatTime(data.exitTime) : "",
+        time: data.time ? formatTimeToHHmm(data.time) : "",
+        entryTime: data.entryTime ? formatTimeToHHmm(data.entryTime) : (data.time ? formatTimeToHHmm(data.time) : ""),
+        exitTime: data.exitTime ? formatTimeToHHmm(data.exitTime) : "",
         visitorFullName: data.visitorFullName || "",
         visitorIdNumber: data.visitorIdNumber || "",
         visitorIdType: data.visitorIdType || "CC",
@@ -212,6 +228,13 @@ export default function VisitorControlPage() {
         plate: data.plate || "",
         observations: data.observations || "",
       });
+
+      // Load existing S3 media
+      const mediaList = await StorageApi.getByEntity(MediaTypeCategory.VISITOR, id);
+      if (mediaList && mediaList.length > 0) {
+        setExistingMediaUrl(mediaList[0].presignedUrl || null);
+      }
+
       setDialogOpen(true);
     } catch {
       showError("Error al cargar la información del visitante");
@@ -283,15 +306,33 @@ export default function VisitorControlPage() {
         payload.plate = formData.plate?.trim() || null;
       }
 
+      let savedRecord: any;
       if (isEditing && editId) {
         if (formData.exitTime) {
           payload.exitTime = formData.exitTime.length === 5 ? `${formData.exitTime}:00` : formData.exitTime;
         }
-        await HttpClient.patch(`/operation/minuta/visitor/${editId}`, payload);
+        savedRecord = await HttpClient.patch(`/operation/minuta/visitor/${editId}`, payload);
         showSuccess("Registro de visitante actualizado correctamente");
       } else {
-        await HttpClient.post("/operation/minuta/visitor", payload);
+        savedRecord = await HttpClient.post("/operation/minuta/visitor", payload);
         showSuccess("Ingreso de visitante registrado exitosamente");
+      }
+
+      const entityId = editId || savedRecord?.id;
+      if (evidenceFile && entityId) {
+        try {
+          await StorageApi.uploadMedia({
+            file: evidenceFile,
+            entityType: MediaTypeCategory.VISITOR,
+            entityId,
+            clientId: activeClientId || null,
+            subType: "visitor",
+          });
+          showSuccess("Fotografía/Evidencia de visitante subida a AWS S3");
+        } catch (uploadErr) {
+          console.error("S3 upload error:", uploadErr);
+          showError("Registro guardado, pero ocurrió un problema al subir la foto a S3");
+        }
       }
 
       setDialogOpen(false);
@@ -311,6 +352,47 @@ export default function VisitorControlPage() {
       setRefreshTrigger((prev) => prev + 1);
     } catch (err: any) {
       showError(err.message || "Error al registrar la salida");
+    }
+  };
+
+  // Handler: Ver Detalle
+  const handleViewDetail = async (row: any) => {
+    setDetailRecord(row);
+    setDetailImageUrl(null);
+    try {
+      if (row.mediaAttachments && row.mediaAttachments.length > 0) {
+        const res = await StorageApi.getPresignedUrl(row.mediaAttachments[0].id);
+        setDetailImageUrl(res.presignedUrl);
+      } else {
+        const mediaList = await StorageApi.getByEntity(MediaTypeCategory.VISITOR, row.id);
+        if (mediaList.length > 0 && mediaList[0].presignedUrl) {
+          setDetailImageUrl(mediaList[0].presignedUrl);
+        }
+      }
+    } catch {}
+  };
+
+  // Handler: Ver evidencia fotográfica
+  const handleViewEvidence = async (row: any) => {
+    setPreviewLoading(true);
+    setPreviewModalUrl(null);
+    try {
+      if (row.mediaAttachments && row.mediaAttachments.length > 0) {
+        const mediaId = row.mediaAttachments[0].id;
+        const res = await StorageApi.getPresignedUrl(mediaId);
+        setPreviewModalUrl(res.presignedUrl);
+      } else {
+        const mediaList = await StorageApi.getByEntity(MediaTypeCategory.VISITOR, row.id);
+        if (mediaList.length > 0 && mediaList[0].presignedUrl) {
+          setPreviewModalUrl(mediaList[0].presignedUrl);
+        } else {
+          showError("No hay fotografía/evidencia asociada a este visitante");
+        }
+      }
+    } catch {
+      showError("Error al obtener la imagen segura de AWS S3");
+    } finally {
+      setPreviewLoading(false);
     }
   };
 
@@ -335,7 +417,7 @@ export default function VisitorControlPage() {
     : "/operation/minuta/visitor";
 
   const columns: GridColDef[] = [
-    { field: "id", headerName: "ID", width: 80 },
+    { field: "id", headerName: "ID", width: 60 },
     {
       field: "date",
       headerName: "Fecha",
@@ -353,11 +435,14 @@ export default function VisitorControlPage() {
       headerName: "Visitante",
       width: 190,
       renderCell: (params) => (
-        <Box>
-          <Typography variant="body2" sx={{ fontWeight: 600, lineHeight: 1.2 }}>
+        <Box sx={{ display: "flex", flexDirection: "column", justifyContent: "center", height: "100%" }}>
+          <Typography variant="body2" sx={{ fontWeight: 600, lineHeight: 1.15 }}>
             {params.row.visitorFullName}
           </Typography>
-          <Typography variant="caption" sx={{ color: "text.secondary" }}>
+          <Typography
+            variant="caption"
+            sx={{ color: "text.secondary", lineHeight: 1, mt: "2px", fontSize: "0.75rem" }}
+          >
             {params.row.visitorIdType || "CC"} {params.row.visitorIdNumber}
           </Typography>
         </Box>
@@ -375,9 +460,9 @@ export default function VisitorControlPage() {
           params.row.destination ||
           "—";
         return (
-          <Box sx={{ display: "flex", alignItems: "center", gap: 0.8 }}>
+          <Box sx={{ display: "flex", alignItems: "center", height: "100%", gap: 0.8 }}>
             <HomeWorkIcon sx={{ fontSize: 18, color: "primary.main" }} />
-            <Typography variant="body2" sx={{ fontWeight: 600 }}>
+            <Typography variant="body2" sx={{ fontWeight: 600, lineHeight: 1.2 }}>
               {name}
             </Typography>
           </Box>
@@ -395,9 +480,11 @@ export default function VisitorControlPage() {
             ? `${params.row.resident.firstName} ${params.row.resident.lastName}`
             : params.row.hostName || params.row.authorizedByFullName || "—");
         return (
-          <Box sx={{ display: "flex", alignItems: "center", gap: 0.6 }}>
+          <Box sx={{ display: "flex", alignItems: "center", height: "100%", gap: 0.6 }}>
             <PersonIcon sx={{ fontSize: 17, color: "text.secondary" }} />
-            <Typography variant="body2">{res}</Typography>
+            <Typography variant="body2" sx={{ lineHeight: 1.2 }}>
+              {res}
+            </Typography>
           </Box>
         );
       },
@@ -408,22 +495,26 @@ export default function VisitorControlPage() {
       width: 120,
       renderCell: (params) => {
         const isVehicle = params.row.mode === "VEHICLE" || Boolean(params.row.plate);
-        return isVehicle ? (
-          <Chip
-            size="small"
-            icon={<CarIcon sx={{ fontSize: 15 }} />}
-            label={params.row.plate || "Vehicular"}
-            color="secondary"
-            variant="outlined"
-            sx={{ fontWeight: 600, fontSize: "0.72rem" }}
-          />
-        ) : (
-          <Chip
-            size="small"
-            label="Peatonal"
-            variant="outlined"
-            sx={{ fontSize: "0.72rem" }}
-          />
+        return (
+          <Box sx={{ display: "flex", alignItems: "center", height: "100%" }}>
+            {isVehicle ? (
+              <Chip
+                size="small"
+                icon={<CarIcon sx={{ fontSize: 15 }} />}
+                label={params.row.plate || "Vehicular"}
+                color="secondary"
+                variant="outlined"
+                sx={{ fontWeight: 600, fontSize: "0.72rem" }}
+              />
+            ) : (
+              <Chip
+                size="small"
+                label="Peatonal"
+                variant="outlined"
+                sx={{ fontSize: "0.72rem" }}
+              />
+            )}
+          </Box>
         );
       },
     },
@@ -431,17 +522,50 @@ export default function VisitorControlPage() {
       field: "ticketNumber",
       headerName: "Ficha",
       width: 90,
-      renderCell: (params) =>
-        params.value ? (
-          <Chip
-            size="small"
-            icon={<BadgeIcon sx={{ fontSize: 14 }} />}
-            label={params.value}
-            sx={{ fontWeight: 600, fontSize: "0.72rem" }}
-          />
-        ) : (
-          "—"
-        ),
+      renderCell: (params) => (
+        <Box sx={{ display: "flex", alignItems: "center", height: "100%" }}>
+          {params.value ? (
+            <Chip
+              size="small"
+              icon={<BadgeIcon sx={{ fontSize: 14 }} />}
+              label={params.value}
+              sx={{ fontWeight: 600, fontSize: "0.72rem" }}
+            />
+          ) : (
+            <Typography variant="body2" sx={{ color: "text.disabled" }}>
+              —
+            </Typography>
+          )}
+        </Box>
+      ),
+    },
+    {
+      field: "evidence",
+      headerName: "Evidencia",
+      width: 100,
+      sortable: false,
+      renderCell: (params) => {
+        const hasMedia = params.row.mediaAttachments?.length > 0;
+        return (
+          <Box sx={{ display: "flex", alignItems: "center", height: "100%" }}>
+            {!hasMedia ? (
+              <Typography variant="caption" sx={{ color: "text.disabled" }}>
+                —
+              </Typography>
+            ) : (
+              <Tooltip title="Ver evidencia fotográfica">
+                <IconButton
+                  size="small"
+                  color="primary"
+                  onClick={() => handleViewEvidence(params.row)}
+                >
+                  <CameraIcon sx={{ fontSize: 18 }} />
+                </IconButton>
+              </Tooltip>
+            )}
+          </Box>
+        );
+      },
     },
     {
       field: "exitAction",
@@ -450,40 +574,38 @@ export default function VisitorControlPage() {
       sortable: false,
       renderCell: (params) => {
         const hasExit = Boolean(params.row.exitTime || params.row.exitAt);
-        if (hasExit) {
-          return (
-            <Chip
-              size="small"
-              icon={<TimeIcon sx={{ fontSize: 15 }} />}
-              label={`Salió: ${formatTime(params.row.exitTime || params.row.exitAt)}`}
-              color="default"
-              variant="outlined"
-              sx={{ fontWeight: 500, fontSize: "0.75rem", bgcolor: "action.hover" }}
-            />
-          );
-        }
         return (
-          <Button
-            size="small"
-            variant="contained"
-            color="warning"
-            startIcon={<LogoutIcon sx={{ fontSize: 15 }} />}
-            onClick={() => handleMarkExit(params.row.id)}
-            sx={{
-              textTransform: "none",
-              fontSize: "0.75rem",
-              fontWeight: 600,
-              py: 0.3,
-              px: 1.2,
-              borderRadius: 1.5,
-              boxShadow: "none",
-              "&:hover": {
-                boxShadow: "0 2px 6px rgba(237, 108, 2, 0.35)",
-              },
-            }}
-          >
-            Marcar Salida
-          </Button>
+          <Box sx={{ display: "flex", alignItems: "center", height: "100%" }}>
+            {hasExit ? (
+              <Chip
+                size="small"
+                icon={<TimeIcon sx={{ fontSize: 15 }} />}
+                label={`Salió: ${formatTime(params.row.exitTime || params.row.exitAt)}`}
+                color="default"
+                variant="outlined"
+                sx={{ fontWeight: 500, fontSize: "0.75rem", bgcolor: "action.hover" }}
+              />
+            ) : (
+              <Button
+                size="small"
+                variant="contained"
+                color="warning"
+                startIcon={<LogoutIcon sx={{ fontSize: 15 }} />}
+                onClick={() => handleMarkExit(params.row.id)}
+                sx={{
+                  textTransform: "none",
+                  fontSize: "0.75rem",
+                  fontWeight: 600,
+                  py: 0.3,
+                  px: 1.2,
+                  borderRadius: 1.5,
+                  boxShadow: "none",
+                }}
+              >
+                Marcar Salida
+              </Button>
+            )}
+          </Box>
         );
       },
     },
@@ -502,20 +624,28 @@ export default function VisitorControlPage() {
         <Paper
           elevation={0}
           sx={{
-            p: 2,
+            p: { xs: 1.5, sm: 2 },
             mb: 2,
             borderRadius: 2,
             border: "1px solid",
             borderColor: "divider",
             display: "flex",
-            alignItems: "center",
-            gap: 2,
+            flexDirection: { xs: "column", sm: "row" },
+            alignItems: { xs: "stretch", sm: "center" },
+            gap: { xs: 1, sm: 2 },
           }}
         >
-          <Typography variant="body2" sx={{ fontWeight: 600, minWidth: 160 }}>
+          <Typography
+            variant="body2"
+            sx={{
+              fontWeight: 600,
+              minWidth: { xs: "auto", sm: 160 },
+              fontSize: { xs: "0.85rem", sm: "0.9rem" },
+            }}
+          >
             Conjunto / Cliente Activo:
           </Typography>
-          <FormControl size="small" sx={{ minWidth: 280 }}>
+          <FormControl size="small" sx={{ width: { xs: "100%", sm: 280 } }}>
             <Select
               value={selectedClientId}
               onChange={(e) => setSelectedClientId(e.target.value)}
@@ -539,10 +669,86 @@ export default function VisitorControlPage() {
         onCreate={canCreate ? handleOpenCreate : undefined}
         onEdit={canEdit ? (id) => handleEdit(id) : undefined}
         onDelete={canDelete ? handleDelete : undefined}
+        onView={handleViewDetail}
         refreshTrigger={refreshTrigger}
         infoDescription="Control de accesos y permanencia de visitantes en el conjunto residencial o sede corporativa."
         infoInstructions={`1. Registra el visitante vinculando obligatoriamente la Unidad y el Residente que autoriza su entrada.
 2. Cuando el visitante se retire del predio, pulsa el botón 'Marcar Salida' en su fila correspondiente para cerrar el ciclo.`}
+      />
+
+      {/* Modal Detalle de Visitante */}
+      <DetailDialog
+        open={Boolean(detailRecord)}
+        onClose={() => setDetailRecord(null)}
+        title="Detalles del Ingreso de Visitante"
+        headerContent={
+          detailImageUrl && (
+            <Box sx={{ mb: 2, textAlign: "center" }}>
+              <Box
+                component="img"
+                src={detailImageUrl}
+                alt="Foto Visitante"
+                sx={{
+                  maxHeight: 220,
+                  maxWidth: "100%",
+                  objectFit: "contain",
+                  borderRadius: 2,
+                  border: "1px solid",
+                  borderColor: "divider",
+                  boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+                }}
+              />
+            </Box>
+          )
+        }
+        fields={
+          detailRecord
+            ? [
+                { label: "ID Registro", value: detailRecord.id },
+                { label: "Fecha", value: formatDate(detailRecord.date) },
+                { label: "Hora Ingreso", value: formatTime(detailRecord.entryTime || detailRecord.time) },
+                {
+                  label: "Hora Salida",
+                  value: detailRecord.exitTime ? formatTime(detailRecord.exitTime) : (
+                    <Chip size="small" label="Dentro del predio" color="warning" />
+                  ),
+                },
+                { label: "Visitante", value: detailRecord.visitorFullName },
+                {
+                  label: "Documento",
+                  value: `${detailRecord.visitorIdType || "CC"}: ${detailRecord.visitorIdNumber}`,
+                },
+                { label: "N° Personas", value: detailRecord.peopleCount || 1 },
+                {
+                  label: "Tipo Acceso",
+                  value: (
+                    <Chip
+                      size="small"
+                      label={detailRecord.mode === "VEHICLE" || detailRecord.plate ? `Vehicular (${detailRecord.plate || "Sin Placa"})` : "Peatonal"}
+                      color={detailRecord.mode === "VEHICLE" || detailRecord.plate ? "secondary" : "default"}
+                    />
+                  ),
+                },
+                { label: "Ficha / Ticket", value: detailRecord.ticketNumber || "N/A" },
+                {
+                  label: "Unidad / Destino",
+                  value: detailRecord.unitName || detailRecord.destinationApartment || "N/A",
+                },
+                {
+                  label: "Residente Anfitrión",
+                  value: detailRecord.residentName || detailRecord.hostName || "N/A",
+                },
+                { label: "Autorizado Por", value: detailRecord.authorizedByFullName || "N/A" },
+                { label: "Marca / Color Vehículo", value: detailRecord.brand ? `${detailRecord.brand}` : "N/A" },
+                { label: "Creado Por", value: detailRecord.createdBy || "Sistema" },
+                {
+                  label: "Fecha Creación",
+                  value: formatDateTime(detailRecord.createdAt || detailRecord.date),
+                },
+                { label: "Observaciones", value: detailRecord.observations || "Sin observaciones" },
+              ]
+            : []
+        }
       />
 
       {/* Modal de Registro / Edición de Visitante */}
@@ -551,13 +757,13 @@ export default function VisitorControlPage() {
         onClose={() => !submitting && setDialogOpen(false)}
         maxWidth="md"
         fullWidth
-        PaperProps={{ sx: { borderRadius: 2.5 } }}
+        PaperProps={{ sx: { borderRadius: { xs: 2, sm: 2.5 }, m: { xs: 1.5, sm: 3 } } }}
       >
         <form onSubmit={handleSubmit}>
-          <DialogTitle sx={{ pb: 1, fontWeight: 700 }}>
+          <DialogTitle sx={{ pb: 1, fontWeight: 700, fontSize: { xs: "1.1rem", sm: "1.25rem" } }}>
             {isEditing ? "Actualizar Registro de Visitante" : "Nuevo Ingreso de Visitante"}
           </DialogTitle>
-          <DialogContent dividers sx={{ pt: 2 }}>
+          <DialogContent dividers sx={{ pt: 2, px: { xs: 2, sm: 3 } }}>
             <Grid container spacing={2}>
               {/* Sección 1: Vinculación a Unidad y Residente */}
               <Grid size={12}>
@@ -797,17 +1003,61 @@ export default function VisitorControlPage() {
                   placeholder="Detalles sobre el ingreso o pertenencias..."
                 />
               </Grid>
+
+              {/* Sección 4: Evidencia Fotográfica (S3) */}
+              <Grid size={12} sx={{ mt: 1 }}>
+                <Typography
+                  variant="subtitle2"
+                  sx={{ color: "primary.main", fontWeight: 700, mb: 0.5, display: "flex", alignItems: "center", gap: 0.5 }}
+                >
+                  <CameraIcon sx={{ fontSize: 18 }} /> 4. Evidencia Fotográfica (AWS S3)
+                </Typography>
+                <ImageUploadCapture
+                  label="Fotografía del Visitante / Documento / Vehículo"
+                  variant="evidence"
+                  value={evidenceFile}
+                  previewUrl={existingMediaUrl}
+                  onChange={setEvidenceFile}
+                  helperText="Toma una foto en vivo con la cámara o selecciona una imagen de tu dispositivo."
+                />
+              </Grid>
             </Grid>
           </DialogContent>
-          <DialogActions sx={{ px: 3, py: 2 }}>
-            <Button onClick={() => setDialogOpen(false)} color="inherit" disabled={submitting}>
+          <DialogActions sx={{ px: { xs: 2, sm: 3 }, py: 2, flexDirection: { xs: "column-reverse", sm: "row" }, gap: { xs: 1, sm: 0 } }}>
+            <Button onClick={() => setDialogOpen(false)} color="inherit" disabled={submitting} sx={{ width: { xs: "100%", sm: "auto" } }}>
               Cancelar
             </Button>
-            <Button type="submit" variant="contained" disabled={submitting} sx={{ fontWeight: 600 }}>
+            <Button type="submit" variant="contained" disabled={submitting} sx={{ fontWeight: 600, width: { xs: "100%", sm: "auto" } }}>
               {submitting ? "Guardando..." : isEditing ? "Actualizar Registro" : "Registrar Ingreso"}
             </Button>
           </DialogActions>
         </form>
+      </Dialog>
+
+      {/* Modal Visor de Evidencia */}
+      <Dialog
+        open={Boolean(previewModalUrl || previewLoading)}
+        onClose={() => setPreviewModalUrl(null)}
+        maxWidth="md"
+        PaperProps={{ sx: { borderRadius: { xs: 2, sm: 2.5 }, m: { xs: 1.5, sm: 3 } } }}
+      >
+        <DialogContent sx={{ p: 1, bgcolor: "black", textAlign: "center", minWidth: { xs: 260, sm: 320 }, minHeight: 240, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          {previewLoading ? (
+            <CircularProgress color="primary" />
+          ) : (
+            previewModalUrl && (
+              <Box
+                component="img"
+                src={previewModalUrl}
+                alt="Foto Visitante"
+                sx={{ maxWidth: "100%", maxHeight: "80vh", objectFit: "contain", borderRadius: 1 }}
+              />
+            )
+          )}
+        </DialogContent>
+        <DialogActions sx={{ bgcolor: "background.paper", px: 2, py: 1 }}>
+          <Button onClick={() => setPreviewModalUrl(null)}>Cerrar</Button>
+        </DialogActions>
       </Dialog>
     </>
   );
