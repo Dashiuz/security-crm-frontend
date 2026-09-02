@@ -28,6 +28,7 @@ import {
 import { GridColDef } from "@mui/x-data-grid";
 import { z } from "zod";
 import { HttpClient } from "@/lib/api/client";
+import { useAuth } from "@/components/AuthContext";
 
 // --- Role Edit Dialog (Consolidated) ---
 
@@ -46,10 +47,19 @@ function RoleEditDialog({
   allPermissions,
   onSuccess,
 }: RoleEditDialogProps) {
+  const { session } = useAuth();
   const [name, setName] = useState("");
   const [selectedPermissions, setSelectedPermissions] = useState<string[]>([]);
   const [tabIndex, setTabIndex] = useState(0);
   const { showError, showSuccess } = useNotification();
+
+  const isGodlike = Boolean(
+    session?.permissions?.includes("godlike:manage"),
+  );
+
+  const visiblePermissions = isGodlike
+    ? allPermissions
+    : allPermissions.filter((p) => !p.key.startsWith("godlike:"));
 
   useEffect(() => {
     if (open && role) {
@@ -78,8 +88,14 @@ function RoleEditDialog({
   };
 
   const categories = Array.from(
-    new Set(allPermissions.map((p) => p.key.split(":")[0])),
+    new Set(visiblePermissions.map((p) => p.key.split(":")[0])),
   ).sort((a, b) => (categoryOrder[a] || 99) - (categoryOrder[b] || 99));
+
+  useEffect(() => {
+    if (tabIndex >= categories.length && categories.length > 0) {
+      setTabIndex(0);
+    }
+  }, [categories.length, tabIndex]);
 
   const togglePermission = (key: string) => {
     setSelectedPermissions((prev) =>
@@ -160,7 +176,7 @@ function RoleEditDialog({
 
             <Box sx={{ minHeight: 200 }}>
               <FormGroup row>
-                {allPermissions
+                {visiblePermissions
                   .filter((p) => p.key.startsWith(categories[tabIndex] + ":"))
                   .map((perm) => (
                     <FormControlLabel
