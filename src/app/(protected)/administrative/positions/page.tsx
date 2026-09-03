@@ -10,8 +10,10 @@ import { HttpClient } from "@/lib/api/client";
 
 import DetailDialog from "@/components/common/DetailDialog";
 import PromptConfirmDialog from "@/components/common/PromptConfirmDialog";
+import CsvImportDialog from "@/components/common/CsvImportDialog";
 import { formatDateTime } from "@/lib/formatters";
-import { Chip } from "@mui/material";
+import { Chip, Button } from "@mui/material";
+import { CloudUpload as CloudUploadIcon } from "@mui/icons-material";
 
 const schema = z.object({
   name: z.string().min(1, "El nombre es requerido").max(100),
@@ -61,9 +63,10 @@ export default function PositionsPage() {
   const [defaultValues, setDefaultValues] = useState<
     PositionForm | undefined
   >();
+  const [csvImportOpen, setCsvImportOpen] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [loading, setLoading] = useState(false);
-  const { showError } = useNotification();
+  const { showError, showSuccess } = useNotification();
 
   const handleCreate = () => {
     setSelectedId(null);
@@ -128,6 +131,25 @@ export default function PositionsPage() {
     }
   };
 
+  const handleImport = async (data: Array<Record<string, string>>, fileName: string) => {
+    try {
+      const response = await HttpClient.post<{
+        status: string;
+        totalRows: number;
+        successRows: number;
+        errorRows: number;
+        errors?: Array<{ row: number; reason: string }>;
+      }>("/position/import/csv", {
+        data,
+        fileName,
+      });
+      return response;
+    } catch (error: any) {
+      showError(error.message || "Error al importar el archivo CSV.");
+      throw error;
+    }
+  };
+
   return (
     <>
       <DataTable
@@ -140,6 +162,25 @@ export default function PositionsPage() {
         onDelete={handleDeleteRequest}
         onView={handleView}
         refreshTrigger={refreshTrigger}
+        extraHeaderActions={
+          <Button
+            variant="outlined"
+            size="small"
+            startIcon={<CloudUploadIcon />}
+            onClick={() => setCsvImportOpen(true)}
+            sx={{
+              textTransform: "none",
+              fontWeight: 600,
+              fontSize: { xs: "0.8rem", sm: "0.85rem" },
+              py: { xs: 0.75, sm: 0.65 },
+              px: { xs: 1.8, sm: 2.2 },
+              borderRadius: 2,
+              whiteSpace: "nowrap",
+            }}
+          >
+            Cargar CSV
+          </Button>
+        }
         infoDescription="Administración de los cargos laborales definidos en la organización."
         infoInstructions={`Asigna un nombre descriptivo a cada cargo para facilitar la clasificación de los empleados.
 Haz clic en el icono de ojo para ver quién creó el registro.
@@ -198,6 +239,23 @@ Para inhabilitar un cargo, confirma ingresando su nombre exacto.`}
         fields={fields}
         defaultValues={defaultValues}
         loading={loading}
+      />
+
+      <CsvImportDialog
+        open={csvImportOpen}
+        onClose={() => setCsvImportOpen(false)}
+        title="Importar Posiciones / Cargos"
+        templateColumns={["Nombre", "Nivel", "EstadoActivo"]}
+        onImport={handleImport}
+        onSuccessRedirect={(result) => {
+          setCsvImportOpen(false);
+          setRefreshTrigger((prev) => prev + 1);
+          if (result?.status === 'SUCCESS') {
+            showSuccess("Importación masiva completada con éxito");
+          } else if (result?.status === 'PARTIAL') {
+            showSuccess("Importación masiva completada parcialmente. Revisa las advertencias.");
+          }
+        }}
       />
     </>
   );

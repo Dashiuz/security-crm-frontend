@@ -12,8 +12,10 @@ import {
   PersonOff as PersonOffIcon,
   PersonAdd as PersonAddIcon,
   Badge as BadgeIcon,
+  CloudUpload as CloudUploadIcon,
 } from "@mui/icons-material";
-import { Chip, Box, Avatar, Typography, Stack } from "@mui/material";
+import CsvImportDialog from "@/components/common/CsvImportDialog";
+import { Chip, Box, Avatar, Typography, Stack, Button } from "@mui/material";
 import { z } from "zod";
 import { HttpClient } from "@/lib/api/client";
 import { StorageApi, MediaTypeCategory } from "@/lib/api/storage";
@@ -56,6 +58,8 @@ export default function EmployeesPage() {
   // Avatar / S3 States
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [existingAvatarUrl, setExistingAvatarUrl] = useState<string | null>(null);
+
+  const [csvImportOpen, setCsvImportOpen] = useState(false);
 
   const [clients, setClients] = useState<{ value: string; label: string }[]>([]);
   const [departments, setDepartments] = useState<
@@ -306,6 +310,25 @@ export default function EmployeesPage() {
     }
   };
 
+  const handleImport = async (data: Array<Record<string, string>>, fileName: string) => {
+    try {
+      const response = await HttpClient.post<{
+        status: string;
+        totalRows: number;
+        successRows: number;
+        errorRows: number;
+        errors?: Array<{ row: number; reason: string }>;
+      }>("/employee/import/csv", {
+        data,
+        fileName,
+      });
+      return response;
+    } catch (error: any) {
+      showError(error.message || "Error al importar el archivo CSV.");
+      throw error;
+    }
+  };
+
   const columns: GridColDef[] = [
     {
       field: "fullName",
@@ -387,6 +410,25 @@ export default function EmployeesPage() {
         onView={handleView}
         customActions={customActions}
         refreshTrigger={refreshTrigger}
+        extraHeaderActions={
+          <Button
+            variant="outlined"
+            size="small"
+            startIcon={<CloudUploadIcon />}
+            onClick={() => setCsvImportOpen(true)}
+            sx={{
+              textTransform: "none",
+              fontWeight: 600,
+              fontSize: { xs: "0.8rem", sm: "0.85rem" },
+              py: { xs: 0.75, sm: 0.65 },
+              px: { xs: 1.8, sm: 2.2 },
+              borderRadius: 2,
+              whiteSpace: "nowrap",
+            }}
+          >
+            Cargar CSV
+          </Button>
+        }
         infoDescription="Registro y control de la información del personal de la empresa, incluyendo fotografía en vivo, datos de identificación, contacto y vinculación organizacional."
         infoInstructions={`Utiliza el botón 'Crear' para registrar un nuevo empleado con captura de foto en vivo o subida de archivo.
 Haz clic en el icono de ojo para ver los detalles y fotografía en alta resolución del empleado.
@@ -528,6 +570,38 @@ Haz clic en el icono de baja para retirar al empleado o en la persona con signo 
             />
           </Box>
         }
+      />
+
+      <CsvImportDialog
+        open={csvImportOpen}
+        onClose={() => setCsvImportOpen(false)}
+        title="Importar Empleados"
+        templateColumns={[
+          "Nombre",
+          "SegundoNombre",
+          "Apellido",
+          "SegundoApellido",
+          "TipoDocumento",
+          "Documento",
+          "FechaNacimiento",
+          "Genero",
+          "Direccion",
+          "Telefono",
+          "Email",
+          "FechaIngreso",
+          "Cargo",
+          "Departamento",
+        ]}
+        onImport={handleImport}
+        onSuccessRedirect={(result) => {
+          setCsvImportOpen(false);
+          setRefreshTrigger((prev) => prev + 1);
+          if (result?.status === 'SUCCESS') {
+            showSuccess("Importación masiva completada con éxito");
+          } else if (result?.status === 'PARTIAL') {
+            showSuccess("Importación masiva completada parcialmente. Revisa las advertencias.");
+          }
+        }}
       />
     </>
   );

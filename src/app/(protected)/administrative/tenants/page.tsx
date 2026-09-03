@@ -9,7 +9,12 @@ import { HttpClient } from "@/lib/api/client";
 import { AuthService } from "@/lib/api/auth";
 import { Box, Typography, Chip } from "@mui/material";
 import { GridActionsCellItem } from "@mui/x-data-grid";
-import { Login as LoginIcon } from "@mui/icons-material";
+import {
+  Login as LoginIcon,
+  Block as BlockIcon,
+  CheckCircleOutline as CheckCircleIcon,
+} from "@mui/icons-material";
+import PromptConfirmDialog from "@/components/common/PromptConfirmDialog";
 
 interface Tenant {
   id: string;
@@ -51,8 +56,9 @@ export default function TenantsPage() {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingTenant, setEditingTenant] = useState<Tenant | null>(null);
   const [detailTenant, setDetailTenant] = useState<Tenant | null>(null);
+  const [statusTargetTenant, setStatusTargetTenant] = useState<Tenant | null>(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
-  const { showError } = useNotification();
+  const { showSuccess, showError } = useNotification();
 
   useEffect(() => {
     const loadFeatures = async () => {
@@ -80,17 +86,29 @@ export default function TenantsPage() {
     setDetailTenant(row as Tenant);
   };
 
-  const handleDelete = async (id: string) => {
+  const handleConfirmToggleStatus = async () => {
+    if (!statusTargetTenant) return;
+    if (statusTargetTenant.slug === "system" || statusTargetTenant.id === "system") {
+      showError("No es posible desactivar la empresa maestra del sistema.");
+      setStatusTargetTenant(null);
+      return;
+    }
+    const newStatus = !statusTargetTenant.isActive;
     try {
-      const target = await HttpClient.get<Tenant>(`/tenants/${id}`);
-      if (target?.slug === "system" || id === "system") {
-        showError("No es posible eliminar el tenant maestro del sistema.");
-        return;
-      }
-      await HttpClient.delete(`/tenants/${id}`);
+      await HttpClient.patch(`/tenants/${statusTargetTenant.id}`, {
+        isActive: newStatus,
+      });
+      showSuccess(
+        `Empresa "${statusTargetTenant.name}" ${newStatus ? "activada" : "desactivada"} exitosamente.`
+      );
       setRefreshTrigger((prev) => prev + 1);
     } catch (error: any) {
-      showError(error.message || "Error al eliminar la empresa");
+      showError(
+        error.message ||
+          `Error al ${newStatus ? "activar" : "desactivar"} la empresa`
+      );
+    } finally {
+      setStatusTargetTenant(null);
     }
   };
 
@@ -107,15 +125,42 @@ export default function TenantsPage() {
     if (row.slug === "system" || row.id === "system") {
       return [];
     }
-    return [
+    const actions = [
       <GridActionsCellItem
         key={`impersonate-${row.id}`}
         icon={<LoginIcon color="success" />}
         label="Administrar"
+        title="Administrar Empresa"
         showInMenu={false}
         onClick={() => handleImpersonate(row.id)}
       />,
     ];
+
+    if (row.isActive) {
+      actions.push(
+        <GridActionsCellItem
+          key={`deactivate-${row.id}`}
+          icon={<BlockIcon color="error" />}
+          label="Desactivar"
+          title="Desactivar Empresa"
+          showInMenu={false}
+          onClick={() => setStatusTargetTenant(row as Tenant)}
+        />
+      );
+    } else {
+      actions.push(
+        <GridActionsCellItem
+          key={`activate-${row.id}`}
+          icon={<CheckCircleIcon color="success" />}
+          label="Activar"
+          title="Activar Empresa"
+          showInMenu={false}
+          onClick={() => setStatusTargetTenant(row as Tenant)}
+        />
+      );
+    }
+
+    return actions;
   };
 
   const handleFormSubmit = async (data: TenantFormData) => {
@@ -217,7 +262,6 @@ export default function TenantsPage() {
         ]}
         onCreate={handleCreate}
         onEdit={handleEdit}
-        onDelete={handleDelete}
         onView={handleView}
         customActions={customActions}
         refreshTrigger={refreshTrigger}
@@ -261,6 +305,30 @@ export default function TenantsPage() {
               ]
             : []
         }
+      />
+
+      <PromptConfirmDialog
+        open={Boolean(statusTargetTenant)}
+        onClose={() => setStatusTargetTenant(null)}
+        onConfirm={handleConfirmToggleStatus}
+        title={
+          statusTargetTenant?.isActive
+            ? "Desactivar Empresa"
+            : "Activar Empresa"
+        }
+        description={
+          statusTargetTenant?.isActive
+            ? `Para confirmar la desactivación de la empresa "${statusTargetTenant?.name}", por favor ingrese su nombre exacto. Los usuarios de esta empresa no podrán iniciar sesión:`
+            : `Para reactivar la empresa "${statusTargetTenant?.name}" y permitir nuevamente el acceso a sus usuarios, por favor ingrese su nombre exacto:`
+        }
+        expectedValue={statusTargetTenant?.name || ""}
+        inputLabel="Nombre de la Empresa"
+        confirmButtonText={
+          statusTargetTenant?.isActive
+            ? "Desactivar Empresa"
+            : "Activar Empresa"
+        }
+        confirmColor={statusTargetTenant?.isActive ? "error" : "primary"}
       />
 
       <FormDialog
