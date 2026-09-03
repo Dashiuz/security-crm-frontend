@@ -60,6 +60,7 @@ interface DataTableProps {
   rows?: any[];
   hideCreateButton?: boolean;
   hideStatusFilter?: boolean;
+  extraHeaderActions?: React.ReactNode;
 }
 
 export default function DataTable({
@@ -82,6 +83,7 @@ export default function DataTable({
   rows: externalRows,
   hideCreateButton = false,
   hideStatusFilter = false,
+  extraHeaderActions,
 }: DataTableProps) {
   const [internalRows, setInternalRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -379,6 +381,7 @@ export default function DataTable({
                 Crear Nuevo
               </Button>
             )}
+            {extraHeaderActions}
           </Stack>
         </Stack>
       </Stack>

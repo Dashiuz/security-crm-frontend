@@ -177,9 +177,21 @@ export default function ImportClientsPage() {
         fileName: file.name,
       });
 
+      if (res.status === "completed") {
+        if (res.errorRows === 0 && res.successRows > 0) {
+          res.status = "SUCCESS";
+        } else if (res.successRows > 0 && res.errorRows > 0) {
+          res.status = "PARTIAL";
+        } else {
+          res.status = "FAILED";
+        }
+      }
+
       setImportResult(res);
       if (res.status === "SUCCESS") {
         showSuccess(`Se importaron ${res.successRows} clientes con éxito.`);
+      } else if (res.status === "PARTIAL") {
+        showSuccess(`Importación parcial: ${res.successRows} exitosos, ${res.errorRows} fallidos.`);
       }
     } catch (err: any) {
       setErrorMsg(err.message || "Error durante el procesamiento del archivo.");

@@ -39,7 +39,7 @@ interface CsvImportDialogProps {
     errorRows: number;
     errors?: Array<{ row: number; reason: string }>;
   }>;
-  onSuccessRedirect?: () => void;
+  onSuccessRedirect?: (result?: any) => void;
 }
 
 export default function CsvImportDialog({
@@ -180,6 +180,17 @@ export default function CsvImportDialog({
 
     try {
       const result = await onImport(parsedData, file.name);
+      
+      if (result.status === "completed") {
+        if (result.errorRows === 0 && result.successRows > 0) {
+          result.status = "SUCCESS";
+        } else if (result.successRows > 0 && result.errorRows > 0) {
+          result.status = "PARTIAL";
+        } else {
+          result.status = "FAILED";
+        }
+      }
+
       setImportResult(result);
     } catch (err: any) {
       setErrorMsg(err.message || "Error durante el procesamiento del archivo en el servidor.");
@@ -192,8 +203,8 @@ export default function CsvImportDialog({
 
   return (
     <Dialog open={open} onClose={handleClose} maxWidth="lg" fullWidth>
-      <DialogTitle sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <Typography variant="h6" sx={{ fontWeight: 600 }}>
+      <DialogTitle component="div" sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <Typography variant="h6" component="div" sx={{ fontWeight: 600 }}>
           {title}
         </Typography>
         <IconButton onClick={handleClose} size="small">
@@ -239,7 +250,7 @@ export default function CsvImportDialog({
             >
               <input type="file" accept=".csv, .txt" hidden onChange={handleFileChange} />
               <CloudUploadIcon sx={{ fontSize: 60, color: "primary.main", mb: 2 }} />
-              <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
+              <Typography variant="h6" component="div" gutterBottom sx={{ fontWeight: 600 }}>
                 Selecciona o arrastra un archivo .CSV
               </Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
@@ -382,7 +393,9 @@ export default function CsvImportDialog({
               color={importResult.status === "SUCCESS" ? "success" : "primary"}
               onClick={() => {
                 handleClose();
-                if (onSuccessRedirect) onSuccessRedirect();
+                if (importResult.status !== "FAILED" && onSuccessRedirect) {
+                  onSuccessRedirect(importResult);
+                }
               }}
             >
               {importResult.status === "SUCCESS" ? "Ver Registros" : "Cerrar"}

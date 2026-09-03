@@ -100,23 +100,32 @@ export default function Navbar({ onMenuClick }: NavbarProps) {
         {session?.isImpersonating && (
           <Box
             sx={{
-              mr: 2,
-              display: { xs: "none", md: "flex" },
+              mr: { xs: 1, sm: 2 },
+              display: "flex",
               alignItems: "center",
               bgcolor: "warning.light",
-              px: 2,
+              px: { xs: 1, sm: 2 },
               py: 0.5,
               borderRadius: 2,
               border: "1px solid",
               borderColor: "warning.main",
             }}
           >
+            {/* Desktop Text */}
             <Typography
               variant="body2"
               color="warning.dark"
-              sx={{ fontWeight: "bold", mr: 2 }}
+              sx={{ fontWeight: "bold", mr: 2, display: { xs: "none", sm: "block" } }}
             >
               ⚠️ Administrando: {tenant?.name || session.tenantId}
+            </Typography>
+            {/* Mobile Text */}
+            <Typography
+              variant="body2"
+              color="warning.dark"
+              sx={{ fontWeight: "bold", mr: 1, display: { xs: "block", sm: "none" }, fontSize: "0.75rem" }}
+            >
+              ⚠️ Admin
             </Typography>
             <Button
               variant="contained"
@@ -127,6 +136,10 @@ export default function Navbar({ onMenuClick }: NavbarProps) {
                 textTransform: "none",
                 borderRadius: 2,
                 boxShadow: "none",
+                minWidth: { xs: "auto", sm: 64 },
+                px: { xs: 1, sm: 2 },
+                py: { xs: 0.25, sm: 0.5 },
+                fontSize: { xs: "0.7rem", sm: "0.8125rem" },
                 "&:hover": { boxShadow: "none", bgcolor: "warning.main" },
               }}
             >
