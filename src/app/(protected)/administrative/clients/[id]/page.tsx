@@ -2592,9 +2592,14 @@ export default function ClientDetailPage() {
           "residentType",
         ]}
         onImport={handleImportResidentsCsv}
-        onSuccessRedirect={() => {
+        onSuccessRedirect={(result) => {
           setRefreshTrigger((prev) => prev + 1);
           fetchResidents();
+          if (result?.status === 'SUCCESS') {
+            showSuccess("Importación masiva completada con éxito");
+          } else if (result?.status === 'PARTIAL') {
+            showSuccess("Importación masiva completada parcialmente. Revisa las advertencias.");
+          }
         }}
       />
 
