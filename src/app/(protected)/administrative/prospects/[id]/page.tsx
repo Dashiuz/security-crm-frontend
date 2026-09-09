@@ -25,6 +25,7 @@ import {
   FormGroup,
   FormControlLabel,
   Checkbox,
+  InputAdornment
 } from "@mui/material";
 import {
   ArrowBack as ArrowBackIcon,
@@ -36,6 +37,8 @@ import {
 } from "@mui/icons-material";
 import { HttpClient } from "@/lib/api/client";
 import { useNotification } from "@/providers/NotificationProvider";
+import { CalendarMonth as CalendarMonthIcon } from "@mui/icons-material";
+
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -736,6 +739,7 @@ export default function ProspectDetailPage() {
                   <TextField
                     fullWidth
                     type="number"
+                  inputProps={{ min: 0 }}
                     label="Cantidad de Locales Comerciales *"
                     value={commercialStoresAmount}
                     onChange={(e) => {
@@ -762,6 +766,7 @@ export default function ProspectDetailPage() {
                           fullWidth
                           size="small"
                           type="number"
+                  inputProps={{ min: 0 }}
                           label="Pisos"
                           value={floorsAmount}
                           onChange={(e) => {
@@ -775,6 +780,7 @@ export default function ProspectDetailPage() {
                           fullWidth
                           size="small"
                           type="number"
+                  inputProps={{ min: 0 }}
                           label="Aptos / Piso"
                           value={apartmentsPerFloor}
                           onChange={(e) => {
@@ -788,6 +794,7 @@ export default function ProspectDetailPage() {
                           fullWidth
                           size="small"
                           type="number"
+                  inputProps={{ min: 0 }}
                           label="Ascensores"
                           value={singleElevators}
                           onChange={(e) => {
@@ -830,6 +837,7 @@ export default function ProspectDetailPage() {
                             fullWidth
                             size="small"
                             type="number"
+                  inputProps={{ min: 0 }}
                             label="Pisos"
                             value={tower.floorsAmount}
                             onChange={(e) => handleTowerChange(idx, "floorsAmount", Number(e.target.value))}
@@ -840,6 +848,7 @@ export default function ProspectDetailPage() {
                             fullWidth
                             size="small"
                             type="number"
+                  inputProps={{ min: 0 }}
                             label="Aptos / Piso"
                             value={tower.apartmentsPerFloor}
                             onChange={(e) => handleTowerChange(idx, "apartmentsPerFloor", Number(e.target.value))}
@@ -850,6 +859,7 @@ export default function ProspectDetailPage() {
                             fullWidth
                             size="small"
                             type="number"
+                  inputProps={{ min: 0 }}
                             label="Ascensores"
                             value={tower.elevators}
                             onChange={(e) => handleTowerChange(idx, "elevators", Number(e.target.value))}
@@ -884,6 +894,7 @@ export default function ProspectDetailPage() {
                           fullWidth
                           size="small"
                           type="number"
+                  inputProps={{ min: 0 }}
                           label="Cantidad Total de Casas"
                           value={unitsAmount}
                           onChange={(e) => {
@@ -925,6 +936,7 @@ export default function ProspectDetailPage() {
                           fullWidth
                           size="small"
                           type="number"
+                  inputProps={{ min: 0 }}
                           label="Cantidad Total de Inmuebles / Unidades"
                           value={unitsAmount}
                           onChange={(e) => {
@@ -1119,6 +1131,7 @@ export default function ProspectDetailPage() {
                     <TextField
                       fullWidth
                       type="number"
+                  inputProps={{ min: 0 }}
                       label="Parqueaderos Privados"
                       value={amenities.parkingAmount}
                       onChange={(e) => {
@@ -1132,6 +1145,7 @@ export default function ProspectDetailPage() {
                     <TextField
                       fullWidth
                       type="number"
+                  inputProps={{ min: 0 }}
                       label="Parqueaderos Visitantes"
                       value={amenities.guestParkingAmount}
                       onChange={(e) => {
@@ -1145,6 +1159,7 @@ export default function ProspectDetailPage() {
                     <TextField
                       fullWidth
                       type="number"
+                  inputProps={{ min: 0 }}
                       label="Bicicleteros"
                       value={amenities.bicycleRackAmount}
                       onChange={(e) => {
@@ -1158,6 +1173,7 @@ export default function ProspectDetailPage() {
                     <TextField
                       fullWidth
                       type="number"
+                  inputProps={{ min: 0 }}
                       label="Depósitos"
                       value={amenities.storageRoomAmount}
                       onChange={(e) => {
@@ -1171,6 +1187,7 @@ export default function ProspectDetailPage() {
                     <TextField
                       fullWidth
                       type="number"
+                  inputProps={{ min: 0 }}
                       label="Salón Social"
                       value={amenities.socialRoomAmount}
                       onChange={(e) => {
@@ -1188,6 +1205,7 @@ export default function ProspectDetailPage() {
                     <TextField
                       fullWidth
                       type="number"
+                  inputProps={{ min: 0 }}
                       label="Gimnasio"
                       value={amenities.gymAmount}
                       onChange={(e) => {
@@ -1205,6 +1223,7 @@ export default function ProspectDetailPage() {
                     <TextField
                       fullWidth
                       type="number"
+                  inputProps={{ min: 0 }}
                       label="Piscinas"
                       value={amenities.poolAmount}
                       onChange={(e) => {
@@ -1222,6 +1241,7 @@ export default function ProspectDetailPage() {
                     <TextField
                       fullWidth
                       type="number"
+                  inputProps={{ min: 0 }}
                       label="Canchas de Squash"
                       value={amenities.squashCourtAmount}
                       onChange={(e) => {
@@ -1239,6 +1259,7 @@ export default function ProspectDetailPage() {
                     <TextField
                       fullWidth
                       type="number"
+                  inputProps={{ min: 0 }}
                       label="Canchas de Tenis"
                       value={amenities.tennisCourtAmount}
                       onChange={(e) => {
@@ -1256,6 +1277,7 @@ export default function ProspectDetailPage() {
                     <TextField
                       fullWidth
                       type="number"
+                  inputProps={{ min: 0 }}
                       label="Canchas de Fútbol"
                       value={amenities.footballCourtAmount}
                       onChange={(e) => {
@@ -1273,6 +1295,7 @@ export default function ProspectDetailPage() {
                     <TextField
                       fullWidth
                       type="number"
+                  inputProps={{ min: 0 }}
                       label="Canchas de Baloncesto"
                       value={amenities.basketballCourtAmount}
                       onChange={(e) => {
@@ -1290,6 +1313,7 @@ export default function ProspectDetailPage() {
                     <TextField
                       fullWidth
                       type="number"
+                  inputProps={{ min: 0 }}
                       label="Parques Infantiles"
                       value={amenities.playgroundAmount}
                       onChange={(e) => {
@@ -1354,6 +1378,13 @@ export default function ProspectDetailPage() {
               <TextField
                 fullWidth
                 type="date"
+                  InputProps={{
+                    endAdornment: (
+                      <InputAdornment position="end">
+                        <CalendarMonthIcon sx={{ color: "action.active", pointerEvents: "none" }} />
+                      </InputAdornment>
+                    ),
+                  }}
                 label="Fecha Inicial del Contrato *"
                 InputLabelProps={{ shrink: true }}
                 value={convertForm.contractDate}
@@ -1367,6 +1398,13 @@ export default function ProspectDetailPage() {
               <TextField
                 fullWidth
                 type="date"
+                  InputProps={{
+                    endAdornment: (
+                      <InputAdornment position="end">
+                        <CalendarMonthIcon sx={{ color: "action.active", pointerEvents: "none" }} />
+                      </InputAdornment>
+                    ),
+                  }}
                 label="Fecha Final del Contrato *"
                 InputLabelProps={{ shrink: true }}
                 value={convertForm.lastContractDate}

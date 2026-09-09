@@ -30,6 +30,7 @@ import {
   CircularProgress,
   Tabs,
   Tab,
+  InputAdornment
 } from "@mui/material";
 import {
   LocalShipping as LocalShippingIcon,
@@ -43,6 +44,8 @@ import ImageUploadCapture from "@/components/common/ImageUploadCapture";
 import { HttpClient } from "@/lib/api/client";
 import { StorageApi, MediaTypeCategory } from "@/lib/api/storage";
 import { formatDate, formatTime, formatDateTime, formatTimeToHHmm } from "@/lib/formatters";
+import { CalendarMonth as CalendarMonthIcon } from "@mui/icons-material";
+
 
 interface UnitOption {
   id: string;
@@ -86,7 +89,7 @@ export default function CorrespondencePage() {
     courierCompany: "",
     trackingNumber: "",
     receivedByName: "",
-    correspondenceType: "PACKAGE",
+    correspondenceType: "BOX",
     observations: "",
   });
 
@@ -196,7 +199,7 @@ export default function CorrespondencePage() {
       courierCompany: "",
       trackingNumber: "",
       receivedByName: session?.user?.fullName || "",
-      correspondenceType: "PACKAGE",
+      correspondenceType: "BOX",
       observations: "",
     });
     setDialogOpen(true);
@@ -221,7 +224,7 @@ export default function CorrespondencePage() {
         courierCompany: data.courierCompany || "",
         trackingNumber: data.trackingNumber || "",
         receivedByName: data.receivedByName || "",
-        correspondenceType: data.correspondenceType || "PACKAGE",
+        correspondenceType: data.correspondenceType || "BOX",
         observations: data.observations || "",
       });
 
@@ -782,6 +785,13 @@ export default function CorrespondencePage() {
                   fullWidth
                   size="small"
                   type="date"
+                  InputProps={{
+                    endAdornment: (
+                      <InputAdornment position="end">
+                        <CalendarMonthIcon sx={{ color: "action.active", pointerEvents: "none" }} />
+                      </InputAdornment>
+                    ),
+                  }}
                   label="Fecha"
                   InputLabelProps={{ shrink: true }}
                   value={formData.date}
@@ -886,8 +896,8 @@ export default function CorrespondencePage() {
                     value={formData.correspondenceType}
                     onChange={(e) => setFormData({ ...formData, correspondenceType: e.target.value })}
                   >
-                    <MenuItem value="PACKAGE">Paquete / Caja</MenuItem>
-                    <MenuItem value="LETTER">Sobre / Carta</MenuItem>
+                    <MenuItem value="BOX">Paquete / Caja</MenuItem>
+                    <MenuItem value="ENVELOPE">Sobre / Carta</MenuItem>
                     <MenuItem value="DOCUMENT">Documento</MenuItem>
                     <MenuItem value="FOOD_DELIVERY">Domicilio / Comida</MenuItem>
                     <MenuItem value="OTHER">Otro</MenuItem>
