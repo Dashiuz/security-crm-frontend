@@ -6,10 +6,13 @@ import DataTable from "@/components/common/DataTable";
 import { GridColDef, GridActionsCellItem } from "@mui/x-data-grid";
 import { HttpClient } from "@/lib/api/client";
 import PromptConfirmDialog from "@/components/common/PromptConfirmDialog";
+import CsvImportDialog from "@/components/common/CsvImportDialog";
 import { formatDateTime } from "@/lib/formatters";
+import { Button } from "@mui/material";
 import {
   RestoreFromTrash as RestoreFromTrashIcon,
   RemoveCircle as RemoveCircleIcon,
+  CloudUpload as CloudUploadIcon,
 } from "@mui/icons-material";
 import { useRouter } from "next/navigation";
 
@@ -40,8 +43,9 @@ export default function ClientsPage() {
   const router = useRouter();
   const [deleteClient, setDeleteClient] = useState<any | null>(null);
   const [reactivateClient, setReactivateClient] = useState<any | null>(null);
+  const [csvImportOpen, setCsvImportOpen] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
-  const { showError } = useNotification();
+  const { showSuccess, showError } = useNotification();
 
   const handleCreate = () => {
     router.push("/administrative/clients/new");
@@ -78,6 +82,28 @@ export default function ClientsPage() {
     }
   };
 
+  const handleImport = async (
+    data: Array<Record<string, string>>,
+    fileName: string,
+  ) => {
+    try {
+      const response = await HttpClient.post<{
+        status: string;
+        totalRows: number;
+        successRows: number;
+        errorRows: number;
+        errors?: Array<{ row: number; reason: string }>;
+      }>("/client/import/csv", {
+        data,
+        fileName,
+      });
+      return response;
+    } catch (error: any) {
+      showError(error.message || "Error al importar el archivo CSV.");
+      throw error;
+    }
+  };
+
   const customActions = (row: any) => {
     if (!row.isActive || row.deletedAt) {
       return [
@@ -100,13 +126,32 @@ export default function ClientsPage() {
         title="Gestión de Clientes"
         endpoint="/client"
         columns={columns}
-        breadcrumbs={[{ label: "Mis Clientes" }, { label: "Clientes" }]}
+        breadcrumbs={[{ label: "Mis Clientes" }, { label: "Listado de Clientes" }]}
         onCreate={handleCreate}
         onView={handleView}
         onDelete={handleDeleteRequest}
         customActions={customActions}
         deleteIcon={<RemoveCircleIcon color="error" />}
         refreshTrigger={refreshTrigger}
+        extraHeaderActions={
+          <Button
+            variant="outlined"
+            size="small"
+            startIcon={<CloudUploadIcon />}
+            onClick={() => setCsvImportOpen(true)}
+            sx={{
+              textTransform: "none",
+              fontWeight: 600,
+              fontSize: { xs: "0.8rem", sm: "0.85rem" },
+              py: { xs: 0.75, sm: 0.65 },
+              px: { xs: 1.8, sm: 2.2 },
+              borderRadius: 2,
+              whiteSpace: "nowrap",
+            }}
+          >
+            Cargar CSV
+          </Button>
+        }
         infoDescription="Administración de la cartera de clientes y conjuntos residenciales, incluyendo modelado de torres/viviendas y censo de residentes."
         infoInstructions={`Haz clic en 'Crear Nuevo' para ir al formulario de pantalla completa de registro de cliente y su estructura física.
         Haz clic en el icono del ojo 'Ver Detalles' para gestionar la información y el censo de residentes del conjunto.
@@ -135,6 +180,35 @@ export default function ClientsPage() {
         inputLabel="NIT del Cliente"
         confirmButtonText="Confirmar Reactivación"
         confirmColor="primary"
+      />
+
+      <CsvImportDialog
+        open={csvImportOpen}
+        onClose={() => setCsvImportOpen(false)}
+        title="Importar Clientes"
+        templateColumns={[
+          "nit",
+          "name",
+          "email",
+          "phone",
+          "address",
+          "city",
+          "sector",
+          "internalCode",
+          "contractNumber",
+        ]}
+        onImport={handleImport}
+        onSuccessRedirect={(result) => {
+          setCsvImportOpen(false);
+          setRefreshTrigger((prev) => prev + 1);
+          if (result?.status === "SUCCESS") {
+            showSuccess("Importación masiva completada con éxito");
+          } else if (result?.status === "PARTIAL") {
+            showSuccess(
+              "Importación masiva completada parcialmente. Revisa las advertencias.",
+            );
+          }
+        }}
       />
     </>
   );

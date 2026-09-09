@@ -57,6 +57,22 @@ interface MenuItem {
   disabled?: boolean;
 }
 
+const systemMenuItems: MenuItem[] = [
+  { text: "Dashboard", icon: <DashboardIcon />, path: "/dashboard" },
+  {
+    text: "Empresas",
+    icon: <DomainIcon />,
+    path: "/administrative/tenants",
+    permission: "godlike:manage",
+  },
+  {
+    text: "Usuarios",
+    icon: <UserIcon />,
+    path: "/administrative/users",
+    permission: "godlike:manage",
+  },
+];
+
 const menuItems: MenuItem[] = [
   { text: "Dashboard", icon: <DashboardIcon />, path: "/dashboard" },
   {
@@ -104,7 +120,14 @@ const menuItems: MenuItem[] = [
     icon: <BuyersIcon />,
     subItems: [
       {
-        text: "Prospectos",
+        text: "Listado de Clientes",
+        icon: <ListIcon />,
+        path: "/administrative/clients",
+        feature: "client",
+        permission: ["client:manage", "client:read"],
+      },
+      {
+        text: "Prospectos de Cliente",
         icon: <ProspectIcon />,
         path: "/administrative/prospects",
         feature: "client",
@@ -119,26 +142,6 @@ const menuItems: MenuItem[] = [
         text: "Proyectos de Tecnología",
         icon: <TechProjectIcon />,
         disabled: true,
-      },
-      {
-        text: "Clientes",
-        icon: <ClientIcon />,
-        subItems: [
-          {
-            text: "Listado de Clientes",
-            icon: <ListIcon />,
-            path: "/administrative/clients",
-            feature: "client",
-            permission: ["client:manage", "client:read"],
-          },
-          {
-            text: "Cargar Clientes Existentes",
-            icon: <UploadIcon />,
-            path: "/administrative/clients/import",
-            feature: "client",
-            permission: ["client:manage", "client:create"],
-          },
-        ],
       },
     ],
   },
@@ -210,7 +213,6 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
     "Mis Clientes":
       pathname.startsWith("/administrative/clients") ||
       pathname.startsWith("/administrative/prospects"),
-    Clientes: pathname.startsWith("/administrative/clients"),
     "Mis Recursos":
       pathname.startsWith("/administrative/employees") ||
       pathname.startsWith("/administrative/users") ||
@@ -318,6 +320,9 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
     );
   };
 
+  const isSystemTenant = tenant?.slug === "system";
+  const activeMenuItems = isSystemTenant ? systemMenuItems : menuItems;
+
   const drawerContent = (
     <div>
       <Toolbar sx={{ display: "flex", alignItems: "center", gap: 1 }}>
@@ -340,11 +345,11 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
           color="text.secondary"
           sx={{ fontWeight: "bold" }}
         >
-          Gestión de Seguridad
+          {isSystemTenant ? "Administración Global" : "Gestión de Seguridad"}
         </Typography>
       </Box>
       <List sx={{ px: 0 }}>
-        {menuItems.map((item) => renderMenuItem(item))}
+        {activeMenuItems.map((item) => renderMenuItem(item))}
       </List>
     </div>
   );

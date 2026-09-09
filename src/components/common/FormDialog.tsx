@@ -33,6 +33,7 @@ export interface FormField<T extends FieldValues> {
   placeholder?: string;
   inputProps?: React.InputHTMLAttributes<HTMLInputElement>;
   hidden?: boolean | ((watchValues: T) => boolean);
+  disabled?: boolean;
 }
 
 interface FormDialogProps<T extends FieldValues> {
@@ -173,7 +174,7 @@ export default function FormDialog<T extends FieldValues>({
                               InputLabelProps: { shrink: true }
                             },
                           }}
-                          disabled={isPending}
+                          disabled={isPending || field.disabled}
                         />
                       );
                     }
@@ -197,7 +198,7 @@ export default function FormDialog<T extends FieldValues>({
                               InputLabelProps: { shrink: true }
                             },
                           }}
-                          disabled={isPending}
+                          disabled={isPending || field.disabled}
                           ampm={false}
                         />
                       );
@@ -209,7 +210,7 @@ export default function FormDialog<T extends FieldValues>({
                           variant="outlined"
                           component="label"
                           fullWidth
-                          disabled={isPending}
+                          disabled={isPending || field.disabled}
                           sx={{ justifyContent: "flex-start", py: 1.5, textTransform: "none" }}
                         >
                           {value ? (typeof value === "string" ? value : (value as File).name) : `Cargar ${field.label}`}
@@ -284,7 +285,7 @@ export default function FormDialog<T extends FieldValues>({
                         error={!!error}
                         helperText={error?.message}
                         inputProps={field.inputProps}
-                        disabled={isPending}
+                        disabled={isPending || field.disabled}
                         required={field.required}
                       >
                         {field.options?.map((option) => (

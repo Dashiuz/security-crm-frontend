@@ -25,6 +25,7 @@ import {
   Tooltip,
   IconButton,
   CircularProgress,
+  InputAdornment
 } from "@mui/material";
 import {
   Logout as LogoutIcon,
@@ -41,6 +42,8 @@ import DetailDialog from "@/components/common/DetailDialog";
 import { HttpClient } from "@/lib/api/client";
 import { StorageApi, MediaTypeCategory } from "@/lib/api/storage";
 import { formatDate, formatTime, formatDateTime, formatTimeToHHmm } from "@/lib/formatters";
+import { CalendarMonth as CalendarMonthIcon } from "@mui/icons-material";
+
 
 interface UnitOption {
   id: string;
@@ -918,6 +921,13 @@ export default function VisitorControlPage() {
                   fullWidth
                   size="small"
                   type="date"
+                  InputProps={{
+                    endAdornment: (
+                      <InputAdornment position="end">
+                        <CalendarMonthIcon sx={{ color: "action.active", pointerEvents: "none" }} />
+                      </InputAdornment>
+                    ),
+                  }}
                   label="Fecha"
                   value={formData.date}
                   onChange={(e) => setFormData({ ...formData, date: e.target.value })}

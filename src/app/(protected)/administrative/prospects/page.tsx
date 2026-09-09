@@ -13,7 +13,9 @@ import {
   TaskAlt as ConvertIcon,
 } from "@mui/icons-material";
 import { useRouter } from "next/navigation";
+import { CalendarMonth as CalendarMonthIcon } from "@mui/icons-material";
 import {
+  InputAdornment,
   Dialog,
   DialogTitle,
   DialogContent,
@@ -164,7 +166,7 @@ export default function ProspectsPage() {
         title="Gestión de Prospectos de Clientes"
         endpoint="/prospect"
         columns={columns}
-        breadcrumbs={[{ label: "Mis Clientes" }, { label: "Prospectos" }]}
+        breadcrumbs={[{ label: "Mis Clientes" }, { label: "Prospectos de Cliente" }]}
         onCreate={handleCreate}
         onView={handleView}
         onDelete={handleDeleteRequest}
@@ -239,6 +241,13 @@ export default function ProspectsPage() {
               <TextField
                 fullWidth
                 type="date"
+                  InputProps={{
+                    endAdornment: (
+                      <InputAdornment position="end">
+                        <CalendarMonthIcon sx={{ color: "action.active", pointerEvents: "none" }} />
+                      </InputAdornment>
+                    ),
+                  }}
                 label="Fecha Inicial del Contrato *"
                 InputLabelProps={{ shrink: true }}
                 value={convertForm.contractDate}
@@ -252,6 +261,13 @@ export default function ProspectsPage() {
               <TextField
                 fullWidth
                 type="date"
+                  InputProps={{
+                    endAdornment: (
+                      <InputAdornment position="end">
+                        <CalendarMonthIcon sx={{ color: "action.active", pointerEvents: "none" }} />
+                      </InputAdornment>
+                    ),
+                  }}
                 label="Fecha Final del Contrato *"
                 InputLabelProps={{ shrink: true }}
                 value={convertForm.lastContractDate}

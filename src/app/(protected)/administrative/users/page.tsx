@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useNotification } from "@/providers/NotificationProvider";
+import { useTenant } from "@/providers/TenantProvider";
 import DataTable from "@/components/common/DataTable";
 import FormDialog, { FormField } from "@/components/common/FormDialog";
 import DetailDialog from "@/components/common/DetailDialog";
@@ -28,7 +29,7 @@ import { HttpClient } from "@/lib/api/client";
 
 // --- Schemas & Fields ---
 
-const schema = z.object({
+const standardSchema = z.object({
   document: z.string().min(1, "El documento es requerido"),
   password: z.string().min(8, "La contraseña debe tener al menos 8 caracteres"),
   roleIds: z
@@ -38,6 +39,21 @@ const schema = z.object({
       return [val];
     }, z.array(z.string()))
     .optional(),
+});
+
+const systemSchema = z.object({
+  document: z.string().min(1, "El documento es requerido"),
+  fullName: z.string().min(1, "El nombre completo es requerido"),
+  password: z.string().min(8, "La contraseña debe tener al menos 8 caracteres"),
+  roleIds: z
+    .preprocess((val) => {
+      if (!val || val === "") return [];
+      if (Array.isArray(val)) return val;
+      return [val];
+    }, z.array(z.string()))
+    .optional(),
+  department: z.string().optional(),
+  position: z.string().optional(),
 });
 
 const resetSchema = z
@@ -54,10 +70,11 @@ const resetSchema = z
     path: ["confirmPassword"],
   });
 
-type UserForm = z.infer<typeof schema>;
+type UserForm = z.infer<typeof standardSchema>;
+type SystemUserForm = z.infer<typeof systemSchema>;
 type ResetPasswordForm = z.infer<typeof resetSchema>;
 
-const fields: FormField<UserForm>[] = [
+const standardFields: FormField<any>[] = [
   {
     name: "document",
     label: "Documento del Empleado (debe existir)",
@@ -74,7 +91,43 @@ const fields: FormField<UserForm>[] = [
     name: "roleIds",
     label: "Asignar Roles (Opcional)",
     type: "select",
-    // We'll populate options dynamically in the component
+  },
+];
+
+const systemFields: FormField<any>[] = [
+  {
+    name: "document",
+    label: "Documento de Identidad",
+    required: true,
+    placeholder: "Número de documento",
+  },
+  {
+    name: "fullName",
+    label: "Nombre Completo",
+    required: true,
+    placeholder: "Nombre completo del administrador",
+  },
+  {
+    name: "password",
+    label: "Contraseña",
+    required: true,
+    placeholder: "Asigne una Contraseña",
+    type: "password",
+  },
+  {
+    name: "roleIds",
+    label: "Asignar Roles (Opcional)",
+    type: "select",
+  },
+  {
+    name: "department",
+    label: "Departamento",
+    disabled: true,
+  },
+  {
+    name: "position",
+    label: "Cargo",
+    disabled: true,
   },
 ];
 
@@ -248,6 +301,9 @@ const columns: GridColDef[] = [
 ];
 
 export default function UsersPage() {
+  const { tenant } = useTenant();
+  const isSystemTenant = tenant?.slug === "system";
+
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<any | null>(null);
@@ -295,9 +351,16 @@ export default function UsersPage() {
     }
   };
 
-  const handleSubmit = async (data: UserForm) => {
+  const handleSubmit = async (data: any) => {
     try {
-      await HttpClient.post("/user", data);
+      const payload = isSystemTenant
+        ? {
+            ...data,
+            department: "system",
+            position: "system manager",
+          }
+        : data;
+      await HttpClient.post("/user", payload);
       setRefreshTrigger((prev) => prev + 1);
       setDialogOpen(false);
     } catch (error: any) {
@@ -308,19 +371,29 @@ export default function UsersPage() {
   return (
     <>
       <DataTable
-        title="Gestión de Usuarios"
+        title={isSystemTenant ? "Gestión de Usuarios (GODLIKE)" : "Gestión de Usuarios"}
         endpoint="/user"
         columns={columns}
-        breadcrumbs={[{ label: "Administrativo" }, { label: "Usuarios" }]}
+        breadcrumbs={[{ label: isSystemTenant ? "Sistema" : "Administrativo" }, { label: "Usuarios" }]}
         onCreate={handleCreate}
         onEdit={handleEdit}
         onDelete={handleDeleteRequest}
         onView={handleView}
         refreshTrigger={refreshTrigger}
-        infoDescription="Gestión centralizada de los usuarios del sistema, permitiendo la creación de cuentas, asignación de roles y restablecimiento de contraseñas de seguridad."
-        infoInstructions={`Para crear un usuario, el empleado debe existir previamente.
+        infoDescription={
+          isSystemTenant
+            ? "Gestión centralizada de los administradores globales (GODLIKE) del sistema con control total."
+            : "Gestión centralizada de los usuarios del sistema, permitiendo la creación de cuentas, asignación de roles y restablecimiento de contraseñas de seguridad."
+        }
+        infoInstructions={
+          isSystemTenant
+            ? `Gestione los administradores (GODLIKE) del sistema.
+Para crear un nuevo usuario administrador, complete el documento, nombre completo y contraseña (el cargo y departamento son asignados por el sistema).
+Haz clic en el icono de borrado para inhabilitar la cuenta confirmando con la cédula (debe existir al menos un usuario activo).`
+            : `Para crear un usuario, el empleado debe existir previamente.
 Haz clic en el icono de ojo para ver los detalles del usuario.
-Haz clic en el icono de borrado para inhabilitar la cuenta confirmando con la cédula del usuario.`}
+Haz clic en el icono de borrado para inhabilitar la cuenta confirmando con la cédula del usuario.`
+        }
       />
 
       <DetailDialog
@@ -373,10 +446,18 @@ Haz clic en el icono de borrado para inhabilitar la cuenta confirmando con la c�
         open={dialogOpen}
         onClose={() => setDialogOpen(false)}
         onSubmit={handleSubmit}
-        title="Crear Usuario"
-        schema={schema}
+        title={isSystemTenant ? "Crear Usuario Administrador (GODLIKE)" : "Crear Usuario"}
+        schema={isSystemTenant ? systemSchema : standardSchema}
+        defaultValues={
+          isSystemTenant
+            ? {
+                department: "system",
+                position: "system manager",
+              }
+            : undefined
+        }
         fields={
-          fields.map((f) =>
+          (isSystemTenant ? systemFields : standardFields).map((f) =>
             f.name === "roleIds"
               ? {
                   ...f,
