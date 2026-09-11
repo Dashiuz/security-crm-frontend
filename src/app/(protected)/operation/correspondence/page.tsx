@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useNotification } from "@/providers/NotificationProvider";
 import { useAuth } from "@/components/AuthContext";
 import DataTable from "@/components/common/DataTable";
@@ -15,6 +15,8 @@ import {
   DialogContent,
   DialogTitle,
   FormControl,
+  FormControlLabel,
+  Switch,
   Grid,
   InputLabel,
   MenuItem,
@@ -30,7 +32,7 @@ import {
   CircularProgress,
   Tabs,
   Tab,
-  InputAdornment
+  InputAdornment,
 } from "@mui/material";
 import {
   LocalShipping as LocalShippingIcon,
@@ -39,44 +41,32 @@ import {
   CheckCircle as CheckCircleIcon,
   CameraAlt as CameraIcon,
   Inventory as PackageIcon,
+  CalendarMonth as CalendarMonthIcon,
 } from "@mui/icons-material";
 import ImageUploadCapture from "@/components/common/ImageUploadCapture";
+import UnitAutocomplete, { UnitOption } from "@/components/common/UnitAutocomplete";
+import ResidentAutocomplete, { ResidentOption } from "@/components/common/ResidentAutocomplete";
+import MinutaFilterBar, { MinutaFilterValues } from "@/components/common/MinutaFilterBar";
 import { HttpClient } from "@/lib/api/client";
 import { StorageApi, MediaTypeCategory } from "@/lib/api/storage";
 import { formatDate, formatTime, formatDateTime, formatTimeToHHmm } from "@/lib/formatters";
-import { CalendarMonth as CalendarMonthIcon } from "@mui/icons-material";
-
-
-interface UnitOption {
-  id: string;
-  unitName: string;
-  unitType?: string;
-  tower?: { towerName: string };
-  floor?: { floorNumber: number };
-}
-
-interface ResidentOption {
-  id: string;
-  unitId: string;
-  firstName: string;
-  lastName: string;
-  document: string;
-  phoneNumber?: string;
-  unit?: { unitName: string };
-}
 
 export default function CorrespondencePage() {
   const [clients, setClients] = useState<any[]>([]);
   const [selectedClientId, setSelectedClientId] = useState<string>("");
-  const [units, setUnits] = useState<UnitOption[]>([]);
-  const [residents, setResidents] = useState<ResidentOption[]>([]);
-  const [loadingCatalog, setLoadingCatalog] = useState(false);
+  const [viewMode, setViewMode] = useState<"CLIENT" | "INTERNAL">("CLIENT");
+  const [filters, setFilters] = useState<MinutaFilterValues>({});
+  const hasInitializedClient = useRef(false);
 
   // Form de Nuevo Registro
   const [dialogOpen, setDialogOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  // Autocomplete state
+  const [selectedUnit, setSelectedUnit] = useState<UnitOption | null>(null);
+  const [selectedResident, setSelectedResident] = useState<ResidentOption | null>(null);
 
   const [formData, setFormData] = useState({
     date: "",
@@ -120,7 +110,17 @@ export default function CorrespondencePage() {
   const { session } = useAuth();
 
   const isGlobalUser = !session?.user?.clientId;
-  const activeClientId = session?.user?.clientId || selectedClientId;
+  const activeClientId = isGlobalUser
+    ? viewMode === "INTERNAL"
+      ? undefined
+      : selectedClientId || undefined
+    : session?.user?.clientId || undefined;
+
+  const selectedClientObj = useMemo(
+    () => clients.find((c) => c.id === (isGlobalUser ? selectedClientId : session?.user?.clientId)),
+    [clients, isGlobalUser, selectedClientId, session?.user?.clientId]
+  );
+  const activeClientName = selectedClientObj?.name;
 
   // 1. Cargar clientes para usuarios globales
   useEffect(() => {
@@ -129,42 +129,14 @@ export default function CorrespondencePage() {
         .then((data) => {
           const list = data || [];
           setClients(list);
-          if (list.length > 0 && !selectedClientId) {
+          if (list.length > 0 && !hasInitializedClient.current) {
             setSelectedClientId(list[0].id);
+            hasInitializedClient.current = true;
           }
         })
         .catch(() => {});
     }
-  }, [isGlobalUser, selectedClientId]);
-
-  // 2. Cargar unidades y residentes cuando cambia el cliente activo
-  const loadCatalogs = useCallback(async (clientId: string) => {
-    if (!clientId) {
-      setUnits([]);
-      setResidents([]);
-      return;
-    }
-    setLoadingCatalog(true);
-    try {
-      const [clientData, residentsData] = await Promise.all([
-        HttpClient.get<any>(`/client/${clientId}`).catch(() => null),
-        HttpClient.get<any[]>(`/resident/by-client/${clientId}`).catch(() => []),
-      ]);
-
-      setUnits(clientData?.units || []);
-      setResidents(residentsData || []);
-    } catch {
-      // Manejar error silenciosamente
-    } finally {
-      setLoadingCatalog(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (activeClientId) {
-      loadCatalogs(activeClientId);
-    }
-  }, [activeClientId, loadCatalogs]);
+  }, [isGlobalUser]);
 
   const permissions = session?.permissions || [];
   const canDelete =
@@ -180,18 +152,26 @@ export default function CorrespondencePage() {
     permissions.includes("minuta:manage") ||
     permissions.includes("minuta:create");
 
-  // Handler: Abrir modal de recepción de paquete
+  // Handler: Abrir modal de nuevo paquete
   const handleOpenCreate = () => {
+    if (isGlobalUser && viewMode === "CLIENT" && !selectedClientId) {
+      showError(
+        "Debe escoger un cliente específico o seleccionar registros internos antes de generar un registro nuevo."
+      );
+      return;
+    }
     const now = new Date();
     const currentTime = now.toTimeString().split(" ")[0].substring(0, 5);
     setEvidenceReceptionFile(null);
     setExistingReceptionMediaUrl(null);
-    setIsEditing(false);
+    setSelectedUnit(null);
+    setSelectedResident(null);
     setEditId(null);
+    setIsEditing(false);
     setFormData({
       date: now.toISOString().split("T")[0],
-      time: currentTime,
-      receivedTime: currentTime,
+      time: currentTime + ":00",
+      receivedTime: currentTime + ":00",
       destination: "",
       unitId: "",
       recipientResidentId: "",
@@ -213,6 +193,31 @@ export default function CorrespondencePage() {
       const data = await HttpClient.get<any>(`/operation/minuta/correspondence/${id}`);
       setEditId(id);
       setIsEditing(true);
+
+      if (data.unit) {
+        setSelectedUnit(data.unit);
+      } else if (data.unitId) {
+        setSelectedUnit({
+          id: data.unitId,
+          unitName: data.destination || "Unidad",
+        });
+      } else {
+        setSelectedUnit(null);
+      }
+
+      if (data.recipientResident) {
+        setSelectedResident(data.recipientResident);
+      } else if (data.recipientResidentId) {
+        setSelectedResident({
+          id: data.recipientResidentId,
+          firstName: "Residente",
+          lastName: "",
+          unitId: data.unitId,
+        });
+      } else {
+        setSelectedResident(null);
+      }
+
       setFormData({
         date: data.date ? new Date(data.date).toISOString().split("T")[0] : "",
         time: data.time ? formatTimeToHHmm(data.time) : "",
@@ -241,32 +246,77 @@ export default function CorrespondencePage() {
     }
   };
 
-  // Handler: Selección de Unidad
-  const handleSelectUnit = (unitId: string) => {
-    const unit = units.find((u) => u.id === unitId);
-    setFormData((prev) => ({
-      ...prev,
-      unitId,
-      destination: unit ? unit.unitName : prev.destination,
-      recipientResidentId: "",
-    }));
+  // Bidirectional Autocomplete Handlers
+  const handleUnitChange = (unit: UnitOption | null) => {
+    setSelectedUnit(unit);
+    if (!unit) {
+      setFormData((prev) => ({
+        ...prev,
+        unitId: "",
+        destination: "",
+      }));
+    } else {
+      setFormData((prev) => ({
+        ...prev,
+        unitId: unit.id,
+        destination: unit.unitName,
+      }));
+      if (selectedResident && selectedResident.unitId !== unit.id) {
+        setSelectedResident(null);
+        setFormData((prev) => ({ ...prev, recipientResidentId: "" }));
+      }
+    }
   };
 
-  // Handler: Selección de Residente
-  const handleSelectResident = (residentId: string) => {
-    const resident = residents.find((r) => r.id === residentId);
-    setFormData((prev) => ({
-      ...prev,
-      recipientResidentId: residentId,
-      unitId: resident?.unitId || prev.unitId,
-      destination: resident?.unit?.unitName || prev.destination,
-    }));
+  const handleResidentChange = (resident: ResidentOption | null) => {
+    setSelectedResident(resident);
+    if (!resident) {
+      setFormData((prev) => ({ ...prev, recipientResidentId: "" }));
+    } else {
+      setFormData((prev) => ({
+        ...prev,
+        recipientResidentId: resident.id,
+      }));
+
+      if (resident.unit && (!selectedUnit || selectedUnit.id !== resident.unit.id)) {
+        const matchingUnit: UnitOption = {
+          id: resident.unit.id,
+          unitName: resident.unit.unitName,
+          tower: resident.unit.tower,
+        };
+        setSelectedUnit(matchingUnit);
+        setFormData((prev) => ({
+          ...prev,
+          unitId: matchingUnit.id,
+          destination: matchingUnit.unitName,
+        }));
+      }
+    }
   };
+
+  // Preloaded residents from selected unit
+  const preloadedResidents: ResidentOption[] = useMemo(() => {
+    if (!selectedUnit || !selectedUnit.residents) return [];
+    return selectedUnit.residents.map((r) => ({
+      id: r.id,
+      firstName: r.firstName,
+      lastName: r.lastName,
+      document: r.document,
+      phoneNumber: r.phoneNumber,
+      unitId: selectedUnit.id,
+      unit: {
+        id: selectedUnit.id,
+        unitName: selectedUnit.unitName,
+        tower: selectedUnit.tower,
+      },
+    }));
+  }, [selectedUnit]);
 
   // Handler: Guardar Recepción
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.destination.trim()) {
+    const dest = formData.destination.trim() || selectedUnit?.unitName;
+    if (!dest) {
       showError("Debes especificar el destino (Unidad o Apartamento)");
       return;
     }
@@ -274,21 +324,25 @@ export default function CorrespondencePage() {
     setSubmitting(true);
     try {
       const now = new Date();
+      const timeVal = formData.time.length === 5 ? `${formData.time}:00` : formData.time;
+      const receivedTimeVal = formData.receivedTime.length === 5 ? `${formData.receivedTime}:00` : formData.receivedTime;
+      const dateVal = formData.date || now.toISOString().split("T")[0];
+
       const payload: any = {
-        date: formData.date || now.toISOString().split("T")[0],
-        time: formData.time.length === 5 ? `${formData.time}:00` : formData.time,
-        occurredAt: `${formData.date || now.toISOString().split("T")[0]}T${formData.time.length === 5 ? `${formData.time}:00` : formData.time}Z`,
-        receivedTime: formData.receivedTime.length === 5 ? `${formData.receivedTime}:00` : formData.receivedTime,
-        destination: formData.destination.trim(),
+        date: dateVal,
+        time: timeVal,
+        occurredAt: `${dateVal}T${timeVal}Z`,
+        receivedTime: receivedTimeVal,
+        destination: dest,
         sender: formData.sender?.trim() || null,
         courierCompany: formData.courierCompany?.trim() || null,
         trackingNumber: formData.trackingNumber?.trim() || null,
         receivedByName: formData.receivedByName?.trim() || null,
         correspondenceType: formData.correspondenceType,
         observations: formData.observations?.trim() || null,
-        clientId: activeClientId || null,
-        unitId: formData.unitId || null,
-        recipientResidentId: formData.recipientResidentId || null,
+        clientId: isGlobalUser && viewMode === "INTERNAL" ? null : activeClientId || null,
+        unitId: selectedUnit?.id || formData.unitId || null,
+        recipientResidentId: selectedResident?.id || formData.recipientResidentId || null,
       };
 
       let savedRecord: any;
@@ -307,7 +361,7 @@ export default function CorrespondencePage() {
             file: evidenceReceptionFile,
             entityType: MediaTypeCategory.CORRESPONDENCE,
             entityId,
-            clientId: activeClientId || null,
+            clientId: isGlobalUser && viewMode === "INTERNAL" ? null : activeClientId || null,
             subType: "reception",
           });
           showSuccess("Foto del paquete en recepción guardada");
@@ -371,7 +425,7 @@ export default function CorrespondencePage() {
             file: evidenceDeliveryFile,
             entityType: MediaTypeCategory.CORRESPONDENCE,
             entityId: selectedRecordForDelivery.id,
-            clientId: activeClientId || null,
+            clientId: isGlobalUser && viewMode === "INTERNAL" ? null : activeClientId || null,
             subType: "delivery",
           });
           uploadedUrl = media.url;
@@ -467,9 +521,26 @@ export default function CorrespondencePage() {
     }
   };
 
-  const endpoint = activeClientId
-    ? `/operation/minuta/correspondence?clientId=${activeClientId}`
-    : "/operation/minuta/correspondence";
+  const handleFilterChange = useCallback((newFilters: MinutaFilterValues) => {
+    setFilters(newFilters);
+  }, []);
+
+  const endpoint = useMemo(() => {
+    const params = new URLSearchParams();
+    if (isGlobalUser && viewMode === "INTERNAL") {
+      params.append("isInternal", "true");
+    } else if (activeClientId) {
+      params.append("clientId", activeClientId);
+    }
+    if (filters.startDate) params.append("startDate", filters.startDate);
+    if (filters.endDate) params.append("endDate", filters.endDate);
+    if (filters.search) params.append("search", filters.search);
+    if (filters.unitId) params.append("unitId", filters.unitId);
+    if (filters.residentId) params.append("residentId", filters.residentId);
+
+    const queryStr = params.toString();
+    return queryStr ? `/operation/minuta/correspondence?${queryStr}` : "/operation/minuta/correspondence";
+  }, [activeClientId, isGlobalUser, viewMode, filters]);
 
   const columns: GridColDef[] = [
     { field: "id", headerName: "ID", width: 60 },
@@ -498,7 +569,7 @@ export default function CorrespondencePage() {
         return (
           <Box sx={{ display: "flex", alignItems: "center", height: "100%", gap: 0.8 }}>
             <HomeWorkIcon sx={{ fontSize: 18, color: "primary.main" }} />
-            <Typography variant="body2" sx={{ fontWeight: 600, lineHeight: 1.2 }}>
+            <Typography variant="body2" sx={{ fontWeight: 600 }}>
               {dest}
             </Typography>
           </Box>
@@ -518,45 +589,51 @@ export default function CorrespondencePage() {
         return (
           <Box sx={{ display: "flex", alignItems: "center", height: "100%", gap: 0.6 }}>
             <PersonIcon sx={{ fontSize: 17, color: "text.secondary" }} />
-            <Typography variant="body2" sx={{ lineHeight: 1.2 }}>
-              {res}
-            </Typography>
+            <Typography variant="body2">{res}</Typography>
           </Box>
         );
       },
     },
     {
+      field: "correspondenceType",
+      headerName: "Tipo",
+      width: 110,
+      renderCell: (params) => {
+        const typeMap: Record<string, string> = {
+          LETTER: "Carta",
+          BOX: "Caja/Paquete",
+          DOCUMENT: "Sobre/Doc",
+          PACKAGE: "Encomienda",
+          FOOD_DELIVERY: "Domicilio",
+          OTHER: "Otro",
+        };
+        return (
+          <Chip
+            size="small"
+            label={typeMap[params.value] || params.value || "Paquete"}
+            variant="outlined"
+            icon={<PackageIcon sx={{ fontSize: 14 }} />}
+            sx={{ fontWeight: 500, fontSize: "0.75rem" }}
+          />
+        );
+      },
+    },
+    {
       field: "courierCompany",
-      headerName: "Mensajería",
-      width: 130,
+      headerName: "Empresa",
+      width: 120,
       renderCell: (params) => (
-        <Box sx={{ display: "flex", alignItems: "center", height: "100%" }}>
-          <Typography variant="body2" sx={{ lineHeight: 1.2 }}>
-            {params.value || "Directa"}
-          </Typography>
+        <Box sx={{ display: "flex", alignItems: "center", height: "100%", gap: 0.5 }}>
+          <LocalShippingIcon sx={{ fontSize: 16, color: "text.disabled" }} />
+          <Typography variant="body2">{params.value || "Directa"}</Typography>
         </Box>
       ),
     },
     {
       field: "trackingNumber",
       headerName: "N° Guía",
-      width: 120,
-      renderCell: (params) => (
-        <Box sx={{ display: "flex", alignItems: "center", height: "100%" }}>
-          {params.value ? (
-            <Chip
-              size="small"
-              icon={<PackageIcon sx={{ fontSize: 14 }} />}
-              label={params.value}
-              sx={{ fontWeight: 600, fontSize: "0.72rem" }}
-            />
-          ) : (
-            <Typography variant="body2" sx={{ color: "text.disabled" }}>
-              —
-            </Typography>
-          )}
-        </Box>
-      ),
+      width: 110,
+      valueGetter: (value: any) => value || "—",
     },
     {
       field: "evidence",
@@ -564,12 +641,12 @@ export default function CorrespondencePage() {
       width: 100,
       sortable: false,
       renderCell: (params) => {
-        const hasMedia =
+        const hasEvidence =
           (params.row.mediaAttachments && params.row.mediaAttachments.length > 0) ||
           Boolean(params.row.deliveryEvidenceUrl);
         return (
           <Box sx={{ display: "flex", alignItems: "center", height: "100%" }}>
-            {!hasMedia ? (
+            {!hasEvidence ? (
               <Typography variant="caption" sx={{ color: "text.disabled" }}>
                 —
               </Typography>
@@ -591,7 +668,7 @@ export default function CorrespondencePage() {
     {
       field: "deliveryAction",
       headerName: "Estado / Entrega",
-      width: 190,
+      width: 180,
       sortable: false,
       renderCell: (params) => {
         const isDelivered = params.row.status === "DELIVERED";
@@ -600,17 +677,18 @@ export default function CorrespondencePage() {
             {isDelivered ? (
               <Chip
                 size="small"
-                icon={<CheckCircleIcon sx={{ fontSize: 15 }} />}
-                label={`Entregado: ${params.row.deliveredToName || "Residente"}`}
+                icon={<CheckCircleIcon sx={{ fontSize: 16 }} />}
+                label="Entregado"
                 color="success"
-                sx={{ fontWeight: 600, fontSize: "0.73rem" }}
+                variant="outlined"
+                sx={{ fontWeight: 600, fontSize: "0.75rem" }}
               />
             ) : (
               <Button
                 size="small"
                 variant="contained"
                 color="primary"
-                startIcon={<LocalShippingIcon sx={{ fontSize: 15 }} />}
+                startIcon={<CheckCircleIcon sx={{ fontSize: 15 }} />}
                 onClick={() => handleOpenDelivery(params.row)}
                 sx={{
                   textTransform: "none",
@@ -629,10 +707,17 @@ export default function CorrespondencePage() {
         );
       },
     },
+    {
+      field: "receivedByName",
+      headerName: "Recepcionado Por",
+      width: 140,
+      valueGetter: (value: any, row: any) => value || row.createdBy || "Guardia",
+    },
   ];
 
   return (
     <>
+      {/* Selector de Cliente para usuarios globales */}
       {isGlobalUser && (
         <Paper
           elevation={0}
@@ -645,34 +730,79 @@ export default function CorrespondencePage() {
             display: "flex",
             flexDirection: { xs: "column", sm: "row" },
             alignItems: { xs: "stretch", sm: "center" },
-            gap: { xs: 1, sm: 2 },
+            justifyContent: "space-between",
+            gap: { xs: 1.5, sm: 2 },
           }}
         >
-          <Typography
-            variant="body2"
-            sx={{
-              fontWeight: 600,
-              minWidth: { xs: "auto", sm: 160 },
-              fontSize: { xs: "0.85rem", sm: "0.9rem" },
-            }}
+          <Stack
+            direction={{ xs: "column", sm: "row" }}
+            alignItems={{ xs: "flex-start", sm: "center" }}
+            spacing={2}
+            sx={{ flex: 1 }}
           >
-            Conjunto / Cliente Activo:
-          </Typography>
-          <FormControl size="small" sx={{ width: { xs: "100%", sm: 280 } }}>
-            <Select
-              value={selectedClientId}
-              onChange={(e) => setSelectedClientId(e.target.value)}
-              displayEmpty
+            <Typography
+              variant="body2"
+              sx={{
+                fontWeight: 600,
+                fontSize: { xs: "0.85rem", sm: "0.9rem" },
+                whiteSpace: "nowrap",
+              }}
             >
-              {clients.map((c) => (
-                <MenuItem key={c.id} value={c.id}>
-                  {c.name} ({c.internalCode || c.nit})
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
+              Conjunto / Cliente Activo:
+            </Typography>
+            <FormControl
+              size="small"
+              sx={{ width: { xs: "100%", sm: 300 } }}
+              disabled={viewMode === "INTERNAL"}
+            >
+              <Select
+                value={viewMode === "INTERNAL" ? "" : selectedClientId}
+                onChange={(e) => setSelectedClientId(e.target.value)}
+                displayEmpty
+              >
+                <MenuItem value="">Todos los Clientes / Conjuntos</MenuItem>
+                {clients.map((c) => (
+                  <MenuItem key={c.id} value={c.id}>
+                    {c.name} ({c.internalCode || c.nit})
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          </Stack>
+
+          <FormControlLabel
+            control={
+              <Switch
+                checked={viewMode === "INTERNAL"}
+                onChange={(e) =>
+                  setViewMode(e.target.checked ? "INTERNAL" : "CLIENT")
+                }
+                color="primary"
+              />
+            }
+            label={
+              <Typography
+                variant="body2"
+                sx={{
+                  fontWeight: 600,
+                  fontSize: { xs: "0.8rem", sm: "0.85rem" },
+                  color: viewMode === "INTERNAL" ? "primary.main" : "text.secondary",
+                }}
+              >
+                Ver Registros Internos
+              </Typography>
+            }
+            sx={{ m: 0 }}
+          />
         </Paper>
       )}
+
+      {/* Barra de Búsqueda y Filtros Avanzados */}
+      <MinutaFilterBar
+        clientId={activeClientId}
+        onFilterChange={handleFilterChange}
+        searchPlaceholder="Buscar por guía, destinatario, remitente o empresa..."
+      />
 
       <DataTable
         title="Control de Correspondencia y Paquetería"
@@ -734,7 +864,7 @@ export default function CorrespondencePage() {
                 { label: "Hora Recepción", value: formatTime(detailRecord.receivedTime || detailRecord.time) },
                 {
                   label: "Destino (Unidad)",
-                  value: detailRecord.unitName || detailRecord.destination || "N/A",
+                  value: detailRecord.unitName || detailRecord.unit?.unitName || detailRecord.destination || "N/A",
                 },
                 {
                   label: "Destinatario",
@@ -775,8 +905,27 @@ export default function CorrespondencePage() {
         PaperProps={{ sx: { borderRadius: { xs: 2, sm: 2.5 }, m: { xs: 1.5, sm: 3 } } }}
       >
         <form onSubmit={handleSubmit}>
-          <DialogTitle sx={{ pb: 1, fontWeight: 700, fontSize: { xs: "1.1rem", sm: "1.25rem" } }}>
-            {isEditing ? "Actualizar Paquete" : "Nuevo Ingreso de Paquete / Domicilio"}
+          <DialogTitle sx={{ pb: 1, fontWeight: 700, fontSize: { xs: "1.1rem", sm: "1.25rem" }, display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
+            <Box component="span">
+              {isEditing
+                ? "Actualizar Paquete"
+                : isGlobalUser
+                ? viewMode === "INTERNAL"
+                  ? "Nuevo Registro Interno"
+                  : activeClientName
+                  ? `Nuevo Registro para ${activeClientName}`
+                  : "Nuevo Ingreso de Paquete / Domicilio"
+                : "Nuevo Ingreso de Paquete / Domicilio"}
+            </Box>
+            {isGlobalUser && !isEditing && (
+              <Chip
+                size="small"
+                label={viewMode === "INTERNAL" ? "Registro Interno" : activeClientName || "Cliente"}
+                color={viewMode === "INTERNAL" ? "secondary" : "primary"}
+                variant="outlined"
+                sx={{ fontWeight: 600, ml: "auto" }}
+              />
+            )}
           </DialogTitle>
           <DialogContent dividers sx={{ pt: 2, px: { xs: 2, sm: 3 } }}>
             <Grid container spacing={2}>
@@ -818,43 +967,46 @@ export default function CorrespondencePage() {
                 />
               </Grid>
 
-              {/* Selector de Unidad */}
+              {/* Selector de Unidad con Autocomplete */}
               <Grid size={{ xs: 12, sm: 6 }}>
-                <FormControl fullWidth size="small" required>
-                  <InputLabel id="unit-select-label">Unidad / Apartamento</InputLabel>
-                  <Select
-                    labelId="unit-select-label"
-                    label="Unidad / Apartamento"
-                    value={formData.unitId}
-                    onChange={(e) => handleSelectUnit(e.target.value)}
-                  >
-                    {units.map((u) => (
-                      <MenuItem key={u.id} value={u.id}>
-                        {u.unitName} {u.tower ? `(${u.tower.towerName})` : ""}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
+                <UnitAutocomplete
+                  clientId={activeClientId}
+                  value={selectedUnit}
+                  onChange={handleUnitChange}
+                  label="Unidad / Apartamento"
+                  placeholder="Buscar torre, apto o casa..."
+                  required
+                />
               </Grid>
 
-              {/* Selector de Residente Destinatario */}
+              {/* Selector de Residente Destinatario con Autocomplete */}
+              <Grid size={{ xs: 12, sm: 6 }}>
+                <ResidentAutocomplete
+                  clientId={activeClientId}
+                  unitId={selectedUnit?.id}
+                  preloadedResidents={preloadedResidents}
+                  value={selectedResident}
+                  onChange={handleResidentChange}
+                  label="Residente Destinatario (Opcional)"
+                  placeholder="Buscar por nombre o documento..."
+                />
+              </Grid>
+
               <Grid size={{ xs: 12, sm: 6 }}>
                 <FormControl fullWidth size="small">
-                  <InputLabel id="resident-select-label">Residente Destinatario</InputLabel>
+                  <InputLabel id="type-select-label">Tipo de Correspondencia</InputLabel>
                   <Select
-                    labelId="resident-select-label"
-                    label="Residente Destinatario"
-                    value={formData.recipientResidentId}
-                    onChange={(e) => handleSelectResident(e.target.value)}
+                    labelId="type-select-label"
+                    label="Tipo de Correspondencia"
+                    value={formData.correspondenceType}
+                    onChange={(e) => setFormData({ ...formData, correspondenceType: e.target.value })}
                   >
-                    <MenuItem value="">— Seleccionar (Opcional) —</MenuItem>
-                    {residents
-                      .filter((r) => !formData.unitId || r.unitId === formData.unitId)
-                      .map((r) => (
-                        <MenuItem key={r.id} value={r.id}>
-                          {r.firstName} {r.lastName}
-                        </MenuItem>
-                      ))}
+                    <MenuItem value="BOX">Caja / Paquete</MenuItem>
+                    <MenuItem value="DOCUMENT">Sobre / Documento</MenuItem>
+                    <MenuItem value="LETTER">Carta</MenuItem>
+                    <MenuItem value="PACKAGE">Encomienda</MenuItem>
+                    <MenuItem value="FOOD_DELIVERY">Comida / Domicilio</MenuItem>
+                    <MenuItem value="OTHER">Otro</MenuItem>
                   </Select>
                 </FormControl>
               </Grid>
@@ -863,16 +1015,19 @@ export default function CorrespondencePage() {
                 <TextField
                   fullWidth
                   size="small"
-                  label="Empresa de Mensajería (Servientrega, DHL, etc.)"
+                  label="Empresa de Mensajería"
+                  placeholder="Ej: Servientrega, Interrapidísimo, Envia..."
                   value={formData.courierCompany}
                   onChange={(e) => setFormData({ ...formData, courierCompany: e.target.value })}
                 />
               </Grid>
+
               <Grid size={{ xs: 12, sm: 6 }}>
                 <TextField
                   fullWidth
                   size="small"
                   label="Número de Guía / Tracking"
+                  placeholder="Ej: 1234567890"
                   value={formData.trackingNumber}
                   onChange={(e) => setFormData({ ...formData, trackingNumber: e.target.value })}
                 />
@@ -882,27 +1037,11 @@ export default function CorrespondencePage() {
                 <TextField
                   fullWidth
                   size="small"
-                  label="Remitente / Tienda (Ej: MercadoLibre, Amazon)"
+                  label="Remitente / Tienda (Opcional)"
+                  placeholder="Ej: Mercado Libre, Amazon, Éxito..."
                   value={formData.sender}
                   onChange={(e) => setFormData({ ...formData, sender: e.target.value })}
                 />
-              </Grid>
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <FormControl fullWidth size="small">
-                  <InputLabel id="corr-type-label">Tipo de Correspondencia</InputLabel>
-                  <Select
-                    labelId="corr-type-label"
-                    label="Tipo de Correspondencia"
-                    value={formData.correspondenceType}
-                    onChange={(e) => setFormData({ ...formData, correspondenceType: e.target.value })}
-                  >
-                    <MenuItem value="BOX">Paquete / Caja</MenuItem>
-                    <MenuItem value="ENVELOPE">Sobre / Carta</MenuItem>
-                    <MenuItem value="DOCUMENT">Documento</MenuItem>
-                    <MenuItem value="FOOD_DELIVERY">Domicilio / Comida</MenuItem>
-                    <MenuItem value="OTHER">Otro</MenuItem>
-                  </Select>
-                </FormControl>
               </Grid>
 
               <Grid size={12}>
@@ -912,21 +1051,23 @@ export default function CorrespondencePage() {
                   multiline
                   rows={2}
                   label="Observaciones / Estado del Paquete"
+                  placeholder="Detalles sobre averías visibles, sello de seguridad, etc..."
                   value={formData.observations}
                   onChange={(e) => setFormData({ ...formData, observations: e.target.value })}
-                  placeholder="Ej: Caja cerrada, sin roturas evidentes..."
                 />
               </Grid>
 
-              {/* Fotografía de Recepción del Paquete */}
-              <Grid size={12}>
+              <Grid size={12} sx={{ mt: 1 }}>
+                <Typography variant="subtitle2" sx={{ color: "primary.main", fontWeight: 700, mb: 0.5, display: "flex", alignItems: "center", gap: 0.5 }}>
+                  <CameraIcon sx={{ fontSize: 18 }} /> Fotografía del Paquete al Recibir (AWS S3)
+                </Typography>
                 <ImageUploadCapture
-                  label="Foto del Paquete en Recepción"
+                  label="Foto del Paquete / Guía en Recepción"
                   variant="evidence"
                   value={evidenceReceptionFile}
                   previewUrl={existingReceptionMediaUrl}
                   onChange={setEvidenceReceptionFile}
-                  helperText="Toma una foto del paquete recibido para constatar su estado inicial en portería."
+                  helperText="Toma una foto en vivo al paquete con su número de guía visible."
                 />
               </Grid>
             </Grid>
@@ -936,13 +1077,13 @@ export default function CorrespondencePage() {
               Cancelar
             </Button>
             <Button type="submit" variant="contained" disabled={submitting} sx={{ fontWeight: 600, width: { xs: "100%", sm: "auto" } }}>
-              {submitting ? "Guardando..." : isEditing ? "Actualizar" : "Registrar en Portería"}
+              {submitting ? "Guardando..." : isEditing ? "Actualizar Paquete" : "Registrar Recepción"}
             </Button>
           </DialogActions>
         </form>
       </Dialog>
 
-      {/* Modal de Entrega al Residente con Doble Evidencia */}
+      {/* Modal de Entrega a Residente con Evidencia */}
       <Dialog
         open={deliveryDialogOpen}
         onClose={() => !delivering && setDeliveryDialogOpen(false)}
@@ -950,83 +1091,83 @@ export default function CorrespondencePage() {
         fullWidth
         PaperProps={{ sx: { borderRadius: { xs: 2, sm: 2.5 }, m: { xs: 1.5, sm: 3 } } }}
       >
-        <DialogTitle sx={{ pb: 1, fontWeight: 700, fontSize: { xs: "1.05rem", sm: "1.25rem" }, display: "flex", alignItems: "center", gap: 1 }}>
-          <LocalShippingIcon color="primary" /> Entrega de Paquete al Residente
+        <DialogTitle sx={{ fontWeight: 700, fontSize: { xs: "1.1rem", sm: "1.25rem" } }}>
+          Entregar Paquete al Residente
         </DialogTitle>
         <DialogContent dividers sx={{ pt: 2, px: { xs: 2, sm: 3 } }}>
-          <Stack spacing={2.5}>
-            {/* Card resumen del paquete */}
-            <Card variant="outlined" sx={{ bgcolor: "action.hover", borderRadius: 2 }}>
-              <CardContent sx={{ p: 1.5, "&:last-child": { pb: 1.5 } }}>
+          {selectedRecordForDelivery && (
+            <Card variant="outlined" sx={{ mb: 2, bgcolor: "background.default" }}>
+              <CardContent sx={{ py: 1.5, px: 2, "&:last-child": { pb: 1.5 } }}>
                 <Grid container spacing={1}>
                   <Grid size={6}>
-                    <Typography variant="caption" color="text.secondary">
+                    <Typography variant="caption" color="text.secondary" display="block">
                       Destino:
                     </Typography>
-                    <Typography variant="body2" sx={{ fontWeight: 700 }}>
-                      {selectedRecordForDelivery?.unitName || selectedRecordForDelivery?.destination || "—"}
+                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                      {selectedRecordForDelivery.unitName || selectedRecordForDelivery.destination || "N/A"}
                     </Typography>
                   </Grid>
                   <Grid size={6}>
-                    <Typography variant="caption" color="text.secondary">
-                      Mensajería / Guía:
+                    <Typography variant="caption" color="text.secondary" display="block">
+                      Guía / Tracking:
                     </Typography>
                     <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                      {selectedRecordForDelivery?.courierCompany || "Directo"} - {selectedRecordForDelivery?.trackingNumber || "Sin N°"}
+                      {selectedRecordForDelivery.trackingNumber || "Sin N°"}
                     </Typography>
                   </Grid>
+                  {receptionPhotoUrlForDelivery && (
+                    <Grid size={12} sx={{ mt: 1 }}>
+                      <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 0.5 }}>
+                        Foto al recibir en portería:
+                      </Typography>
+                      <Box
+                        component="img"
+                        src={receptionPhotoUrlForDelivery}
+                        alt="Foto Recepción"
+                        sx={{ maxHeight: 120, maxWidth: "100%", objectFit: "contain", borderRadius: 1, border: "1px solid", borderColor: "divider" }}
+                      />
+                    </Grid>
+                  )}
                 </Grid>
               </CardContent>
             </Card>
+          )}
 
-            {/* Preview de la Foto del Paquete en Recepción */}
-            {receptionPhotoUrlForDelivery && (
-              <Box sx={{ border: "1px solid", borderColor: "divider", borderRadius: 2, p: 1.5, bgcolor: "background.paper" }}>
-                <Typography variant="caption" sx={{ fontWeight: 700, color: "text.secondary", display: "block", mb: 1 }}>
-                  📦 Fotografía del Paquete al ser Recibido en Portería:
-                </Typography>
-                <Box
-                  component="img"
-                  src={receptionPhotoUrlForDelivery}
-                  alt="Foto Recepción"
-                  sx={{ width: "100%", maxHeight: 160, objectFit: "contain", borderRadius: 1.5, bgcolor: "black" }}
-                />
-              </Box>
-            )}
-
-            {/* Input persona que reclama */}
+          <Stack spacing={2}>
             <TextField
               fullWidth
               size="small"
               required
-              label="Nombre de quien reclama el paquete"
+              label="Nombre de Quien Recibe / Reclama"
+              placeholder="Ej: Carlos Gómez (Hermano del residente)"
               value={deliveredToName}
               onChange={(e) => setDeliveredToName(e.target.value)}
-              helperText="Indica el nombre completo de la persona o residente que recibe"
             />
-
-            {/* Input para la Segunda Fotografía: Foto del Residente Recibiendo */}
-            <Box>
-              <ImageUploadCapture
-                label="Foto del Residente Recibiendo el Paquete"
-                variant="evidence"
-                value={evidenceDeliveryFile}
-                previewUrl={existingDeliveryMediaUrl}
-                onChange={setEvidenceDeliveryFile}
-                helperText="Captura una foto de entrega en vivo o selecciona un archivo para soporte de entrega."
-              />
-            </Box>
 
             <TextField
               fullWidth
               size="small"
               multiline
               rows={2}
-              label="Notas adicionales de entrega (Opcional)"
+              label="Notas o Constancia de Entrega (Opcional)"
+              placeholder="Ej: Se entregó con documento de identidad verificado..."
               value={deliveryNotes}
               onChange={(e) => setDeliveryNotes(e.target.value)}
-              placeholder="Ej: Recibió en portería el residente titular..."
             />
+
+            <Box>
+              <Typography variant="subtitle2" sx={{ color: "primary.main", fontWeight: 700, mb: 0.5, display: "flex", alignItems: "center", gap: 0.5 }}>
+                <CameraIcon sx={{ fontSize: 18 }} /> Fotografía de Evidencia de Entrega (AWS S3)
+              </Typography>
+              <ImageUploadCapture
+                label="Foto al Residente Recibiendo el Paquete"
+                variant="evidence"
+                value={evidenceDeliveryFile}
+                previewUrl={existingDeliveryMediaUrl}
+                onChange={setEvidenceDeliveryFile}
+                helperText="Captura una foto de entrega para constancia y evitar reclamos posteriores."
+              />
+            </Box>
           </Stack>
         </DialogContent>
         <DialogActions sx={{ px: { xs: 2, sm: 3 }, py: 2, flexDirection: { xs: "column-reverse", sm: "row" }, gap: { xs: 1, sm: 0 } }}>
@@ -1037,67 +1178,52 @@ export default function CorrespondencePage() {
             onClick={handleConfirmDelivery}
             variant="contained"
             color="success"
-            disabled={delivering || !deliveredToName.trim()}
-            startIcon={<CheckCircleIcon />}
+            disabled={delivering}
+            startIcon={delivering ? <CircularProgress size={16} color="inherit" /> : <CheckCircleIcon />}
             sx={{ fontWeight: 600, width: { xs: "100%", sm: "auto" } }}
           >
-            {delivering ? "Procesando Entrega..." : "Confirmar y Entregar Paquete"}
+            {delivering ? "Registrando Entrega..." : "Confirmar Entrega"}
           </Button>
         </DialogActions>
       </Dialog>
 
-      {/* Modal de Previsualización de Evidencia */}
+      {/* Modal Visor de Evidencias (Recepción y Entrega en Pestañas) */}
       <Dialog
         open={previewModalOpen}
         onClose={() => setPreviewModalOpen(false)}
         maxWidth="md"
-        fullWidth
         PaperProps={{ sx: { borderRadius: { xs: 2, sm: 2.5 }, m: { xs: 1.5, sm: 3 } } }}
       >
-        <DialogTitle sx={{ pb: 0, fontWeight: 700, fontSize: { xs: "1.1rem", sm: "1.25rem" } }}>
-          Soporte Fotográfico de Correspondencia
+        <DialogTitle sx={{ pb: 0, pt: 1.5 }}>
+          <Tabs value={previewTab} onChange={(_, v) => setPreviewTab(v)} sx={{ borderBottom: 1, borderColor: "divider" }}>
+            <Tab label="Foto Recepción" disabled={!previewPhotos.receptionUrl} />
+            <Tab label="Foto Entrega" disabled={!previewPhotos.deliveryUrl} />
+          </Tabs>
         </DialogTitle>
-        <DialogContent dividers sx={{ p: { xs: 1.5, sm: 2 } }}>
+        <DialogContent sx={{ p: 1, bgcolor: "black", textAlign: "center", minWidth: { xs: 260, sm: 320 }, minHeight: 240, display: "flex", alignItems: "center", justifyContent: "center" }}>
           {previewLoading ? (
-            <Box sx={{ py: 6, textAlign: "center" }}>
-              <CircularProgress color="primary" />
-            </Box>
+            <CircularProgress color="primary" />
+          ) : previewTab === 0 && previewPhotos.receptionUrl ? (
+            <Box
+              component="img"
+              src={previewPhotos.receptionUrl}
+              alt="Foto Recepción"
+              sx={{ maxWidth: "100%", maxHeight: "75vh", objectFit: "contain", borderRadius: 1 }}
+            />
+          ) : previewTab === 1 && previewPhotos.deliveryUrl ? (
+            <Box
+              component="img"
+              src={previewPhotos.deliveryUrl}
+              alt="Foto Entrega"
+              sx={{ maxWidth: "100%", maxHeight: "75vh", objectFit: "contain", borderRadius: 1 }}
+            />
           ) : (
-            <Box>
-              <Tabs
-                value={previewTab}
-                onChange={(_, val) => setPreviewTab(val)}
-                sx={{ mb: 2, borderBottom: 1, borderColor: "divider" }}
-              >
-                <Tab label="Foto en Recepción" disabled={!previewPhotos.receptionUrl} />
-                <Tab label="Foto en Entrega" disabled={!previewPhotos.deliveryUrl} />
-              </Tabs>
-
-              {previewTab === 0 && previewPhotos.receptionUrl && (
-                <Box sx={{ bgcolor: "black", textAlign: "center", borderRadius: 2, p: 1 }}>
-                  <Box
-                    component="img"
-                    src={previewPhotos.receptionUrl}
-                    alt="Foto Recepción"
-                    sx={{ maxWidth: "100%", maxHeight: "65vh", objectFit: "contain", borderRadius: 1 }}
-                  />
-                </Box>
-              )}
-
-              {previewTab === 1 && previewPhotos.deliveryUrl && (
-                <Box sx={{ bgcolor: "black", textAlign: "center", borderRadius: 2, p: 1 }}>
-                  <Box
-                    component="img"
-                    src={previewPhotos.deliveryUrl}
-                    alt="Foto Entrega"
-                    sx={{ maxWidth: "100%", maxHeight: "65vh", objectFit: "contain", borderRadius: 1 }}
-                  />
-                </Box>
-              )}
-            </Box>
+            <Typography variant="body2" sx={{ color: "white" }}>
+              Sin imagen para esta categoría
+            </Typography>
           )}
         </DialogContent>
-        <DialogActions sx={{ px: 2, py: 1 }}>
+        <DialogActions sx={{ bgcolor: "background.paper", px: 2, py: 1 }}>
           <Button onClick={() => setPreviewModalOpen(false)}>Cerrar</Button>
         </DialogActions>
       </Dialog>

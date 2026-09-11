@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useNotification } from "@/providers/NotificationProvider";
 import { useAuth } from "@/components/AuthContext";
 import DataTable from "@/components/common/DataTable";
@@ -14,6 +14,8 @@ import {
   DialogContent,
   DialogTitle,
   FormControl,
+  FormControlLabel,
+  Switch,
   Grid,
   InputLabel,
   MenuItem,
@@ -25,7 +27,8 @@ import {
   Tooltip,
   IconButton,
   CircularProgress,
-  InputAdornment
+  InputAdornment,
+  Divider,
 } from "@mui/material";
 import {
   Logout as LogoutIcon,
@@ -34,47 +37,35 @@ import {
   DirectionsCar as CarIcon,
   Badge as BadgeIcon,
   AccessTime as TimeIcon,
-  Refresh as RefreshIcon,
   CameraAlt as CameraIcon,
+  CalendarMonth as CalendarMonthIcon,
+  WarningAmber as WarningIcon,
 } from "@mui/icons-material";
 import ImageUploadCapture from "@/components/common/ImageUploadCapture";
 import DetailDialog from "@/components/common/DetailDialog";
+import UnitAutocomplete, { UnitOption } from "@/components/common/UnitAutocomplete";
+import ResidentAutocomplete, { ResidentOption } from "@/components/common/ResidentAutocomplete";
+import MinutaFilterBar, { MinutaFilterValues } from "@/components/common/MinutaFilterBar";
 import { HttpClient } from "@/lib/api/client";
 import { StorageApi, MediaTypeCategory } from "@/lib/api/storage";
 import { formatDate, formatTime, formatDateTime, formatTimeToHHmm } from "@/lib/formatters";
-import { CalendarMonth as CalendarMonthIcon } from "@mui/icons-material";
-
-
-interface UnitOption {
-  id: string;
-  unitName: string;
-  unitType?: string;
-  tower?: { towerName: string };
-  floor?: { floorNumber: number };
-}
-
-interface ResidentOption {
-  id: string;
-  unitId: string;
-  firstName: string;
-  lastName: string;
-  document: string;
-  phoneNumber?: string;
-  unit?: { unitName: string };
-}
 
 export default function VisitorControlPage() {
   const [clients, setClients] = useState<any[]>([]);
   const [selectedClientId, setSelectedClientId] = useState<string>("");
-  const [units, setUnits] = useState<UnitOption[]>([]);
-  const [residents, setResidents] = useState<ResidentOption[]>([]);
-  const [loadingCatalog, setLoadingCatalog] = useState(false);
+  const [viewMode, setViewMode] = useState<"CLIENT" | "INTERNAL">("CLIENT");
+  const [filters, setFilters] = useState<MinutaFilterValues>({});
+  const hasInitializedClient = useRef(false);
 
   // Form State
   const [dialogOpen, setDialogOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  // Autocomplete selection states for Create/Edit Form
+  const [selectedUnit, setSelectedUnit] = useState<UnitOption | null>(null);
+  const [selectedResident, setSelectedResident] = useState<ResidentOption | null>(null);
 
   const [formData, setFormData] = useState({
     date: "",
@@ -102,15 +93,36 @@ export default function VisitorControlPage() {
   const [existingMediaUrl, setExistingMediaUrl] = useState<string | null>(null);
   const [previewModalUrl, setPreviewModalUrl] = useState<string | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
+
+  // Exit Modal State (Two-step: Prompt Confirmation -> Modal with Optional Exit Photo)
+  const [exitConfirmOpen, setExitConfirmOpen] = useState(false);
+  const [exitModalOpen, setExitModalOpen] = useState(false);
+  const [selectedExitVisitor, setSelectedExitVisitor] = useState<any | null>(null);
+  const [exitTime, setExitTime] = useState("");
+  const [exitObservations, setExitObservations] = useState("");
+  const [exitEvidenceFile, setExitEvidenceFile] = useState<File | null>(null);
+  const [exitSubmitting, setExitSubmitting] = useState(false);
+
+  // Detail Modal State
   const [detailRecord, setDetailRecord] = useState<any | null>(null);
-  const [detailImageUrl, setDetailImageUrl] = useState<string | null>(null);
+  const [detailPhotos, setDetailPhotos] = useState<{ entryUrl?: string | null; exitUrl?: string | null }>({});
 
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const { showError, showSuccess } = useNotification();
   const { session } = useAuth();
 
   const isGlobalUser = !session?.user?.clientId;
-  const activeClientId = session?.user?.clientId || selectedClientId;
+  const activeClientId = isGlobalUser
+    ? viewMode === "INTERNAL"
+      ? undefined
+      : selectedClientId || undefined
+    : session?.user?.clientId || undefined;
+
+  const selectedClientObj = useMemo(
+    () => clients.find((c) => c.id === (isGlobalUser ? selectedClientId : session?.user?.clientId)),
+    [clients, isGlobalUser, selectedClientId, session?.user?.clientId]
+  );
+  const activeClientName = selectedClientObj?.name;
 
   // 1. Load clients for global user
   useEffect(() => {
@@ -119,42 +131,14 @@ export default function VisitorControlPage() {
         .then((data) => {
           const list = data || [];
           setClients(list);
-          if (list.length > 0 && !selectedClientId) {
+          if (list.length > 0 && !hasInitializedClient.current) {
             setSelectedClientId(list[0].id);
+            hasInitializedClient.current = true;
           }
         })
         .catch(() => {});
     }
-  }, [isGlobalUser, selectedClientId]);
-
-  // 2. Load units and residents whenever active client changes
-  const loadCatalogs = useCallback(async (clientId: string) => {
-    if (!clientId) {
-      setUnits([]);
-      setResidents([]);
-      return;
-    }
-    setLoadingCatalog(true);
-    try {
-      const [clientData, residentsData] = await Promise.all([
-        HttpClient.get<any>(`/client/${clientId}`).catch(() => null),
-        HttpClient.get<any[]>(`/resident/by-client/${clientId}`).catch(() => []),
-      ]);
-
-      setUnits(clientData?.units || []);
-      setResidents(residentsData || []);
-    } catch {
-      // Ignorar fallo de carga de catálogos secundarios
-    } finally {
-      setLoadingCatalog(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (activeClientId) {
-      loadCatalogs(activeClientId);
-    }
-  }, [activeClientId, loadCatalogs]);
+  }, [isGlobalUser]);
 
   const permissions = session?.permissions || [];
   const canDelete =
@@ -172,10 +156,18 @@ export default function VisitorControlPage() {
 
   // Handler: Abrir modal de nuevo registro
   const handleOpenCreate = () => {
+    if (isGlobalUser && viewMode === "CLIENT" && !selectedClientId) {
+      showError(
+        "Debe escoger un cliente específico o seleccionar registros internos antes de generar un registro nuevo."
+      );
+      return;
+    }
     const now = new Date();
     const currentTime = now.toTimeString().split(" ")[0].substring(0, 5);
     setEvidenceFile(null);
     setExistingMediaUrl(null);
+    setSelectedUnit(null);
+    setSelectedResident(null);
     setFormData({
       date: now.toISOString().split("T")[0],
       time: currentTime + ":00",
@@ -210,6 +202,32 @@ export default function VisitorControlPage() {
       const data = await HttpClient.get<any>(`/operation/minuta/visitor/${id}`);
       setEditId(id);
       setIsEditing(true);
+
+      // Pre-set autocomplete options
+      if (data.unit) {
+        setSelectedUnit(data.unit);
+      } else if (data.unitId) {
+        setSelectedUnit({
+          id: data.unitId,
+          unitName: data.destinationApartment || data.apartment || "Unidad",
+        });
+      } else {
+        setSelectedUnit(null);
+      }
+
+      if (data.resident) {
+        setSelectedResident(data.resident);
+      } else if (data.residentId) {
+        setSelectedResident({
+          id: data.residentId,
+          firstName: data.authorizedByFullName || data.hostName || "Residente",
+          lastName: "",
+          unitId: data.unitId,
+        });
+      } else {
+        setSelectedResident(null);
+      }
+
       setFormData({
         date: data.date ? new Date(data.date).toISOString().split("T")[0] : "",
         time: data.time ? formatTimeToHHmm(data.time) : "",
@@ -235,7 +253,8 @@ export default function VisitorControlPage() {
       // Load existing S3 media
       const mediaList = await StorageApi.getByEntity(MediaTypeCategory.VISITOR, id);
       if (mediaList && mediaList.length > 0) {
-        setExistingMediaUrl(mediaList[0].presignedUrl || null);
+        const entryMedia = mediaList.find((m: any) => m.subType !== "exit") || mediaList[0];
+        setExistingMediaUrl(entryMedia.presignedUrl || null);
       }
 
       setDialogOpen(true);
@@ -244,29 +263,79 @@ export default function VisitorControlPage() {
     }
   };
 
-  // Handler: Selección de Unidad
-  const handleSelectUnit = (unitId: string) => {
-    const unit = units.find((u) => u.id === unitId);
-    setFormData((prev) => ({
-      ...prev,
-      unitId,
-      destinationApartment: unit ? unit.unitName : prev.destinationApartment,
-      destinationInterior: unit?.tower?.towerName || prev.destinationInterior,
-      residentId: "", // reset resident if unit changes
-    }));
+  // Bidirectional Autocomplete Handlers
+  const handleUnitChange = (unit: UnitOption | null) => {
+    setSelectedUnit(unit);
+    if (!unit) {
+      setFormData((prev) => ({
+        ...prev,
+        unitId: "",
+        destinationApartment: "",
+        destinationInterior: "",
+      }));
+    } else {
+      setFormData((prev) => ({
+        ...prev,
+        unitId: unit.id,
+        destinationApartment: unit.unitName,
+        destinationInterior: unit.tower?.towerName || prev.destinationInterior,
+      }));
+      // Reset resident if current resident doesn't belong to this unit
+      if (selectedResident && selectedResident.unitId !== unit.id) {
+        setSelectedResident(null);
+        setFormData((prev) => ({ ...prev, residentId: "", hostName: "" }));
+      }
+    }
   };
 
-  // Handler: Selección de Residente
-  const handleSelectResident = (residentId: string) => {
-    const resident = residents.find((r) => r.id === residentId);
-    setFormData((prev) => ({
-      ...prev,
-      residentId,
-      hostName: resident ? `${resident.firstName} ${resident.lastName}` : prev.hostName,
-      unitId: resident?.unitId || prev.unitId,
-      destinationApartment: resident?.unit?.unitName || prev.destinationApartment,
-    }));
+  const handleResidentChange = (resident: ResidentOption | null) => {
+    setSelectedResident(resident);
+    if (!resident) {
+      setFormData((prev) => ({ ...prev, residentId: "", hostName: "" }));
+    } else {
+      const fullName = `${resident.firstName} ${resident.lastName}`.trim();
+      setFormData((prev) => ({
+        ...prev,
+        residentId: resident.id,
+        hostName: fullName,
+        authorizedByFullName: fullName,
+      }));
+
+      // If resident is linked to a unit and user hasn't selected one or it differs
+      if (resident.unit && (!selectedUnit || selectedUnit.id !== resident.unit.id)) {
+        const matchingUnit: UnitOption = {
+          id: resident.unit.id,
+          unitName: resident.unit.unitName,
+          tower: resident.unit.tower,
+        };
+        setSelectedUnit(matchingUnit);
+        setFormData((prev) => ({
+          ...prev,
+          unitId: matchingUnit.id,
+          destinationApartment: matchingUnit.unitName,
+          destinationInterior: matchingUnit.tower?.towerName || prev.destinationInterior,
+        }));
+      }
+    }
   };
+
+  // Preloaded residents from selected unit
+  const preloadedResidents: ResidentOption[] = useMemo(() => {
+    if (!selectedUnit || !selectedUnit.residents) return [];
+    return selectedUnit.residents.map((r) => ({
+      id: r.id,
+      firstName: r.firstName,
+      lastName: r.lastName,
+      document: r.document,
+      phoneNumber: r.phoneNumber,
+      unitId: selectedUnit.id,
+      unit: {
+        id: selectedUnit.id,
+        unitName: selectedUnit.unitName,
+        tower: selectedUnit.tower,
+      },
+    }));
+  }, [selectedUnit]);
 
   // Handler: Guardar (Crear o Actualizar)
   const handleSubmit = async (e: React.FormEvent) => {
@@ -283,11 +352,15 @@ export default function VisitorControlPage() {
     setSubmitting(true);
     try {
       const now = new Date();
+      const timeVal = formData.time.length === 5 ? `${formData.time}:00` : formData.time;
+      const entryTimeVal = formData.entryTime.length === 5 ? `${formData.entryTime}:00` : formData.entryTime;
+      const dateVal = formData.date || now.toISOString().split("T")[0];
+
       const payload: any = {
-        date: formData.date || now.toISOString().split("T")[0],
-        time: formData.time.length === 5 ? `${formData.time}:00` : formData.time,
-        occurredAt: `${formData.date || now.toISOString().split("T")[0]}T${formData.time.length === 5 ? `${formData.time}:00` : formData.time}Z`,
-        entryTime: formData.entryTime.length === 5 ? `${formData.entryTime}:00` : formData.entryTime,
+        date: dateVal,
+        time: timeVal,
+        occurredAt: `${dateVal}T${timeVal}Z`,
+        entryTime: entryTimeVal,
         visitorFullName: formData.visitorFullName.trim(),
         visitorIdNumber: formData.visitorIdNumber.trim(),
         visitorIdType: formData.visitorIdType,
@@ -299,9 +372,9 @@ export default function VisitorControlPage() {
         block: formData.destinationInterior || null,
         authorizedByFullName: formData.hostName || formData.authorizedByFullName || null,
         observations: formData.observations?.trim() || null,
-        clientId: activeClientId || null,
-        unitId: formData.unitId || null,
-        residentId: formData.residentId || null,
+        clientId: isGlobalUser && viewMode === "INTERNAL" ? null : activeClientId || null,
+        unitId: selectedUnit?.id || formData.unitId || null,
+        residentId: selectedResident?.id || formData.residentId || null,
       };
 
       if (formData.mode === "VEHICLE") {
@@ -328,7 +401,7 @@ export default function VisitorControlPage() {
             file: evidenceFile,
             entityType: MediaTypeCategory.VISITOR,
             entityId,
-            clientId: activeClientId || null,
+            clientId: isGlobalUser && viewMode === "INTERNAL" ? null : activeClientId || null,
             subType: "visitor",
           });
           showSuccess("Fotografía/Evidencia de visitante subida a AWS S3");
@@ -347,50 +420,88 @@ export default function VisitorControlPage() {
     }
   };
 
-  // Handler: Marcar Salida Rápida
-  const handleMarkExit = async (id: string) => {
+  // --- Salida Flow: Confirmation -> Modal with Photo ---
+  const handleStartExitConfirmation = (row: any) => {
+    setSelectedExitVisitor(row);
+    setExitConfirmOpen(true);
+  };
+
+  const handleProceedToExitModal = () => {
+    const now = new Date();
+    setExitTime(formatTimeToHHmm(now));
+    setExitObservations("");
+    setExitEvidenceFile(null);
+    setExitConfirmOpen(false);
+    setExitModalOpen(true);
+  };
+
+  const handleConfirmExit = async () => {
+    if (!selectedExitVisitor) return;
+
+    setExitSubmitting(true);
     try {
-      await HttpClient.patch(`/operation/minuta/visitor/${id}/exit`, {});
-      showSuccess("Salida de visitante registrada exitosamente");
+      const exitTimeFormatted = exitTime.length === 5 ? `${exitTime}:00` : exitTime;
+
+      await HttpClient.patch(`/operation/minuta/visitor/${selectedExitVisitor.id}/exit`, {
+        exitTime: exitTimeFormatted,
+        observations: exitObservations.trim() || undefined,
+      });
+
+      if (exitEvidenceFile) {
+        try {
+          await StorageApi.uploadMedia({
+            file: exitEvidenceFile,
+            entityType: MediaTypeCategory.VISITOR,
+            entityId: selectedExitVisitor.id,
+            clientId: isGlobalUser && viewMode === "INTERNAL" ? null : activeClientId || null,
+            subType: "exit",
+          });
+        } catch (s3Err) {
+          console.error("Error subiendo foto de salida:", s3Err);
+          showError("Salida registrada, pero hubo un problema al subir la foto de salida a S3.");
+        }
+      }
+
+      showSuccess(`Salida de ${selectedExitVisitor.visitorFullName} registrada exitosamente`);
+      setExitModalOpen(false);
+      setSelectedExitVisitor(null);
+      setExitEvidenceFile(null);
       setRefreshTrigger((prev) => prev + 1);
     } catch (err: any) {
       showError(err.message || "Error al registrar la salida");
+    } finally {
+      setExitSubmitting(false);
     }
   };
 
   // Handler: Ver Detalle
   const handleViewDetail = async (row: any) => {
     setDetailRecord(row);
-    setDetailImageUrl(null);
+    setDetailPhotos({});
     try {
-      if (row.mediaAttachments && row.mediaAttachments.length > 0) {
-        const res = await StorageApi.getPresignedUrl(row.mediaAttachments[0].id);
-        setDetailImageUrl(res.presignedUrl);
-      } else {
-        const mediaList = await StorageApi.getByEntity(MediaTypeCategory.VISITOR, row.id);
-        if (mediaList.length > 0 && mediaList[0].presignedUrl) {
-          setDetailImageUrl(mediaList[0].presignedUrl);
-        }
+      const mediaList = await StorageApi.getByEntity(MediaTypeCategory.VISITOR, row.id);
+      if (mediaList && mediaList.length > 0) {
+        const entryMedia = mediaList.find((m: any) => m.subType === "visitor" || !m.subType) || mediaList[0];
+        const exitMedia = mediaList.find((m: any) => m.subType === "exit");
+        setDetailPhotos({
+          entryUrl: entryMedia?.presignedUrl || null,
+          exitUrl: exitMedia?.presignedUrl || null,
+        });
       }
     } catch {}
   };
 
-  // Handler: Ver evidencia fotográfica
+  // Handler: Ver evidencia fotográfica modal
   const handleViewEvidence = async (row: any) => {
     setPreviewLoading(true);
     setPreviewModalUrl(null);
     try {
-      if (row.mediaAttachments && row.mediaAttachments.length > 0) {
-        const mediaId = row.mediaAttachments[0].id;
-        const res = await StorageApi.getPresignedUrl(mediaId);
-        setPreviewModalUrl(res.presignedUrl);
+      const mediaList = await StorageApi.getByEntity(MediaTypeCategory.VISITOR, row.id);
+      if (mediaList && mediaList.length > 0) {
+        const targetMedia = mediaList.find((m: any) => m.subType === "visitor" || !m.subType) || mediaList[0];
+        setPreviewModalUrl(targetMedia.presignedUrl || null);
       } else {
-        const mediaList = await StorageApi.getByEntity(MediaTypeCategory.VISITOR, row.id);
-        if (mediaList.length > 0 && mediaList[0].presignedUrl) {
-          setPreviewModalUrl(mediaList[0].presignedUrl);
-        } else {
-          showError("No hay fotografía/evidencia asociada a este visitante");
-        }
+        showError("No hay fotografía/evidencia asociada a este visitante");
       }
     } catch {
       showError("Error al obtener la imagen segura de AWS S3");
@@ -410,14 +521,27 @@ export default function VisitorControlPage() {
     }
   };
 
-  // Filtrar residentes según la unidad seleccionada
-  const availableResidents = formData.unitId
-    ? residents.filter((r) => r.unitId === formData.unitId)
-    : residents;
+  const handleFilterChange = useCallback((newFilters: MinutaFilterValues) => {
+    setFilters(newFilters);
+  }, []);
 
-  const endpoint = activeClientId
-    ? `/operation/minuta/visitor?clientId=${activeClientId}`
-    : "/operation/minuta/visitor";
+  // Endpoint reactivo con query params de filtros
+  const endpoint = useMemo(() => {
+    const params = new URLSearchParams();
+    if (isGlobalUser && viewMode === "INTERNAL") {
+      params.append("isInternal", "true");
+    } else if (activeClientId) {
+      params.append("clientId", activeClientId);
+    }
+    if (filters.startDate) params.append("startDate", filters.startDate);
+    if (filters.endDate) params.append("endDate", filters.endDate);
+    if (filters.search) params.append("search", filters.search);
+    if (filters.unitId) params.append("unitId", filters.unitId);
+    if (filters.residentId) params.append("residentId", filters.residentId);
+
+    const queryStr = params.toString();
+    return queryStr ? `/operation/minuta/visitor?${queryStr}` : "/operation/minuta/visitor";
+  }, [activeClientId, isGlobalUser, viewMode, filters]);
 
   const columns: GridColDef[] = [
     { field: "id", headerName: "ID", width: 60 },
@@ -573,7 +697,7 @@ export default function VisitorControlPage() {
     {
       field: "exitAction",
       headerName: "Estado / Salida",
-      width: 170,
+      width: 175,
       sortable: false,
       renderCell: (params) => {
         const hasExit = Boolean(params.row.exitTime || params.row.exitAt);
@@ -594,7 +718,7 @@ export default function VisitorControlPage() {
                 variant="contained"
                 color="warning"
                 startIcon={<LogoutIcon sx={{ fontSize: 15 }} />}
-                onClick={() => handleMarkExit(params.row.id)}
+                onClick={() => handleStartExitConfirmation(params.row)}
                 sx={{
                   textTransform: "none",
                   fontSize: "0.75rem",
@@ -635,34 +759,79 @@ export default function VisitorControlPage() {
             display: "flex",
             flexDirection: { xs: "column", sm: "row" },
             alignItems: { xs: "stretch", sm: "center" },
-            gap: { xs: 1, sm: 2 },
+            justifyContent: "space-between",
+            gap: { xs: 1.5, sm: 2 },
           }}
         >
-          <Typography
-            variant="body2"
-            sx={{
-              fontWeight: 600,
-              minWidth: { xs: "auto", sm: 160 },
-              fontSize: { xs: "0.85rem", sm: "0.9rem" },
-            }}
+          <Stack
+            direction={{ xs: "column", sm: "row" }}
+            alignItems={{ xs: "flex-start", sm: "center" }}
+            spacing={2}
+            sx={{ flex: 1 }}
           >
-            Conjunto / Cliente Activo:
-          </Typography>
-          <FormControl size="small" sx={{ width: { xs: "100%", sm: 280 } }}>
-            <Select
-              value={selectedClientId}
-              onChange={(e) => setSelectedClientId(e.target.value)}
-              displayEmpty
+            <Typography
+              variant="body2"
+              sx={{
+                fontWeight: 600,
+                fontSize: { xs: "0.85rem", sm: "0.9rem" },
+                whiteSpace: "nowrap",
+              }}
             >
-              {clients.map((c) => (
-                <MenuItem key={c.id} value={c.id}>
-                  {c.name} ({c.internalCode || c.nit})
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
+              Conjunto / Cliente Activo:
+            </Typography>
+            <FormControl
+              size="small"
+              sx={{ width: { xs: "100%", sm: 300 } }}
+              disabled={viewMode === "INTERNAL"}
+            >
+              <Select
+                value={viewMode === "INTERNAL" ? "" : selectedClientId}
+                onChange={(e) => setSelectedClientId(e.target.value)}
+                displayEmpty
+              >
+                <MenuItem value="">Todos los Clientes / Conjuntos</MenuItem>
+                {clients.map((c) => (
+                  <MenuItem key={c.id} value={c.id}>
+                    {c.name} ({c.internalCode || c.nit})
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          </Stack>
+
+          <FormControlLabel
+            control={
+              <Switch
+                checked={viewMode === "INTERNAL"}
+                onChange={(e) =>
+                  setViewMode(e.target.checked ? "INTERNAL" : "CLIENT")
+                }
+                color="primary"
+              />
+            }
+            label={
+              <Typography
+                variant="body2"
+                sx={{
+                  fontWeight: 600,
+                  fontSize: { xs: "0.8rem", sm: "0.85rem" },
+                  color: viewMode === "INTERNAL" ? "primary.main" : "text.secondary",
+                }}
+              >
+                Ver Registros Internos
+              </Typography>
+            }
+            sx={{ m: 0 }}
+          />
         </Paper>
       )}
+
+      {/* Barra de Búsqueda y Filtros Avanzados */}
+      <MinutaFilterBar
+        clientId={activeClientId}
+        onFilterChange={handleFilterChange}
+        searchPlaceholder="Buscar por nombre, documento o placa..."
+      />
 
       <DataTable
         title="Control de Visitantes e Ingresos"
@@ -676,7 +845,7 @@ export default function VisitorControlPage() {
         refreshTrigger={refreshTrigger}
         infoDescription="Control de accesos y permanencia de visitantes en el conjunto residencial o sede corporativa."
         infoInstructions={`1. Registra el visitante vinculando obligatoriamente la Unidad y el Residente que autoriza su entrada.
-2. Cuando el visitante se retire del predio, pulsa el botón 'Marcar Salida' en su fila correspondiente para cerrar el ciclo.`}
+2. Cuando el visitante se retire del predio, pulsa el botón 'Marcar Salida' en su fila correspondiente para cerrar el ciclo e incluir opcionalmente una fotografía de salida.`}
       />
 
       {/* Modal Detalle de Visitante */}
@@ -685,23 +854,51 @@ export default function VisitorControlPage() {
         onClose={() => setDetailRecord(null)}
         title="Detalles del Ingreso de Visitante"
         headerContent={
-          detailImageUrl && (
-            <Box sx={{ mb: 2, textAlign: "center" }}>
-              <Box
-                component="img"
-                src={detailImageUrl}
-                alt="Foto Visitante"
-                sx={{
-                  maxHeight: 220,
-                  maxWidth: "100%",
-                  objectFit: "contain",
-                  borderRadius: 2,
-                  border: "1px solid",
-                  borderColor: "divider",
-                  boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
-                }}
-              />
-            </Box>
+          (detailPhotos.entryUrl || detailPhotos.exitUrl) && (
+            <Grid container spacing={2} sx={{ mb: 2 }}>
+              {detailPhotos.entryUrl && (
+                <Grid size={detailPhotos.exitUrl ? 6 : 12}>
+                  <Typography variant="caption" sx={{ fontWeight: 700, color: "text.secondary", display: "block", mb: 0.5, textAlign: "center" }}>
+                    Foto de Ingreso
+                  </Typography>
+                  <Box
+                    component="img"
+                    src={detailPhotos.entryUrl}
+                    alt="Foto Ingreso Visitante"
+                    sx={{
+                      width: "100%",
+                      maxHeight: 180,
+                      objectFit: "contain",
+                      borderRadius: 2,
+                      border: "1px solid",
+                      borderColor: "divider",
+                      bgcolor: "black",
+                    }}
+                  />
+                </Grid>
+              )}
+              {detailPhotos.exitUrl && (
+                <Grid size={detailPhotos.entryUrl ? 6 : 12}>
+                  <Typography variant="caption" sx={{ fontWeight: 700, color: "text.secondary", display: "block", mb: 0.5, textAlign: "center" }}>
+                    Foto de Salida
+                  </Typography>
+                  <Box
+                    component="img"
+                    src={detailPhotos.exitUrl}
+                    alt="Foto Salida Visitante"
+                    sx={{
+                      width: "100%",
+                      maxHeight: 180,
+                      objectFit: "contain",
+                      borderRadius: 2,
+                      border: "1px solid",
+                      borderColor: "divider",
+                      bgcolor: "black",
+                    }}
+                  />
+                </Grid>
+              )}
+            </Grid>
           )
         }
         fields={
@@ -712,7 +909,9 @@ export default function VisitorControlPage() {
                 { label: "Hora Ingreso", value: formatTime(detailRecord.entryTime || detailRecord.time) },
                 {
                   label: "Hora Salida",
-                  value: detailRecord.exitTime ? formatTime(detailRecord.exitTime) : (
+                  value: detailRecord.exitTime ? (
+                    formatTime(detailRecord.exitTime)
+                  ) : (
                     <Chip size="small" label="Dentro del predio" color="warning" />
                   ),
                 },
@@ -727,7 +926,11 @@ export default function VisitorControlPage() {
                   value: (
                     <Chip
                       size="small"
-                      label={detailRecord.mode === "VEHICLE" || detailRecord.plate ? `Vehicular (${detailRecord.plate || "Sin Placa"})` : "Peatonal"}
+                      label={
+                        detailRecord.mode === "VEHICLE" || detailRecord.plate
+                          ? `Vehicular (${detailRecord.plate || "Sin Placa"})`
+                          : "Peatonal"
+                      }
                       color={detailRecord.mode === "VEHICLE" || detailRecord.plate ? "secondary" : "default"}
                     />
                   ),
@@ -735,11 +938,19 @@ export default function VisitorControlPage() {
                 { label: "Ficha / Ticket", value: detailRecord.ticketNumber || "N/A" },
                 {
                   label: "Unidad / Destino",
-                  value: detailRecord.unitName || detailRecord.destinationApartment || "N/A",
+                  value:
+                    detailRecord.unitName ||
+                    detailRecord.unit?.unitName ||
+                    detailRecord.destinationApartment ||
+                    "N/A",
                 },
                 {
                   label: "Residente Anfitrión",
-                  value: detailRecord.residentName || detailRecord.hostName || "N/A",
+                  value:
+                    detailRecord.residentName ||
+                    (detailRecord.resident
+                      ? `${detailRecord.resident.firstName} ${detailRecord.resident.lastName}`
+                      : detailRecord.hostName || detailRecord.authorizedByFullName || "N/A"),
                 },
                 { label: "Autorizado Por", value: detailRecord.authorizedByFullName || "N/A" },
                 { label: "Marca / Color Vehículo", value: detailRecord.brand ? `${detailRecord.brand}` : "N/A" },
@@ -763,12 +974,31 @@ export default function VisitorControlPage() {
         PaperProps={{ sx: { borderRadius: { xs: 2, sm: 2.5 }, m: { xs: 1.5, sm: 3 } } }}
       >
         <form onSubmit={handleSubmit}>
-          <DialogTitle sx={{ pb: 1, fontWeight: 700, fontSize: { xs: "1.1rem", sm: "1.25rem" } }}>
-            {isEditing ? "Actualizar Registro de Visitante" : "Nuevo Ingreso de Visitante"}
+          <DialogTitle sx={{ pb: 1, fontWeight: 700, fontSize: { xs: "1.1rem", sm: "1.25rem" }, display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
+            <Box component="span">
+              {isEditing
+                ? "Actualizar Registro de Visitante"
+                : isGlobalUser
+                ? viewMode === "INTERNAL"
+                  ? "Nuevo Registro Interno"
+                  : activeClientName
+                  ? `Nuevo Registro para ${activeClientName}`
+                  : "Nuevo Ingreso de Visitante"
+                : "Nuevo Ingreso de Visitante"}
+            </Box>
+            {isGlobalUser && !isEditing && (
+              <Chip
+                size="small"
+                label={viewMode === "INTERNAL" ? "Registro Interno" : activeClientName || "Cliente"}
+                color={viewMode === "INTERNAL" ? "secondary" : "primary"}
+                variant="outlined"
+                sx={{ fontWeight: 600, ml: "auto" }}
+              />
+            )}
           </DialogTitle>
           <DialogContent dividers sx={{ pt: 2, px: { xs: 2, sm: 3 } }}>
             <Grid container spacing={2}>
-              {/* Sección 1: Vinculación a Unidad y Residente */}
+              {/* Sección 1: Vinculación a Unidad y Residente con Autocomplete Debounced */}
               <Grid size={12}>
                 <Typography
                   variant="subtitle2"
@@ -779,45 +1009,25 @@ export default function VisitorControlPage() {
               </Grid>
 
               <Grid size={{ xs: 12, sm: 6 }}>
-                <FormControl fullWidth size="small">
-                  <InputLabel id="unit-select-label">Apartamento / Unidad Residencial</InputLabel>
-                  <Select
-                    labelId="unit-select-label"
-                    label="Apartamento / Unidad Residencial"
-                    value={formData.unitId}
-                    onChange={(e) => handleSelectUnit(e.target.value)}
-                  >
-                    <MenuItem value="">
-                      <em>-- Seleccionar Unidad --</em>
-                    </MenuItem>
-                    {units.map((u) => (
-                      <MenuItem key={u.id} value={u.id}>
-                        {u.unitName} {u.tower?.towerName ? `(Torre ${u.tower.towerName})` : ""}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
+                <UnitAutocomplete
+                  clientId={activeClientId}
+                  value={selectedUnit}
+                  onChange={handleUnitChange}
+                  label="Apartamento / Unidad Residencial"
+                  placeholder="Buscar torre, apto o casa..."
+                />
               </Grid>
 
               <Grid size={{ xs: 12, sm: 6 }}>
-                <FormControl fullWidth size="small">
-                  <InputLabel id="resident-select-label">Residente que Autoriza / Visita</InputLabel>
-                  <Select
-                    labelId="resident-select-label"
-                    label="Residente que Autoriza / Visita"
-                    value={formData.residentId}
-                    onChange={(e) => handleSelectResident(e.target.value)}
-                  >
-                    <MenuItem value="">
-                      <em>-- Seleccionar Residente --</em>
-                    </MenuItem>
-                    {availableResidents.map((r) => (
-                      <MenuItem key={r.id} value={r.id}>
-                        {r.firstName} {r.lastName} {r.unit?.unitName ? `[${r.unit.unitName}]` : ""}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
+                <ResidentAutocomplete
+                  clientId={activeClientId}
+                  unitId={selectedUnit?.id}
+                  preloadedResidents={preloadedResidents}
+                  value={selectedResident}
+                  onChange={handleResidentChange}
+                  label="Residente que Autoriza / Visita"
+                  placeholder="Buscar por nombre o documento..."
+                />
               </Grid>
 
               <Grid size={{ xs: 12, sm: 6 }}>
@@ -1020,7 +1230,7 @@ export default function VisitorControlPage() {
                   variant="subtitle2"
                   sx={{ color: "primary.main", fontWeight: 700, mb: 0.5, display: "flex", alignItems: "center", gap: 0.5 }}
                 >
-                  <CameraIcon sx={{ fontSize: 18 }} /> 4. Evidencia Fotográfica (AWS S3)
+                  <CameraIcon sx={{ fontSize: 18 }} /> 4. Evidencia Fotográfica de Ingreso (AWS S3)
                 </Typography>
                 <ImageUploadCapture
                   label="Fotografía del Visitante / Documento / Vehículo"
@@ -1042,6 +1252,144 @@ export default function VisitorControlPage() {
             </Button>
           </DialogActions>
         </form>
+      </Dialog>
+
+      {/* Paso 1 Salida: Diálogo de Confirmación */}
+      <Dialog
+        open={exitConfirmOpen}
+        onClose={() => setExitConfirmOpen(false)}
+        maxWidth="xs"
+        fullWidth
+        PaperProps={{ sx: { borderRadius: 2.5, p: 1 } }}
+      >
+        <DialogTitle sx={{ display: "flex", alignItems: "center", gap: 1, fontWeight: 700 }}>
+          <WarningIcon color="warning" /> Confirmar Salida
+        </DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" sx={{ mb: 1.5 }}>
+            ¿Está seguro de que desea registrar la salida del visitante?
+          </Typography>
+          {selectedExitVisitor && (
+            <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 1.5, bgcolor: "action.hover" }}>
+              <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                {selectedExitVisitor.visitorFullName}
+              </Typography>
+              <Typography variant="caption" color="text.secondary" display="block">
+                Doc: {selectedExitVisitor.visitorIdType || "CC"} {selectedExitVisitor.visitorIdNumber}
+              </Typography>
+              <Typography variant="caption" color="text.secondary" display="block">
+                Destino: {selectedExitVisitor.unitName || selectedExitVisitor.destinationApartment || "N/A"}
+              </Typography>
+              <Typography variant="caption" color="text.secondary" display="block">
+                Hora de Entrada: {formatTime(selectedExitVisitor.entryTime || selectedExitVisitor.time)}
+              </Typography>
+            </Paper>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => setExitConfirmOpen(false)} color="inherit">
+            Cancelar
+          </Button>
+          <Button
+            variant="contained"
+            color="warning"
+            onClick={handleProceedToExitModal}
+            startIcon={<LogoutIcon />}
+            sx={{ fontWeight: 600 }}
+          >
+            Continuar con Salida
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Paso 2 Salida: Modal de Salida con Fotografía y Observaciones */}
+      <Dialog
+        open={exitModalOpen}
+        onClose={() => !exitSubmitting && setExitModalOpen(false)}
+        maxWidth="sm"
+        fullWidth
+        PaperProps={{ sx: { borderRadius: 2.5 } }}
+      >
+        <DialogTitle sx={{ fontWeight: 700, display: "flex", alignItems: "center", gap: 1 }}>
+          <LogoutIcon color="warning" /> Registro de Salida de Visitante
+        </DialogTitle>
+        <DialogContent dividers sx={{ pt: 2 }}>
+          {selectedExitVisitor && (
+            <Paper variant="outlined" sx={{ p: 1.5, mb: 2, borderRadius: 1.5, bgcolor: "background.default" }}>
+              <Grid container spacing={1}>
+                <Grid size={7}>
+                  <Typography variant="caption" color="text.secondary" display="block">
+                    Visitante:
+                  </Typography>
+                  <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                    {selectedExitVisitor.visitorFullName}
+                  </Typography>
+                </Grid>
+                <Grid size={5}>
+                  <Typography variant="caption" color="text.secondary" display="block">
+                    Unidad:
+                  </Typography>
+                  <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                    {selectedExitVisitor.unitName || selectedExitVisitor.destinationApartment || "N/A"}
+                  </Typography>
+                </Grid>
+              </Grid>
+            </Paper>
+          )}
+
+          <Stack spacing={2}>
+            <TextField
+              fullWidth
+              size="small"
+              type="time"
+              label="Hora de Salida"
+              value={exitTime}
+              onChange={(e) => setExitTime(e.target.value)}
+              InputLabelProps={{ shrink: true }}
+              required
+            />
+
+            <TextField
+              fullWidth
+              size="small"
+              multiline
+              rows={2}
+              label="Observaciones de Salida (Opcional)"
+              value={exitObservations}
+              onChange={(e) => setExitObservations(e.target.value)}
+              placeholder="Detalles sobre pertenencias retiradas, estado o notas de retiro..."
+            />
+
+            <Divider />
+
+            <Typography variant="subtitle2" sx={{ fontWeight: 700, display: "flex", alignItems: "center", gap: 0.5 }}>
+              <CameraIcon sx={{ fontSize: 18 }} /> Evidencia Fotográfica de Salida (Opcional)
+            </Typography>
+
+            <ImageUploadCapture
+              label="Fotografía de Salida del Visitante"
+              variant="evidence"
+              value={exitEvidenceFile}
+              onChange={setExitEvidenceFile}
+              helperText="Toma una foto en vivo al visitante al salir o selecciona una imagen (opcional)."
+            />
+          </Stack>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, py: 2 }}>
+          <Button onClick={() => setExitModalOpen(false)} color="inherit" disabled={exitSubmitting}>
+            Cancelar
+          </Button>
+          <Button
+            variant="contained"
+            color="warning"
+            disabled={exitSubmitting}
+            onClick={handleConfirmExit}
+            startIcon={exitSubmitting ? <CircularProgress size={16} color="inherit" /> : <LogoutIcon />}
+            sx={{ fontWeight: 600 }}
+          >
+            {exitSubmitting ? "Registrando..." : "Registrar Salida"}
+          </Button>
+        </DialogActions>
       </Dialog>
 
       {/* Modal Visor de Evidencia */}
