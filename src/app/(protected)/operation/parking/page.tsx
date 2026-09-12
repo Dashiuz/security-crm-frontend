@@ -8,7 +8,10 @@ import DetailDialog from "@/components/common/DetailDialog";
 import ImageUploadCapture from "@/components/common/ImageUploadCapture";
 import UnitAutocomplete, { UnitOption } from "@/components/common/UnitAutocomplete";
 import ResidentAutocomplete, { ResidentOption } from "@/components/common/ResidentAutocomplete";
+import ClientAutocomplete, { ClientOption } from "@/components/common/ClientAutocomplete";
+import EmployeeAutocomplete, { EmployeeOption } from "@/components/common/EmployeeAutocomplete";
 import MinutaFilterBar, { MinutaFilterValues } from "@/components/common/MinutaFilterBar";
+import { useTenant } from "@/providers/TenantProvider";
 import { GridColDef } from "@mui/x-data-grid";
 import {
   Box,
@@ -41,21 +44,24 @@ import {
   DirectionsCar as CarIcon,
   HomeWork as HomeWorkIcon,
   Person as PersonIcon,
+  Badge as BadgeIcon,
   AccessTime as TimeIcon,
   WarningAmber as WarningIcon,
   LocalParking as ParkingIcon,
   CalendarMonth as CalendarMonthIcon,
+  Delete as DeleteIcon,
 } from "@mui/icons-material";
 import { HttpClient } from "@/lib/api/client";
 import { StorageApi, MediaTypeCategory } from "@/lib/api/storage";
 import { formatDate, formatTime, formatDateTime, formatTimeToHHmm } from "@/lib/formatters";
 
-export default function ParkingPage() {
-  const [clients, setClients] = useState<any[]>([]);
-  const [selectedClientId, setSelectedClientId] = useState<string>("");
-  const [viewMode, setViewMode] = useState<"CLIENT" | "INTERNAL">("CLIENT");
+interface ParkingPageProps {
+  isInternal?: boolean;
+}
+
+export default function ParkingPage({ isInternal = false }: ParkingPageProps) {
+  const [selectedClientFilter, setSelectedClientFilter] = useState<ClientOption | null>(null);
   const [filters, setFilters] = useState<MinutaFilterValues>({});
-  const hasInitializedClient = useRef(false);
 
   // Form State
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -66,6 +72,10 @@ export default function ParkingPage() {
   // Autocomplete selections
   const [selectedUnit, setSelectedUnit] = useState<UnitOption | null>(null);
   const [selectedResident, setSelectedResident] = useState<ResidentOption | null>(null);
+
+  // Internal employee selection
+  const [isEmployeeLinked, setIsEmployeeLinked] = useState(false);
+  const [selectedEmployee, setSelectedEmployee] = useState<EmployeeOption | null>(null);
 
   const [formData, setFormData] = useState({
     date: "",
@@ -103,35 +113,17 @@ export default function ParkingPage() {
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const { showError, showSuccess } = useNotification();
   const { session } = useAuth();
+  const { tenant } = useTenant();
 
   const isGlobalUser = !session?.user?.clientId;
   const activeClientId = isGlobalUser
-    ? viewMode === "INTERNAL"
+    ? isInternal
       ? undefined
-      : selectedClientId || undefined
+      : selectedClientFilter?.id || undefined
     : session?.user?.clientId || undefined;
-
-  const selectedClientObj = useMemo(
-    () => clients.find((c) => c.id === (isGlobalUser ? selectedClientId : session?.user?.clientId)),
-    [clients, isGlobalUser, selectedClientId, session?.user?.clientId]
-  );
-  const activeClientName = selectedClientObj?.name;
-
-  // 1. Load clients for global user
-  useEffect(() => {
-    if (isGlobalUser) {
-      HttpClient.get<any[]>("/client")
-        .then((data) => {
-          const list = data || [];
-          setClients(list);
-          if (list.length > 0 && !hasInitializedClient.current) {
-            setSelectedClientId(list[0].id);
-            hasInitializedClient.current = true;
-          }
-        })
-        .catch(() => {});
-    }
-  }, [isGlobalUser]);
+  const activeClientName = isGlobalUser
+    ? selectedClientFilter?.name
+    : undefined;
 
   const permissions = session?.permissions || [];
   const canDelete =
@@ -149,9 +141,9 @@ export default function ParkingPage() {
 
   // Handler: Abrir modal de nuevo registro
   const handleOpenCreate = () => {
-    if (isGlobalUser && viewMode === "CLIENT" && !selectedClientId) {
+    if (!isInternal && isGlobalUser && !activeClientId) {
       showError(
-        "Debe escoger un cliente específico o seleccionar registros internos antes de generar un registro nuevo."
+        "Debe escoger un cliente específico antes de generar un registro de parqueadero de cliente."
       );
       return;
     }
@@ -161,6 +153,8 @@ export default function ParkingPage() {
     setExistingMediaUrl(null);
     setSelectedUnit(null);
     setSelectedResident(null);
+    setIsEmployeeLinked(false);
+    setSelectedEmployee(null);
     setFormData({
       date: now.toISOString().split("T")[0],
       time: currentTime + ":00",
@@ -188,6 +182,17 @@ export default function ParkingPage() {
       const data = await HttpClient.get<any>(`/operation/minuta/parking/${id}`);
       setEditId(id);
       setIsEditing(true);
+
+      if (data.employeeId) {
+        setIsEmployeeLinked(true);
+        setSelectedEmployee({
+          id: data.employeeId,
+          fullName: data.employeeName || data.employee?.fullName || "Empleado asignado",
+        });
+      } else {
+        setIsEmployeeLinked(false);
+        setSelectedEmployee(null);
+      }
 
       if (data.unit) {
         setSelectedUnit(data.unit);
@@ -303,6 +308,11 @@ export default function ParkingPage() {
       return;
     }
 
+    if (isInternal && isEmployeeLinked && !selectedEmployee) {
+      showError("Ha seleccionado vincular a un empleado; por favor elija uno de la lista.");
+      return;
+    }
+
     setSubmitting(true);
     try {
       const now = new Date();
@@ -320,10 +330,12 @@ export default function ParkingPage() {
         brand: formData.brand?.trim() || null,
         color: formData.color?.trim() || null,
         condition: formData.condition,
-        unitId: selectedUnit?.id || formData.unitId || null,
-        residentId: selectedResident?.id || formData.residentId || null,
+        isInternal: isInternal,
+        employeeId: isInternal ? (isEmployeeLinked ? selectedEmployee?.id || null : null) : null,
+        unitId: isInternal ? null : selectedUnit?.id || formData.unitId || null,
+        residentId: isInternal ? null : selectedResident?.id || formData.residentId || null,
         observations: formData.observations?.trim() || null,
-        clientId: isGlobalUser && viewMode === "INTERNAL" ? null : activeClientId || null,
+        clientId: isInternal ? null : activeClientId || null,
       };
 
       let savedRecord: any;
@@ -345,7 +357,7 @@ export default function ParkingPage() {
             file: evidenceFile,
             entityType: MediaTypeCategory.PARKING,
             entityId,
-            clientId: isGlobalUser && viewMode === "INTERNAL" ? null : activeClientId || null,
+            clientId: isInternal ? null : activeClientId || null,
             subType: "parking",
           });
           showSuccess("Fotografía del vehículo guardada en S3");
@@ -397,7 +409,7 @@ export default function ParkingPage() {
             file: exitEvidenceFile,
             entityType: MediaTypeCategory.PARKING,
             entityId: selectedExitRecord.id,
-            clientId: isGlobalUser && viewMode === "INTERNAL" ? null : activeClientId || null,
+            clientId: isInternal ? null : activeClientId || null,
             subType: "exit",
           });
         } catch (s3Err) {
@@ -432,7 +444,7 @@ export default function ParkingPage() {
           exitUrl: exitMedia?.presignedUrl || null,
         });
       }
-    } catch {}
+    } catch { }
   };
 
   // Handler: Ver evidencia fotográfica modal
@@ -470,22 +482,23 @@ export default function ParkingPage() {
 
   const endpoint = useMemo(() => {
     const params = new URLSearchParams();
-    if (isGlobalUser && viewMode === "INTERNAL") {
-      params.append("isInternal", "true");
-    } else if (activeClientId) {
+    params.append("isInternal", isInternal ? "true" : "false");
+    if (!isInternal && activeClientId) {
       params.append("clientId", activeClientId);
     }
     if (filters.startDate) params.append("startDate", filters.startDate);
     if (filters.endDate) params.append("endDate", filters.endDate);
     if (filters.search) params.append("search", filters.search);
-    if (filters.unitId) params.append("unitId", filters.unitId);
-    if (filters.residentId) params.append("residentId", filters.residentId);
+    if (!isInternal) {
+      if (filters.unitId) params.append("unitId", filters.unitId);
+      if (filters.residentId) params.append("residentId", filters.residentId);
+    }
 
     const queryStr = params.toString();
     return queryStr ? `/operation/minuta/parking?${queryStr}` : "/operation/minuta/parking";
-  }, [activeClientId, isGlobalUser, viewMode, filters]);
+  }, [activeClientId, isInternal, filters]);
 
-  const columns: GridColDef[] = [
+  const columns: GridColDef[] = useMemo(() => [
     { field: "id", headerName: "ID", width: 60 },
     {
       field: "date",
@@ -527,40 +540,68 @@ export default function ParkingPage() {
         </Box>
       ),
     },
-    {
-      field: "unitName",
-      headerName: "Unidad / Apto",
-      width: 140,
-      renderCell: (params) => {
-        const name = params.row.unitName || params.row.unit?.unitName || "—";
-        return (
-          <Box sx={{ display: "flex", alignItems: "center", height: "100%", gap: 0.8 }}>
-            <HomeWorkIcon sx={{ fontSize: 17, color: "text.secondary" }} />
-            <Typography variant="body2" sx={{ fontWeight: 600 }}>
-              {name}
-            </Typography>
-          </Box>
-        );
-      },
-    },
-    {
-      field: "residentName",
-      headerName: "Residente / Conductor",
-      width: 180,
-      renderCell: (params) => {
-        const res =
-          params.row.residentName ||
-          (params.row.resident
-            ? `${params.row.resident.firstName} ${params.row.resident.lastName}`
-            : "—");
-        return (
-          <Box sx={{ display: "flex", alignItems: "center", height: "100%", gap: 0.6 }}>
-            <PersonIcon sx={{ fontSize: 17, color: "text.secondary" }} />
-            <Typography variant="body2">{res}</Typography>
-          </Box>
-        );
-      },
-    },
+    ...(isInternal
+      ? [
+        {
+          field: "employeeName",
+          headerName: "Empleado / Responsable",
+          width: 200,
+          renderCell: (params: any) => {
+            const emp = params.row.employeeName || params.row.employee?.fullName;
+            if (!emp) {
+              return (
+                <Typography variant="body2" color="text.secondary">
+                  Uso Interno / General
+                </Typography>
+              );
+            }
+            return (
+              <Box sx={{ display: "flex", alignItems: "center", height: "100%", gap: 0.6 }}>
+                <BadgeIcon sx={{ fontSize: 17, color: "secondary.main" }} />
+                <Typography variant="body2" sx={{ fontWeight: 600, color: "text.primary" }}>
+                  {emp}
+                </Typography>
+              </Box>
+            );
+          },
+        },
+      ]
+      : [
+        {
+          field: "unitName",
+          headerName: "Unidad / Apto",
+          width: 140,
+          renderCell: (params: any) => {
+            const name = params.row.unitName || params.row.unit?.unitName || "—";
+            return (
+              <Box sx={{ display: "flex", alignItems: "center", height: "100%", gap: 0.8 }}>
+                <HomeWorkIcon sx={{ fontSize: 17, color: "text.secondary" }} />
+                <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                  {name}
+                </Typography>
+              </Box>
+            );
+          },
+        },
+        {
+          field: "residentName",
+          headerName: "Residente / Conductor",
+          width: 180,
+          renderCell: (params: any) => {
+            const res =
+              params.row.residentName ||
+              (params.row.resident
+                ? `${params.row.resident.firstName} ${params.row.resident.lastName}`
+                : "—");
+            return (
+              <Box sx={{ display: "flex", alignItems: "center", height: "100%", gap: 0.6 }}>
+                <PersonIcon sx={{ fontSize: 17, color: "text.secondary" }} />
+                <Typography variant="body2">{res}</Typography>
+              </Box>
+            );
+          },
+        },
+      ]),
     { field: "brand", headerName: "Marca", width: 120 },
     { field: "color", headerName: "Color", width: 100 },
     {
@@ -639,11 +680,11 @@ export default function ParkingPage() {
       width: 140,
       valueGetter: (value: any) => value || "Sistema",
     },
-  ];
+  ], [isInternal]);
 
   return (
     <>
-      {isGlobalUser && (
+      {!isInternal && isGlobalUser && (
         <Paper
           elevation={0}
           sx={{
@@ -653,72 +694,30 @@ export default function ParkingPage() {
             border: "1px solid",
             borderColor: "divider",
             display: "flex",
-            flexDirection: { xs: "column", sm: "row" },
-            alignItems: { xs: "stretch", sm: "center" },
-            justifyContent: "space-between",
-            gap: { xs: 1.5, sm: 2 },
+            alignItems: "center",
+            gap: 2,
           }}
         >
-          <Stack
-            direction={{ xs: "column", sm: "row" }}
-            alignItems={{ xs: "flex-start", sm: "center" }}
-            spacing={2}
-            sx={{ flex: 1 }}
+          <Typography
+            variant="body2"
+            sx={{
+              fontWeight: 600,
+              fontSize: { xs: "0.85rem", sm: "0.9rem" },
+              whiteSpace: "nowrap",
+            }}
           >
-            <Typography
-              variant="body2"
-              sx={{
-                fontWeight: 600,
-                fontSize: { xs: "0.85rem", sm: "0.9rem" },
-                whiteSpace: "nowrap",
-              }}
-            >
-              Conjunto / Cliente Activo:
-            </Typography>
-            <FormControl
+            Conjunto / Cliente Activo:
+          </Typography>
+          <Box sx={{ width: { xs: "100%", sm: 380 } }}>
+            <ClientAutocomplete
+              value={selectedClientFilter}
+              onChange={(client) => setSelectedClientFilter(client)}
+              allowAllOption={true}
+              allOptionLabel="Todos los Clientes / Conjuntos"
+              placeholder="Buscar cliente o puesto de seguridad..."
               size="small"
-              sx={{ width: { xs: "100%", sm: 300 } }}
-              disabled={viewMode === "INTERNAL"}
-            >
-              <Select
-                value={viewMode === "INTERNAL" ? "" : selectedClientId}
-                onChange={(e) => setSelectedClientId(e.target.value)}
-                displayEmpty
-              >
-                <MenuItem value="">Todos los Clientes / Conjuntos</MenuItem>
-                {clients.map((c) => (
-                  <MenuItem key={c.id} value={c.id}>
-                    {c.name} ({c.internalCode || c.nit})
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-          </Stack>
-
-          <FormControlLabel
-            control={
-              <Switch
-                checked={viewMode === "INTERNAL"}
-                onChange={(e) =>
-                  setViewMode(e.target.checked ? "INTERNAL" : "CLIENT")
-                }
-                color="primary"
-              />
-            }
-            label={
-              <Typography
-                variant="body2"
-                sx={{
-                  fontWeight: 600,
-                  fontSize: { xs: "0.8rem", sm: "0.85rem" },
-                  color: viewMode === "INTERNAL" ? "primary.main" : "text.secondary",
-                }}
-              >
-                Ver Registros Internos
-              </Typography>
-            }
-            sx={{ m: 0 }}
-          />
+            />
+          </Box>
         </Paper>
       )}
 
@@ -726,29 +725,69 @@ export default function ParkingPage() {
       <MinutaFilterBar
         clientId={activeClientId}
         onFilterChange={handleFilterChange}
-        searchPlaceholder="Buscar por placa, n° parqueadero, marca o color..."
+        searchPlaceholder={
+          isInternal
+            ? "Buscar por placa, n° parqueadero, marca o empleado..."
+            : "Buscar por placa, n° parqueadero, marca o color..."
+        }
+        showUnitFilter={!isInternal}
+        showResidentFilter={!isInternal}
       />
 
       <DataTable
-        title="Control de Parqueadero"
+        title={
+          isInternal
+            ? `Control de Parqueadero - ${tenant?.name || "Interno"}`
+            : "Control de Parqueadero"
+        }
         endpoint={endpoint}
         columns={columns}
-        breadcrumbs={[{ label: "Operaciones" }, { label: "Parqueadero" }]}
+        breadcrumbs={
+          isInternal
+            ? [
+              { label: "Operaciones" },
+              { label: `Minutas de ${tenant?.name || "la Empresa"}` },
+              { label: "Control de Parqueadero" },
+            ]
+            : [
+              { label: "Operaciones" },
+              { label: "Minutas del Cliente" },
+              { label: "Control de Parqueadero" },
+            ]
+        }
         onCreate={canCreate ? handleOpenCreate : undefined}
         onEdit={canEdit ? handleEdit : undefined}
         onDelete={canDelete ? handleDelete : undefined}
+        confirmDelete={true}
+        deleteDialogTitle="Confirmar Eliminación de Parqueadero"
+        deleteDialogMessage="¿Estás seguro de que deseas eliminar este registro de control de parqueadero? Esta acción no se puede deshacer."
+        deleteActionLabel="Eliminar"
+        deleteIcon={<DeleteIcon color="error" />}
         onView={handleView}
         refreshTrigger={refreshTrigger}
-        infoDescription="Sistema de control para el ingreso y salida de vehículos, asegurando el monitoreo de placas y tiempos de permanencia."
-        infoInstructions={`1. Registra la placa del vehículo, asignación de puesto y vinculación opcional a Unidad/Residente.
-2. Al retirarse el vehículo, pulsa 'Marcar Salida' para registrar la hora de salida e incluir opcionalmente una fotografía de salida.`}
+        infoDescription={
+          isInternal
+            ? "Control y monitoreo de ingreso/salida de vehículos en las instalaciones internas de la empresa/tenant."
+            : "Sistema de control para el ingreso y salida de vehículos, asegurando el monitoreo de placas y tiempos de permanencia."
+        }
+        infoInstructions={
+          isInternal
+            ? `1. Registra la placa del vehículo, asignación de bahía o puesto, y vinculación opcional a un empleado del tenant.
+2. Al retirarse el vehículo, pulsa 'Marcar Salida' para registrar la hora de salida e incluir opcionalmente una fotografía de salida.`
+            : `1. Registra la placa del vehículo, asignación de puesto y vinculación opcional a Unidad/Residente.
+2. Al retirarse el vehículo, pulsa 'Marcar Salida' para registrar la hora de salida e incluir opcionalmente una fotografía de salida.`
+        }
       />
 
       {/* Modal Detalle de Parqueadero */}
       <DetailDialog
         open={Boolean(detailRecord)}
         onClose={() => setDetailRecord(null)}
-        title="Detalles del Registro de Parqueadero"
+        title={
+          isInternal
+            ? "Detalles del Registro de Parqueadero Interno"
+            : "Detalles del Registro de Parqueadero"
+        }
         headerContent={
           (detailPhotos.entryUrl || detailPhotos.exitUrl) && (
             <Grid container spacing={2} sx={{ mb: 2 }}>
@@ -800,50 +839,70 @@ export default function ParkingPage() {
         fields={
           detailRecord
             ? [
-                { label: "ID Registro", value: detailRecord.id },
-                { label: "Fecha", value: formatDate(detailRecord.date) },
-                { label: "Placa", value: detailRecord.plate },
-                { label: "N° Parqueadero", value: detailRecord.parkingNumber },
-                {
-                  label: "Unidad / Apto",
-                  value: detailRecord.unitName || detailRecord.unit?.unitName || "N/A",
-                },
-                {
-                  label: "Residente / Conductor",
-                  value:
-                    detailRecord.residentName ||
-                    (detailRecord.resident
-                      ? `${detailRecord.resident.firstName} ${detailRecord.resident.lastName}`
-                      : "N/A"),
-                },
-                { label: "Hora Entrada", value: formatTime(detailRecord.entryTime || detailRecord.time) },
-                {
-                  label: "Hora Salida",
-                  value: detailRecord.exitTime ? (
-                    formatTime(detailRecord.exitTime)
-                  ) : (
-                    <Chip size="small" label="En Parqueadero" color="warning" />
-                  ),
-                },
-                { label: "Marca", value: detailRecord.brand || "N/A" },
-                { label: "Color", value: detailRecord.color || "N/A" },
-                {
-                  label: "Estado General",
-                  value: (
-                    <Chip
-                      size="small"
-                      label={detailRecord.condition === "GOOD" ? "Bueno" : "Malo / Con Observaciones"}
-                      color={detailRecord.condition === "GOOD" ? "success" : "warning"}
-                    />
-                  ),
-                },
-                { label: "Creado Por", value: detailRecord.createdBy || "Sistema" },
-                {
-                  label: "Fecha Registro",
-                  value: formatDateTime(detailRecord.createdAt || detailRecord.date),
-                },
-                { label: "Observaciones", value: detailRecord.observations || "Sin observaciones" },
-              ]
+              { label: "ID Registro", value: detailRecord.id },
+              { label: "Fecha", value: formatDate(detailRecord.date) },
+              { label: "Placa", value: detailRecord.plate },
+              { label: "N° Parqueadero", value: detailRecord.parkingNumber },
+              ...(isInternal
+                ? [
+                  {
+                    label: "¿Vinculado a Empleado?",
+                    value: detailRecord.employeeId ? "Sí" : "No",
+                  },
+                  ...(detailRecord.employeeId
+                    ? [
+                      {
+                        label: "Empleado Responsable",
+                        value:
+                          detailRecord.employeeName ||
+                          detailRecord.employee?.fullName ||
+                          detailRecord.employeeId,
+                      },
+                    ]
+                    : []),
+                ]
+                : [
+                  {
+                    label: "Unidad / Apto",
+                    value: detailRecord.unitName || detailRecord.unit?.unitName || "N/A",
+                  },
+                  {
+                    label: "Residente / Conductor",
+                    value:
+                      detailRecord.residentName ||
+                      (detailRecord.resident
+                        ? `${detailRecord.resident.firstName} ${detailRecord.resident.lastName}`
+                        : "N/A"),
+                  },
+                ]),
+              { label: "Hora Entrada", value: formatTime(detailRecord.entryTime || detailRecord.time) },
+              {
+                label: "Hora Salida",
+                value: detailRecord.exitTime ? (
+                  formatTime(detailRecord.exitTime)
+                ) : (
+                  <Chip size="small" label="En Parqueadero" color="warning" />
+                ),
+              },
+              { label: "Marca", value: detailRecord.brand || "N/A" },
+              { label: "Color", value: detailRecord.color || "N/A" },
+              {
+                label: "Estado General",
+                value: (
+                  <Chip
+                    size="small"
+                    label={detailRecord.condition === "GOOD" ? "Bueno" : "Malo / Con Observaciones"}
+                    color={detailRecord.condition === "GOOD" ? "success" : "warning"}
+                  />
+                ),
+              },
+              { label: "Creado Por", value: detailRecord.createdBy || "Sistema" },
+              {
+                label: "Fecha Registro",
+                value: formatDateTime(detailRecord.createdAt || detailRecord.date),
+              },
+              { label: "Observaciones", value: detailRecord.observations || "Sin observaciones" },
+            ]
             : []
         }
       />
@@ -858,22 +917,23 @@ export default function ParkingPage() {
       >
         <form onSubmit={handleSubmit}>
           <DialogTitle sx={{ pb: 1, fontWeight: 700, fontSize: { xs: "1.1rem", sm: "1.25rem" }, display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
+            <ParkingIcon color="primary" />
             <Box component="span">
               {isEditing
-                ? "Actualizar Registro de Parqueadero"
-                : isGlobalUser
-                ? viewMode === "INTERNAL"
-                  ? "Nuevo Registro Interno"
+                ? isInternal
+                  ? "Actualizar Parqueadero Interno"
+                  : "Actualizar Registro de Parqueadero"
+                : isInternal
+                  ? `Nuevo Ingreso - ${tenant?.name || "Empresa"}`
                   : activeClientName
-                  ? `Nuevo Registro para ${activeClientName}`
-                  : "Nuevo Ingreso a Parqueadero"
-                : "Nuevo Ingreso a Parqueadero"}
+                    ? `Nuevo Ingreso para ${activeClientName}`
+                    : "Nuevo Ingreso a Parqueadero"}
             </Box>
-            {isGlobalUser && !isEditing && (
+            {isInternal && (
               <Chip
                 size="small"
-                label={viewMode === "INTERNAL" ? "Registro Interno" : activeClientName || "Cliente"}
-                color={viewMode === "INTERNAL" ? "secondary" : "primary"}
+                label="Uso Interno"
+                color="secondary"
                 variant="outlined"
                 sx={{ fontWeight: 600, ml: "auto" }}
               />
@@ -937,37 +997,76 @@ export default function ParkingPage() {
                 />
               </Grid>
 
-              {/* Sección 2: Vinculación Residencial (Opcional pero sugerida) */}
+              {/* Sección 2: Vinculación */}
               <Grid size={12} sx={{ mt: 1 }}>
                 <Typography
                   variant="subtitle2"
                   sx={{ color: "primary.main", fontWeight: 700, mb: 1, display: "flex", alignItems: "center", gap: 0.5 }}
                 >
-                  <HomeWorkIcon sx={{ fontSize: 18 }} /> 2. Unidad y Residente Responsable (Opcional)
+                  {isInternal ? <BadgeIcon sx={{ fontSize: 18 }} /> : <HomeWorkIcon sx={{ fontSize: 18 }} />}
+                  {isInternal ? "2. Vinculación con Empleado (Opcional)" : "2. Unidad y Residente Responsable (Opcional)"}
                 </Typography>
               </Grid>
 
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <UnitAutocomplete
-                  clientId={activeClientId}
-                  value={selectedUnit}
-                  onChange={handleUnitChange}
-                  label="Apartamento / Unidad Residencial"
-                  placeholder="Buscar torre, apto o casa..."
-                />
-              </Grid>
+              {isInternal ? (
+                <>
+                  <Grid size={12}>
+                    <FormControlLabel
+                      control={
+                        <Switch
+                          checked={isEmployeeLinked}
+                          onChange={(e) => {
+                            const checked = e.target.checked;
+                            setIsEmployeeLinked(checked);
+                            if (!checked) setSelectedEmployee(null);
+                          }}
+                          color="primary"
+                        />
+                      }
+                      label={
+                        <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                          ¿Vinculado a un empleado?
+                        </Typography>
+                      }
+                    />
+                  </Grid>
+                  {isEmployeeLinked && (
+                    <Grid size={12}>
+                      <EmployeeAutocomplete
+                        value={selectedEmployee}
+                        onChange={(emp) => setSelectedEmployee(emp)}
+                        label="Empleado Conductor / Responsable"
+                        placeholder="Buscar empleado por nombre o documento..."
+                        required
+                      />
+                    </Grid>
+                  )}
+                </>
+              ) : (
+                <>
+                  <Grid size={{ xs: 12, sm: 6 }}>
+                    <UnitAutocomplete
+                      clientId={activeClientId}
+                      value={selectedUnit}
+                      onChange={handleUnitChange}
+                      label="Apartamento / Unidad Residencial"
+                      placeholder="Buscar torre, apto o casa..."
+                    />
+                  </Grid>
 
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <ResidentAutocomplete
-                  clientId={activeClientId}
-                  unitId={selectedUnit?.id}
-                  preloadedResidents={preloadedResidents}
-                  value={selectedResident}
-                  onChange={handleResidentChange}
-                  label="Residente / Propietario del Vehículo"
-                  placeholder="Buscar por nombre o documento..."
-                />
-              </Grid>
+                  <Grid size={{ xs: 12, sm: 6 }}>
+                    <ResidentAutocomplete
+                      clientId={activeClientId}
+                      unitId={selectedUnit?.id}
+                      preloadedResidents={preloadedResidents}
+                      value={selectedResident}
+                      onChange={handleResidentChange}
+                      label="Residente / Propietario del Vehículo"
+                      placeholder="Buscar por nombre o documento..."
+                    />
+                  </Grid>
+                </>
+              )}
 
               {/* Sección 3: Fechas y Estado */}
               <Grid size={12} sx={{ mt: 1 }}>
@@ -1058,7 +1157,7 @@ export default function ParkingPage() {
                   variant="subtitle2"
                   sx={{ color: "primary.main", fontWeight: 700, mb: 0.5, display: "flex", alignItems: "center", gap: 0.5 }}
                 >
-                  <CameraIcon sx={{ fontSize: 18 }} /> 4. Evidencia Fotográfica de Ingreso (AWS S3)
+                  <CameraIcon sx={{ fontSize: 18 }} /> 4. Evidencia Fotográfica de Ingreso
                 </Typography>
                 <ImageUploadCapture
                   label="Fotografía del Vehículo / Placa / Estado"

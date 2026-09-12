@@ -531,6 +531,7 @@ export default function CreateProspectPage() {
                     <MenuItem value="BUILDING_CLUSTER">Conjunto de Torres / Bloques</MenuItem>
                     <MenuItem value="HOUSE_CLUSTER">Conjunto Cerrado de Casas</MenuItem>
                     <MenuItem value="MIXED">Conjunto Mixto (Residencial + Locales Comerciales)</MenuItem>
+                    <MenuItem value="COMMERCIAL">Comercios / Centro Comercial</MenuItem>
                     <MenuItem value="OTHER">Otro Tipo de Inmueble</MenuItem>
                   </TextField>
                 </Grid>

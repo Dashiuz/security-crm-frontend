@@ -16,6 +16,12 @@ export interface Tenant {
 export interface User {
   id: string;
   fullName: string;
+  document?: string;
+  department?: string;
+  position?: string;
+  roles?: { id: string; name: string }[];
+  roleName?: string;
+  avatarUrl?: string | null;
   tenantId: string;
   clientId?: string | null;
   clientName?: string | null;

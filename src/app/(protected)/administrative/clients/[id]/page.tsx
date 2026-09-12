@@ -1140,6 +1140,7 @@ export default function ClientDetailPage() {
                   <MenuItem value="BUILDING_CLUSTER">Conjunto de Torres / Bloques</MenuItem>
                   <MenuItem value="HOUSE_CLUSTER">Conjunto Cerrado de Casas</MenuItem>
                   <MenuItem value="MIXED">Conjunto Mixto (Residencial + Locales Comerciales)</MenuItem>
+                  <MenuItem value="COMMERCIAL">Comercios / Centro Comercial</MenuItem>
                   <MenuItem value="OTHER">Otro Tipo de Inmueble</MenuItem>
                 </TextField>
               </Grid>
@@ -1323,6 +1324,49 @@ export default function ClientDetailPage() {
                             markDirty();
                             setHousePrefix(e.target.value);
                           }}
+                        />
+                      </Grid>
+                    </Grid>
+                  </Paper>
+                </Grid>
+              )}
+
+              {/* COMMERCIAL */}
+              {structureType === "COMMERCIAL" && (
+                <Grid size={{ xs: 12 }}>
+                  <Box sx={{ mb: 2 }}>
+                    <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+                      Definición de Comercios / Locales Comerciales
+                    </Typography>
+                  </Box>
+
+                  <Paper variant="outlined" sx={{ p: 2, mb: 2, borderRadius: 2 }}>
+                    <Grid container spacing={2} alignItems="center">
+                      <Grid size={{ xs: 12, sm: 6 }}>
+                        <TextField
+                          fullWidth
+                          size="small"
+                          type="number"
+                          inputProps={{ min: 1 }}
+                          label="Cantidad Total de Locales / Comercios *"
+                          value={unitsAmount}
+                          onChange={(e) => {
+                            markDirty();
+                            setUnitsAmount(Number(e.target.value));
+                          }}
+                        />
+                      </Grid>
+                      <Grid size={{ xs: 12, sm: 6 }}>
+                        <TextField
+                          fullWidth
+                          size="small"
+                          label="Prefijo de Inmueble"
+                          value={housePrefix || "Local"}
+                          onChange={(e) => {
+                            markDirty();
+                            setHousePrefix(e.target.value);
+                          }}
+                          placeholder="Ej: Local, Local Comercial, Stand, Bodega"
                         />
                       </Grid>
                     </Grid>

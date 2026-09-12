@@ -8,7 +8,9 @@ import DetailDialog from "@/components/common/DetailDialog";
 import ImageUploadCapture from "@/components/common/ImageUploadCapture";
 import UnitAutocomplete, { UnitOption } from "@/components/common/UnitAutocomplete";
 import ResidentAutocomplete, { ResidentOption } from "@/components/common/ResidentAutocomplete";
+import ClientAutocomplete, { ClientOption } from "@/components/common/ClientAutocomplete";
 import MinutaFilterBar, { MinutaFilterValues } from "@/components/common/MinutaFilterBar";
+import { useTenant } from "@/providers/TenantProvider";
 import { GridColDef } from "@mui/x-data-grid";
 import {
   Box,
@@ -41,6 +43,7 @@ import {
   Person as PersonIcon,
   Security as SecurityIcon,
   WarningAmber as WarningIcon,
+  Delete as DeleteIcon,
 } from "@mui/icons-material";
 import { HttpClient } from "@/lib/api/client";
 import { StorageApi, MediaTypeCategory } from "@/lib/api/storage";
@@ -56,7 +59,11 @@ const GUARD_POST_OPTIONS = [
   "Básico",
 ];
 
-export default function MinutaGeneralPage() {
+interface MinutaGeneralPageProps {
+  isInternal?: boolean;
+}
+
+export default function MinutaGeneralPage({ isInternal = false }: MinutaGeneralPageProps) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [evidenceFile, setEvidenceFile] = useState<File | null>(null);
@@ -82,46 +89,30 @@ export default function MinutaGeneralPage() {
   const [selectedUnit, setSelectedUnit] = useState<UnitOption | null>(null);
   const [selectedResident, setSelectedResident] = useState<ResidentOption | null>(null);
 
+  // Internal client link state
+  const [isClientLinked, setIsClientLinked] = useState(false);
+  const [selectedClientForRecord, setSelectedClientForRecord] = useState<ClientOption | null>(null);
+
   // Detail & Filter State
   const [detailRecord, setDetailRecord] = useState<any | null>(null);
   const [detailImageUrl, setDetailImageUrl] = useState<string | null>(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
-  const [clients, setClients] = useState<any[]>([]);
-  const [selectedClientId, setSelectedClientId] = useState<string>("");
-  const [viewMode, setViewMode] = useState<"CLIENT" | "INTERNAL">("CLIENT");
+  const [selectedClientFilter, setSelectedClientFilter] = useState<ClientOption | null>(null);
   const [filters, setFilters] = useState<MinutaFilterValues>({});
-  const hasInitializedClient = useRef(false);
 
   const { showError, showSuccess } = useNotification();
   const { session } = useAuth();
+  const { tenant } = useTenant();
 
   const isGlobalUser = !session?.user?.clientId;
   const activeClientId = isGlobalUser
-    ? viewMode === "INTERNAL"
+    ? isInternal
       ? undefined
-      : selectedClientId || undefined
+      : selectedClientFilter?.id || undefined
     : session?.user?.clientId || undefined;
-
-  const selectedClientObj = useMemo(
-    () => clients.find((c) => c.id === (isGlobalUser ? selectedClientId : session?.user?.clientId)),
-    [clients, isGlobalUser, selectedClientId, session?.user?.clientId]
-  );
-  const activeClientName = selectedClientObj?.name;
-
-  useEffect(() => {
-    if (isGlobalUser) {
-      HttpClient.get<any[]>("/client")
-        .then((data) => {
-          const list = data || [];
-          setClients(list);
-          if (list.length > 0 && !hasInitializedClient.current) {
-            setSelectedClientId(list[0].id);
-            hasInitializedClient.current = true;
-          }
-        })
-        .catch(() => {});
-    }
-  }, [isGlobalUser]);
+  const activeClientName = isGlobalUser
+    ? selectedClientFilter?.name
+    : undefined;
 
   const permissions = session?.permissions || [];
   const canDelete =
@@ -138,9 +129,9 @@ export default function MinutaGeneralPage() {
     permissions.includes("minuta:create");
 
   const handleCreate = () => {
-    if (isGlobalUser && viewMode === "CLIENT" && !selectedClientId) {
+    if (!isInternal && isGlobalUser && !activeClientId) {
       showError(
-        "Debe escoger un cliente específico o seleccionar registros internos antes de generar un registro nuevo."
+        "Debe escoger un cliente específico antes de generar un registro de minuta del cliente."
       );
       return;
     }
@@ -148,6 +139,9 @@ export default function MinutaGeneralPage() {
     setEvidenceFile(null);
     setExistingMediaUrl(null);
     setSelectedUnit(null);
+    setSelectedResident(null);
+    setIsClientLinked(false);
+    setSelectedClientForRecord(null);
     setSelectedResident(null);
     const now = new Date();
     setFormData({
@@ -203,6 +197,17 @@ export default function MinutaGeneralPage() {
         setSelectedResident(null);
       }
 
+      if (data.clientId) {
+        setIsClientLinked(true);
+        setSelectedClientForRecord({
+          id: data.clientId,
+          name: data.clientName || "Cliente asignado",
+        });
+      } else {
+        setIsClientLinked(false);
+        setSelectedClientForRecord(null);
+      }
+
       // Cargar adjuntos
       const mediaList = await StorageApi.getByEntity(MediaTypeCategory.MINUTA, id);
       if (mediaList && mediaList.length > 0) {
@@ -225,20 +230,24 @@ export default function MinutaGeneralPage() {
         setDetailImageUrl(res.presignedUrl);
       } else {
         const mediaList = await StorageApi.getByEntity(MediaTypeCategory.MINUTA, row.id);
-        if (mediaList.length > 0 && mediaList[0].presignedUrl) {
-          setDetailImageUrl(mediaList[0].presignedUrl);
+        if (mediaList && mediaList.length > 0) {
+          setDetailImageUrl(mediaList[0].presignedUrl || null);
         }
       }
-    } catch {}
+    } catch {
+      // Ignorar fallo de carga de preview
+    }
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (idOrRow: any) => {
+    const targetId = typeof idOrRow === "string" ? idOrRow : idOrRow?.id;
+    if (!targetId) return;
     try {
-      await HttpClient.delete(`/operation/minuta/general/${id}`);
+      await HttpClient.delete(`/operation/minuta/general/${targetId}`);
       showSuccess("Registro de minuta eliminado correctamente");
       setRefreshTrigger((prev) => prev + 1);
-    } catch (error: any) {
-      showError(error.message || "Error al eliminar el registro");
+    } catch (err: any) {
+      showError(err.message || "Error al eliminar el registro");
     }
   };
 
@@ -272,6 +281,11 @@ export default function MinutaGeneralPage() {
       return;
     }
 
+    if (isInternal && isClientLinked && !selectedClientForRecord) {
+      showError("Ha seleccionado vincular la minuta a un cliente; por favor escoja el cliente.");
+      return;
+    }
+
     setSubmitting(true);
     try {
       const now = new Date();
@@ -287,15 +301,24 @@ export default function MinutaGeneralPage() {
         priority: Number(formData.priority) || 3,
         isConfidential: Boolean(formData.isConfidential),
         guardPost: formData.guardPost,
-        isResidentLinked: formData.isResidentLinked,
-        noveltySource: formData.isResidentLinked
-          ? selectedResident
-            ? `${selectedResident.firstName} ${selectedResident.lastName}`.trim()
-            : selectedUnit?.unitName || null
-          : formData.noveltySource.trim() || null,
-        unitId: formData.isResidentLinked ? selectedUnit?.id || null : null,
-        residentId: formData.isResidentLinked ? selectedResident?.id || null : null,
-        clientId: isGlobalUser && viewMode === "INTERNAL" ? null : activeClientId || null,
+        isInternal: isInternal,
+        isResidentLinked: isInternal ? false : formData.isResidentLinked,
+        noveltySource: isInternal
+          ? selectedClientForRecord
+            ? `Cliente: ${selectedClientForRecord.name}`
+            : formData.noveltySource.trim() || null
+          : formData.isResidentLinked
+            ? selectedResident
+              ? `${selectedResident.firstName} ${selectedResident.lastName}`.trim()
+              : selectedUnit?.unitName || null
+            : formData.noveltySource.trim() || null,
+        unitId: isInternal ? null : formData.isResidentLinked ? selectedUnit?.id || null : null,
+        residentId: isInternal ? null : formData.isResidentLinked ? selectedResident?.id || null : null,
+        clientId: isInternal
+          ? isClientLinked
+            ? selectedClientForRecord?.id || null
+            : null
+          : activeClientId || null,
       };
 
       let savedRecord: any;
@@ -315,7 +338,11 @@ export default function MinutaGeneralPage() {
             file: evidenceFile,
             entityType: MediaTypeCategory.MINUTA,
             entityId,
-            clientId: isGlobalUser && viewMode === "INTERNAL" ? null : activeClientId || null,
+            clientId: isInternal
+              ? isClientLinked
+                ? selectedClientForRecord?.id || null
+                : null
+              : activeClientId || null,
             subType: "general",
           });
           showSuccess("Evidencia fotográfica guardada");
@@ -341,24 +368,25 @@ export default function MinutaGeneralPage() {
   // Construir endpoint con query params
   const endpoint = useMemo(() => {
     const params = new URLSearchParams();
-    if (isGlobalUser && viewMode === "INTERNAL") {
-      params.append("isInternal", "true");
-    } else if (activeClientId) {
+    params.append("isInternal", isInternal ? "true" : "false");
+    if (!isInternal && activeClientId) {
       params.append("clientId", activeClientId);
     }
     if (filters.startDate) params.append("startDate", filters.startDate);
     if (filters.endDate) params.append("endDate", filters.endDate);
     if (filters.search) params.append("search", filters.search);
-    if (filters.unitId) params.append("unitId", filters.unitId);
-    if (filters.residentId) params.append("residentId", filters.residentId);
+    if (!isInternal) {
+      if (filters.unitId) params.append("unitId", filters.unitId);
+      if (filters.residentId) params.append("residentId", filters.residentId);
+    }
 
     const queryStr = params.toString();
     return queryStr
       ? `/operation/minuta/general?${queryStr}`
       : "/operation/minuta/general";
-  }, [activeClientId, isGlobalUser, viewMode, filters]);
+  }, [activeClientId, isInternal, filters]);
 
-  const columns: GridColDef[] = [
+  const columns: GridColDef[] = useMemo(() => [
     { field: "id", headerName: "ID", width: 70 },
     {
       field: "date",
@@ -389,9 +417,32 @@ export default function MinutaGeneralPage() {
     },
     {
       field: "noveltySource",
-      headerName: "Fuente / Origen",
-      width: 180,
+      headerName: isInternal ? "Cliente / Origen" : "Fuente / Origen",
+      width: 190,
       renderCell: (params) => {
+        if (isInternal) {
+          if (params.row.clientId && params.row.clientName) {
+            return (
+              <Tooltip title="Vinculado a Cliente">
+                <Stack direction="row" spacing={0.5} alignItems="center">
+                  <BadgeIcon sx={{ fontSize: 16, color: "secondary.main" }} />
+                  <Typography
+                    variant="body2"
+                    sx={{ fontWeight: 600, fontSize: "0.8rem", color: "secondary.dark" }}
+                  >
+                    {params.row.clientName}
+                  </Typography>
+                </Stack>
+              </Tooltip>
+            );
+          }
+          return (
+            <Typography variant="body2" color="text.secondary" sx={{ fontSize: "0.8rem" }}>
+              {params.value || "—"}
+            </Typography>
+          );
+        }
+
         const isLinked = params.row.isResidentLinked;
         const resName = params.row.residentName;
         const uName = params.row.unitName;
@@ -471,11 +522,11 @@ export default function MinutaGeneralPage() {
       width: 140,
       valueGetter: (value: any) => value || "Sistema",
     },
-  ];
+  ], [isInternal]);
 
   return (
     <>
-      {isGlobalUser && (
+      {!isInternal && isGlobalUser && (
         <Paper
           elevation={0}
           sx={{
@@ -485,72 +536,30 @@ export default function MinutaGeneralPage() {
             border: "1px solid",
             borderColor: "divider",
             display: "flex",
-            flexDirection: { xs: "column", sm: "row" },
-            alignItems: { xs: "stretch", sm: "center" },
-            justifyContent: "space-between",
-            gap: { xs: 1.5, sm: 2 },
+            alignItems: "center",
+            gap: 2,
           }}
         >
-          <Stack
-            direction={{ xs: "column", sm: "row" }}
-            alignItems={{ xs: "flex-start", sm: "center" }}
-            spacing={2}
-            sx={{ flex: 1 }}
+          <Typography
+            variant="body2"
+            sx={{
+              fontWeight: 600,
+              fontSize: { xs: "0.85rem", sm: "0.9rem" },
+              whiteSpace: "nowrap",
+            }}
           >
-            <Typography
-              variant="body2"
-              sx={{
-                fontWeight: 600,
-                fontSize: { xs: "0.85rem", sm: "0.9rem" },
-                whiteSpace: "nowrap",
-              }}
-            >
-              Conjunto / Cliente Activo:
-            </Typography>
-            <FormControl
+            Conjunto / Cliente Activo:
+          </Typography>
+          <Box sx={{ width: { xs: "100%", sm: 380 } }}>
+            <ClientAutocomplete
+              value={selectedClientFilter}
+              onChange={(client) => setSelectedClientFilter(client)}
+              allowAllOption={true}
+              allOptionLabel="Todos los Clientes / Conjuntos"
+              placeholder="Buscar cliente o puesto de seguridad..."
               size="small"
-              sx={{ width: { xs: "100%", sm: 300 } }}
-              disabled={viewMode === "INTERNAL"}
-            >
-              <Select
-                value={viewMode === "INTERNAL" ? "" : selectedClientId}
-                onChange={(e) => setSelectedClientId(e.target.value)}
-                displayEmpty
-              >
-                <MenuItem value="">Todos los Clientes / Conjuntos</MenuItem>
-                {clients.map((c) => (
-                  <MenuItem key={c.id} value={c.id}>
-                    {c.name} ({c.internalCode || c.nit})
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-          </Stack>
-
-          <FormControlLabel
-            control={
-              <Switch
-                checked={viewMode === "INTERNAL"}
-                onChange={(e) =>
-                  setViewMode(e.target.checked ? "INTERNAL" : "CLIENT")
-                }
-                color="primary"
-              />
-            }
-            label={
-              <Typography
-                variant="body2"
-                sx={{
-                  fontWeight: 600,
-                  fontSize: { xs: "0.8rem", sm: "0.85rem" },
-                  color: viewMode === "INTERNAL" ? "primary.main" : "text.secondary",
-                }}
-              >
-                Ver Registros Internos
-              </Typography>
-            }
-            sx={{ m: 0 }}
-          />
+            />
+          </Box>
         </Paper>
       )}
 
@@ -558,33 +567,72 @@ export default function MinutaGeneralPage() {
       <MinutaFilterBar
         clientId={activeClientId}
         onFilterChange={handleFilterChange}
-        searchPlaceholder="Filtrar por texto de la novedad..."
+        searchPlaceholder={
+          isInternal
+            ? "Filtrar por texto de la novedad interna..."
+            : "Filtrar por texto de la novedad..."
+        }
         showTextSearch={true}
-        showUnitFilter={true}
-        showResidentFilter={true}
+        showUnitFilter={!isInternal}
+        showResidentFilter={!isInternal}
       />
 
       <DataTable
-        title="Minuta General"
+        title={
+          isInternal
+            ? `Minuta General - ${tenant?.name || "Interna"}`
+            : "Minuta General"
+        }
         endpoint={endpoint}
         columns={columns}
-        breadcrumbs={[{ label: "Operaciones" }, { label: "Minuta General" }]}
+        breadcrumbs={
+          isInternal
+            ? [
+              { label: "Operaciones" },
+              { label: `Minutas de ${tenant?.name || "la Empresa"}` },
+              { label: "Minuta General" },
+            ]
+            : [
+              { label: "Operaciones" },
+              { label: "Minutas del Cliente" },
+              { label: "Minuta General" },
+            ]
+        }
         onCreate={canCreate ? handleCreate : undefined}
         onEdit={canEdit ? handleEdit : undefined}
         onDelete={canDelete ? handleDelete : undefined}
+        confirmDelete={true}
+        deleteDialogTitle="Confirmar Eliminación de Minuta"
+        deleteDialogMessage="¿Estás seguro de que deseas eliminar este registro de la minuta? Esta acción no se puede deshacer."
+        deleteActionLabel="Eliminar"
+        deleteIcon={<DeleteIcon color="error" />}
         onView={handleView}
         refreshTrigger={refreshTrigger}
-        infoDescription="Registro cronológico de novedades operativas en puestos de vigilancia con trazabilidad de origen y evidencia fotográfica."
-        infoInstructions={`1. Selecciona el puesto de vigilancia y describe la novedad.
+        infoDescription={
+          isInternal
+            ? "Registro cronológico de novedades operativas internas de la empresa/tenant, con trazabilidad opcional a clientes."
+            : "Registro cronológico de novedades operativas en puestos de vigilancia con trazabilidad de origen y evidencia fotográfica."
+        }
+        infoInstructions={
+          isInternal
+            ? `1. Selecciona el puesto de vigilancia y describe la novedad operativa interna.
+2. Si la novedad corresponde o impacta a un cliente específico, activa el switch para vincularlo.
+3. Adjunta una fotografía tomada con la cámara si requieres soporte fotográfico del suceso.`
+            : `1. Selecciona el puesto de vigilancia y describe la novedad.
 2. Si la novedad corresponde a un residente, activa el toggle para buscar por unidad o residente con autocompletado en tiempo real.
-3. Adjunta una fotografía tomada con la cámara si requieres soporte fotográfico del suceso.`}
+3. Adjunta una fotografía tomada con la cámara si requieres soporte fotográfico del suceso.`
+        }
       />
 
       {/* Modal de Detalle de Minuta */}
       <DetailDialog
         open={Boolean(detailRecord)}
         onClose={() => setDetailRecord(null)}
-        title="Detalles de la Minuta General"
+        title={
+          isInternal
+            ? "Detalles de la Minuta General Interna"
+            : "Detalles de la Minuta General"
+        }
         headerContent={
           detailImageUrl && (
             <Box sx={{ mb: 2, textAlign: "center" }}>
@@ -608,48 +656,69 @@ export default function MinutaGeneralPage() {
         fields={
           detailRecord
             ? [
-                { label: "ID Registro", value: detailRecord.id },
-                { label: "Fecha", value: formatDate(detailRecord.date) },
-                { label: "Hora", value: formatTime(detailRecord.time) },
-                { label: "Puesto / Ubicación", value: detailRecord.guardPost || "Recepción" },
-                {
-                  label: "¿Vinculada a Residente?",
-                  value: detailRecord.isResidentLinked ? "Sí" : "No",
-                },
-                {
-                  label: "Fuente / Origen",
-                  value: detailRecord.isResidentLinked
-                    ? `${detailRecord.residentName || "Residente"} (Unidad: ${detailRecord.unitName || "N/A"})`
-                    : detailRecord.noveltySource || "No especificado",
-                },
-                { label: "Categoría", value: detailRecord.category || "GENERAL" },
-                {
-                  label: "Prioridad",
-                  value: (
-                    <Chip
-                      size="small"
-                      label={`Nivel ${detailRecord.priority || 3}`}
-                      color={
-                        detailRecord.priority >= 4
-                          ? "error"
-                          : detailRecord.priority === 3
-                            ? "warning"
-                            : "default"
-                      }
-                    />
-                  ),
-                },
-                {
-                  label: "Confidencial",
-                  value: detailRecord.isConfidential ? "Sí" : "No",
-                },
-                { label: "Registrado Por", value: detailRecord.createdBy || "Sistema" },
-                {
-                  label: "Fecha Registro",
-                  value: formatDateTime(detailRecord.createdAt || detailRecord.occurredAt),
-                },
-                { label: "Anotación / Novedad", value: detailRecord.annotation },
-              ]
+              { label: "ID Registro", value: detailRecord.id },
+              { label: "Fecha", value: formatDate(detailRecord.date) },
+              { label: "Hora", value: formatTime(detailRecord.time) },
+              { label: "Puesto / Ubicación", value: detailRecord.guardPost || "Recepción" },
+              ...(isInternal
+                ? [
+                  {
+                    label: "¿Vinculada a Cliente?",
+                    value: detailRecord.clientId ? "Sí" : "No",
+                  },
+                  ...(detailRecord.clientId
+                    ? [
+                      {
+                        label: "Cliente Vinculado",
+                        value: detailRecord.clientName || detailRecord.clientId,
+                      },
+                    ]
+                    : []),
+                  {
+                    label: "Fuente / Origen",
+                    value: detailRecord.noveltySource || "No especificado",
+                  },
+                ]
+                : [
+                  {
+                    label: "¿Vinculada a Residente?",
+                    value: detailRecord.isResidentLinked ? "Sí" : "No",
+                  },
+                  {
+                    label: "Fuente / Origen",
+                    value: detailRecord.isResidentLinked
+                      ? `${detailRecord.residentName || "Residente"} (Unidad: ${detailRecord.unitName || "N/A"})`
+                      : detailRecord.noveltySource || "No especificado",
+                  },
+                ]),
+              { label: "Categoría", value: detailRecord.category || "GENERAL" },
+              {
+                label: "Prioridad",
+                value: (
+                  <Chip
+                    size="small"
+                    label={`Nivel ${detailRecord.priority || 3}`}
+                    color={
+                      detailRecord.priority >= 4
+                        ? "error"
+                        : detailRecord.priority === 3
+                          ? "warning"
+                          : "default"
+                    }
+                  />
+                ),
+              },
+              {
+                label: "Confidencial",
+                value: detailRecord.isConfidential ? "Sí" : "No",
+              },
+              { label: "Registrado Por", value: detailRecord.createdBy || "Sistema" },
+              {
+                label: "Fecha Registro",
+                value: formatDateTime(detailRecord.createdAt || detailRecord.occurredAt),
+              },
+              { label: "Anotación / Novedad", value: detailRecord.annotation },
+            ]
             : []
         }
       />
@@ -668,20 +737,20 @@ export default function MinutaGeneralPage() {
           <SecurityIcon color="primary" />
           <Box component="span">
             {selectedId
-              ? "Editar Minuta General"
-              : isGlobalUser
-              ? viewMode === "INTERNAL"
-                ? "Nuevo Registro Interno"
+              ? isInternal
+                ? "Editar Minuta General Interna"
+                : "Editar Minuta General"
+              : isInternal
+                ? `Nuevo Registro - ${tenant?.name || "Empresa"}`
                 : activeClientName
-                ? `Nuevo Registro para ${activeClientName}`
-                : "Nuevo Registro de Minuta General"
-              : "Nuevo Registro de Minuta General"}
+                  ? `Nuevo Registro para ${activeClientName}`
+                  : "Nuevo Registro de Minuta General"}
           </Box>
-          {isGlobalUser && !selectedId && (
+          {isInternal && (
             <Chip
               size="small"
-              label={viewMode === "INTERNAL" ? "Registro Interno" : activeClientName || "Cliente"}
-              color={viewMode === "INTERNAL" ? "secondary" : "primary"}
+              label="Uso Interno"
+              color="secondary"
               variant="outlined"
               sx={{ fontWeight: 600, ml: "auto" }}
             />
@@ -773,91 +842,153 @@ export default function MinutaGeneralPage() {
                 </FormControl>
               </Grid>
 
-              {/* Sección Origen de Novedad con Toggle */}
-              <Grid size={12}>
-                <Divider sx={{ my: 1 }} />
-                <Stack
-                  direction={{ xs: "column", sm: "row" }}
-                  alignItems={{ xs: "flex-start", sm: "center" }}
-                  justifyContent="space-between"
-                  spacing={1}
-                >
-                  <Typography variant="subtitle2" sx={{ fontWeight: 700, color: "text.primary" }}>
-                    Fuente / Origen de la Novedad
-                  </Typography>
-                  <FormControlLabel
-                    control={
-                      <Switch
-                        checked={formData.isResidentLinked}
-                        onChange={(e) => {
-                          const checked = e.target.checked;
-                          setFormData({ ...formData, isResidentLinked: checked });
-                          if (!checked) {
-                            setSelectedUnit(null);
-                            setSelectedResident(null);
-                          }
-                        }}
-                        color="primary"
-                      />
-                    }
-                    label={
-                      <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                        ¿Vinculada a un Residente?
-                      </Typography>
-                    }
-                  />
-                </Stack>
-              </Grid>
-
-              {formData.isResidentLinked ? (
+              {/* Sección Origen / Vinculación */}
+              {isInternal ? (
                 <>
-                  <Grid size={{ xs: 12, sm: 6 }}>
-                    <UnitAutocomplete
-                      clientId={activeClientId}
-                      value={selectedUnit}
-                      onChange={(unit) => {
-                        setSelectedUnit(unit);
-                        if (unit && unit.residents && unit.residents.length > 0) {
-                          // Si sólo hay un residente o queremos sincronizar
-                          if (unit.residents.length === 1) {
-                            setSelectedResident(unit.residents[0] as any);
-                          }
+                  <Grid size={12}>
+                    <Divider sx={{ my: 1 }} />
+                    <Stack
+                      direction={{ xs: "column", sm: "row" }}
+                      alignItems={{ xs: "flex-start", sm: "center" }}
+                      justifyContent="space-between"
+                      spacing={1}
+                    >
+                      <Typography variant="subtitle2" sx={{ fontWeight: 700, color: "text.primary" }}>
+                        Vinculación Opcional con Cliente
+                      </Typography>
+                      <FormControlLabel
+                        control={
+                          <Switch
+                            checked={isClientLinked}
+                            onChange={(e) => {
+                              const checked = e.target.checked;
+                              setIsClientLinked(checked);
+                              if (!checked) {
+                                setSelectedClientForRecord(null);
+                              }
+                            }}
+                            color="primary"
+                          />
                         }
-                      }}
-                      label="Buscar Apartamento / Unidad"
-                      placeholder="Escribe ej: Torre 1 Apto 1001..."
-                      required
-                    />
+                        label={
+                          <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                            ¿Vinculada a un cliente?
+                          </Typography>
+                        }
+                      />
+                    </Stack>
                   </Grid>
 
-                  <Grid size={{ xs: 12, sm: 6 }}>
-                    <ResidentAutocomplete
-                      clientId={activeClientId}
-                      unitId={selectedUnit?.id}
-                      preloadedResidents={selectedUnit?.residents as any}
-                      value={selectedResident}
-                      onChange={(resident) => {
-                        setSelectedResident(resident);
-                        if (resident?.unit && !selectedUnit) {
-                          setSelectedUnit(resident.unit as any);
-                        }
-                      }}
-                      label="Residente Causante / Vinculado"
-                      placeholder="Buscar por nombre o cédula..."
+                  {isClientLinked && (
+                    <Grid size={12}>
+                      <ClientAutocomplete
+                        value={selectedClientForRecord}
+                        onChange={(client) => setSelectedClientForRecord(client)}
+                        label="Seleccionar Cliente Vinculado"
+                        placeholder="Buscar cliente por nombre o NIT..."
+                        required
+                      />
+                    </Grid>
+                  )}
+
+                  <Grid size={12}>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      label="Fuente / Origen de la Novedad Interna"
+                      placeholder="Ej: Ronda de supervisión, Notificación de RRHH, Operador de CCTV, etc."
+                      value={formData.noveltySource}
+                      onChange={(e) => setFormData({ ...formData, noveltySource: e.target.value })}
                     />
                   </Grid>
                 </>
               ) : (
-                <Grid size={12}>
-                  <TextField
-                    fullWidth
-                    size="small"
-                    label="Nombre / Detalle de la Fuente u Origen"
-                    placeholder="Ej: Peatón externo, Técnico de internet, Guarda de turno, etc."
-                    value={formData.noveltySource}
-                    onChange={(e) => setFormData({ ...formData, noveltySource: e.target.value })}
-                  />
-                </Grid>
+                <>
+                  <Grid size={12}>
+                    <Divider sx={{ my: 1 }} />
+                    <Stack
+                      direction={{ xs: "column", sm: "row" }}
+                      alignItems={{ xs: "flex-start", sm: "center" }}
+                      justifyContent="space-between"
+                      spacing={1}
+                    >
+                      <Typography variant="subtitle2" sx={{ fontWeight: 700, color: "text.primary" }}>
+                        Fuente / Origen de la Novedad
+                      </Typography>
+                      <FormControlLabel
+                        control={
+                          <Switch
+                            checked={formData.isResidentLinked}
+                            onChange={(e) => {
+                              const checked = e.target.checked;
+                              setFormData({ ...formData, isResidentLinked: checked });
+                              if (!checked) {
+                                setSelectedUnit(null);
+                                setSelectedResident(null);
+                              }
+                            }}
+                            color="primary"
+                          />
+                        }
+                        label={
+                          <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                            ¿Vinculada a un Residente?
+                          </Typography>
+                        }
+                      />
+                    </Stack>
+                  </Grid>
+
+                  {formData.isResidentLinked ? (
+                    <>
+                      <Grid size={{ xs: 12, sm: 6 }}>
+                        <UnitAutocomplete
+                          clientId={activeClientId}
+                          value={selectedUnit}
+                          onChange={(unit) => {
+                            setSelectedUnit(unit);
+                            if (unit && unit.residents && unit.residents.length > 0) {
+                              if (unit.residents.length === 1) {
+                                setSelectedResident(unit.residents[0] as any);
+                              }
+                            }
+                          }}
+                          label="Buscar Apartamento / Unidad"
+                          placeholder="Escribe ej: Torre 1 Apto 1001..."
+                          required
+                        />
+                      </Grid>
+
+                      <Grid size={{ xs: 12, sm: 6 }}>
+                        <ResidentAutocomplete
+                          clientId={activeClientId}
+                          unitId={selectedUnit?.id}
+                          preloadedResidents={selectedUnit?.residents as any}
+                          value={selectedResident}
+                          onChange={(resident) => {
+                            setSelectedResident(resident);
+                            if (resident?.unit && !selectedUnit) {
+                              setSelectedUnit(resident.unit as any);
+                            }
+                          }}
+                          label="Residente Causante / Vinculado"
+                          placeholder="Buscar por nombre o cédula..."
+                        />
+                      </Grid>
+                    </>
+                  ) : (
+                    <Grid size={12}>
+                      <TextField
+                        fullWidth
+                        size="small"
+                        label="Nombre / Detalle de la Fuente u Origen"
+                        placeholder="Ej: Peatón externo, Técnico de internet, Guarda de turno, etc."
+                        value={formData.noveltySource}
+                        onChange={(e) => setFormData({ ...formData, noveltySource: e.target.value })}
+                      />
+                    </Grid>
+                  )}
+                </>
               )}
 
               {/* Anotación Principal */}

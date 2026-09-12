@@ -38,25 +38,31 @@ import {
   LocalShipping as LocalShippingIcon,
   HomeWork as HomeWorkIcon,
   Person as PersonIcon,
+  Badge as BadgeIcon,
   CheckCircle as CheckCircleIcon,
   CameraAlt as CameraIcon,
   Inventory as PackageIcon,
   CalendarMonth as CalendarMonthIcon,
+  Delete as DeleteIcon,
 } from "@mui/icons-material";
 import ImageUploadCapture from "@/components/common/ImageUploadCapture";
 import UnitAutocomplete, { UnitOption } from "@/components/common/UnitAutocomplete";
 import ResidentAutocomplete, { ResidentOption } from "@/components/common/ResidentAutocomplete";
+import ClientAutocomplete, { ClientOption } from "@/components/common/ClientAutocomplete";
+import EmployeeAutocomplete, { EmployeeOption } from "@/components/common/EmployeeAutocomplete";
 import MinutaFilterBar, { MinutaFilterValues } from "@/components/common/MinutaFilterBar";
+import { useTenant } from "@/providers/TenantProvider";
 import { HttpClient } from "@/lib/api/client";
 import { StorageApi, MediaTypeCategory } from "@/lib/api/storage";
 import { formatDate, formatTime, formatDateTime, formatTimeToHHmm } from "@/lib/formatters";
 
-export default function CorrespondencePage() {
-  const [clients, setClients] = useState<any[]>([]);
-  const [selectedClientId, setSelectedClientId] = useState<string>("");
-  const [viewMode, setViewMode] = useState<"CLIENT" | "INTERNAL">("CLIENT");
+interface CorrespondencePageProps {
+  isInternal?: boolean;
+}
+
+export default function CorrespondencePage({ isInternal = false }: CorrespondencePageProps) {
+  const [selectedClientFilter, setSelectedClientFilter] = useState<ClientOption | null>(null);
   const [filters, setFilters] = useState<MinutaFilterValues>({});
-  const hasInitializedClient = useRef(false);
 
   // Form de Nuevo Registro
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -67,6 +73,9 @@ export default function CorrespondencePage() {
   // Autocomplete state
   const [selectedUnit, setSelectedUnit] = useState<UnitOption | null>(null);
   const [selectedResident, setSelectedResident] = useState<ResidentOption | null>(null);
+
+  // Internal employee destination
+  const [selectedEmployee, setSelectedEmployee] = useState<EmployeeOption | null>(null);
 
   const [formData, setFormData] = useState({
     date: "",
@@ -108,35 +117,17 @@ export default function CorrespondencePage() {
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const { showError, showSuccess } = useNotification();
   const { session } = useAuth();
+  const { tenant } = useTenant();
 
   const isGlobalUser = !session?.user?.clientId;
   const activeClientId = isGlobalUser
-    ? viewMode === "INTERNAL"
+    ? isInternal
       ? undefined
-      : selectedClientId || undefined
+      : selectedClientFilter?.id || undefined
     : session?.user?.clientId || undefined;
-
-  const selectedClientObj = useMemo(
-    () => clients.find((c) => c.id === (isGlobalUser ? selectedClientId : session?.user?.clientId)),
-    [clients, isGlobalUser, selectedClientId, session?.user?.clientId]
-  );
-  const activeClientName = selectedClientObj?.name;
-
-  // 1. Cargar clientes para usuarios globales
-  useEffect(() => {
-    if (isGlobalUser) {
-      HttpClient.get<any[]>("/client")
-        .then((data) => {
-          const list = data || [];
-          setClients(list);
-          if (list.length > 0 && !hasInitializedClient.current) {
-            setSelectedClientId(list[0].id);
-            hasInitializedClient.current = true;
-          }
-        })
-        .catch(() => {});
-    }
-  }, [isGlobalUser]);
+  const activeClientName = isGlobalUser
+    ? selectedClientFilter?.name
+    : undefined;
 
   const permissions = session?.permissions || [];
   const canDelete =
@@ -154,9 +145,9 @@ export default function CorrespondencePage() {
 
   // Handler: Abrir modal de nuevo paquete
   const handleOpenCreate = () => {
-    if (isGlobalUser && viewMode === "CLIENT" && !selectedClientId) {
+    if (!isInternal && isGlobalUser && !activeClientId) {
       showError(
-        "Debe escoger un cliente específico o seleccionar registros internos antes de generar un registro nuevo."
+        "Debe escoger un cliente específico antes de generar un registro de correspondencia de cliente."
       );
       return;
     }
@@ -166,6 +157,7 @@ export default function CorrespondencePage() {
     setExistingReceptionMediaUrl(null);
     setSelectedUnit(null);
     setSelectedResident(null);
+    setSelectedEmployee(null);
     setEditId(null);
     setIsEditing(false);
     setFormData({
@@ -193,6 +185,15 @@ export default function CorrespondencePage() {
       const data = await HttpClient.get<any>(`/operation/minuta/correspondence/${id}`);
       setEditId(id);
       setIsEditing(true);
+
+      if (data.recipientEmployeeId) {
+        setSelectedEmployee({
+          id: data.recipientEmployeeId,
+          fullName: data.recipientEmployeeName || (data.recipientEmployee ? data.recipientEmployee.fullName : "Empleado destinatario"),
+        });
+      } else {
+        setSelectedEmployee(null);
+      }
 
       if (data.unit) {
         setSelectedUnit(data.unit);
@@ -315,9 +316,15 @@ export default function CorrespondencePage() {
   // Handler: Guardar Recepción
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const dest = formData.destination.trim() || selectedUnit?.unitName;
-    if (!dest) {
+    const dest = isInternal
+      ? selectedEmployee ? `Empleado: ${selectedEmployee.fullName}` : "Uso Interno"
+      : formData.destination.trim() || selectedUnit?.unitName;
+    if (!isInternal && !dest) {
       showError("Debes especificar el destino (Unidad o Apartamento)");
+      return;
+    }
+    if (isInternal && !selectedEmployee) {
+      showError("Debes seleccionar el empleado destinatario");
       return;
     }
 
@@ -340,9 +347,11 @@ export default function CorrespondencePage() {
         receivedByName: formData.receivedByName?.trim() || null,
         correspondenceType: formData.correspondenceType,
         observations: formData.observations?.trim() || null,
-        clientId: isGlobalUser && viewMode === "INTERNAL" ? null : activeClientId || null,
-        unitId: selectedUnit?.id || formData.unitId || null,
-        recipientResidentId: selectedResident?.id || formData.recipientResidentId || null,
+        isInternal: isInternal,
+        recipientEmployeeId: isInternal ? selectedEmployee?.id || null : null,
+        clientId: isInternal ? null : activeClientId || null,
+        unitId: isInternal ? null : selectedUnit?.id || formData.unitId || null,
+        recipientResidentId: isInternal ? null : selectedResident?.id || formData.recipientResidentId || null,
       };
 
       let savedRecord: any;
@@ -351,7 +360,7 @@ export default function CorrespondencePage() {
         showSuccess("Correspondencia actualizada exitosamente");
       } else {
         savedRecord = await HttpClient.post("/operation/minuta/correspondence", payload);
-        showSuccess("Correspondencia/domicilio registrado en portería");
+        showSuccess("Correspondencia/domicilio registrado");
       }
 
       const entityId = editId || savedRecord?.id;
@@ -361,7 +370,7 @@ export default function CorrespondencePage() {
             file: evidenceReceptionFile,
             entityType: MediaTypeCategory.CORRESPONDENCE,
             entityId,
-            clientId: isGlobalUser && viewMode === "INTERNAL" ? null : activeClientId || null,
+            clientId: isInternal ? null : activeClientId || null,
             subType: "reception",
           });
           showSuccess("Foto del paquete en recepción guardada");
@@ -383,7 +392,9 @@ export default function CorrespondencePage() {
   const handleOpenDelivery = async (row: any) => {
     setSelectedRecordForDelivery(row);
     setDeliveredToName(
-      row.recipientResidentName ||
+      isInternal
+        ? row.recipientEmployeeName || (row.recipientEmployee ? row.recipientEmployee.fullName : "")
+        : row.recipientResidentName ||
         (row.recipientResident ? `${row.recipientResident.firstName} ${row.recipientResident.lastName}` : "")
     );
     setDeliveryNotes("");
@@ -402,7 +413,7 @@ export default function CorrespondencePage() {
       } else if (row.deliveryEvidenceUrl && row.deliveryEvidenceUrl.startsWith("http")) {
         setExistingDeliveryMediaUrl(row.deliveryEvidenceUrl);
       }
-    } catch {}
+    } catch { }
 
     setDeliveryDialogOpen(true);
   };
@@ -425,7 +436,7 @@ export default function CorrespondencePage() {
             file: evidenceDeliveryFile,
             entityType: MediaTypeCategory.CORRESPONDENCE,
             entityId: selectedRecordForDelivery.id,
-            clientId: isGlobalUser && viewMode === "INTERNAL" ? null : activeClientId || null,
+            clientId: isInternal ? null : activeClientId || null,
             subType: "delivery",
           });
           uploadedUrl = media.url;
@@ -445,7 +456,11 @@ export default function CorrespondencePage() {
         payload
       );
 
-      showSuccess("¡Paquete entregado al residente exitosamente!");
+      showSuccess(
+        isInternal
+          ? "¡Paquete entregado al colaborador exitosamente!"
+          : "¡Paquete entregado al residente exitosamente!"
+      );
       setDeliveryDialogOpen(false);
       setRefreshTrigger((prev) => prev + 1);
     } catch (err: any) {
@@ -466,24 +481,23 @@ export default function CorrespondencePage() {
         const delivery = mediaList.find((m: any) => m.s3Key?.includes("delivery"));
         setDetailPhotos({
           receptionUrl: reception?.presignedUrl || null,
-          deliveryUrl: delivery?.presignedUrl || row.deliveryEvidenceUrl || null,
+          deliveryUrl: delivery?.presignedUrl || null,
         });
-      } else if (row.deliveryEvidenceUrl) {
+      } else if (row.deliveryEvidenceUrl && row.deliveryEvidenceUrl.startsWith("http")) {
         setDetailPhotos({
           receptionUrl: null,
           deliveryUrl: row.deliveryEvidenceUrl,
         });
       }
-    } catch {}
+    } catch { }
   };
 
-  // Handler: Ver evidencia fotográfica modal
+  // Handler: Ver foto
   const handleViewEvidence = async (row: any) => {
     setPreviewLoading(true);
     setPreviewPhotos({});
     setPreviewTab(0);
     setPreviewModalOpen(true);
-
     try {
       const mediaList = await StorageApi.getByEntity(MediaTypeCategory.CORRESPONDENCE, row.id);
       if (mediaList && mediaList.length > 0) {
@@ -493,18 +507,15 @@ export default function CorrespondencePage() {
           receptionUrl: reception?.presignedUrl || null,
           deliveryUrl: delivery?.presignedUrl || row.deliveryEvidenceUrl || null,
         });
-        if (!reception && delivery) setPreviewTab(1);
       } else if (row.deliveryEvidenceUrl) {
         setPreviewPhotos({
           receptionUrl: null,
           deliveryUrl: row.deliveryEvidenceUrl,
         });
         setPreviewTab(1);
-      } else {
-        showError("No hay fotografías asociadas a este paquete");
       }
     } catch {
-      showError("Error al obtener la evidencia fotográfica");
+      showError("Error al cargar las evidencias fotográficas");
     } finally {
       setPreviewLoading(false);
     }
@@ -527,22 +538,23 @@ export default function CorrespondencePage() {
 
   const endpoint = useMemo(() => {
     const params = new URLSearchParams();
-    if (isGlobalUser && viewMode === "INTERNAL") {
-      params.append("isInternal", "true");
-    } else if (activeClientId) {
+    params.append("isInternal", isInternal ? "true" : "false");
+    if (!isInternal && activeClientId) {
       params.append("clientId", activeClientId);
     }
     if (filters.startDate) params.append("startDate", filters.startDate);
     if (filters.endDate) params.append("endDate", filters.endDate);
     if (filters.search) params.append("search", filters.search);
-    if (filters.unitId) params.append("unitId", filters.unitId);
-    if (filters.residentId) params.append("residentId", filters.residentId);
+    if (!isInternal) {
+      if (filters.unitId) params.append("unitId", filters.unitId);
+      if (filters.residentId) params.append("residentId", filters.residentId);
+    }
 
     const queryStr = params.toString();
     return queryStr ? `/operation/minuta/correspondence?${queryStr}` : "/operation/minuta/correspondence";
-  }, [activeClientId, isGlobalUser, viewMode, filters]);
+  }, [activeClientId, isInternal, filters]);
 
-  const columns: GridColDef[] = [
+  const columns: GridColDef[] = useMemo(() => [
     { field: "id", headerName: "ID", width: 60 },
     {
       field: "date",
@@ -556,55 +568,87 @@ export default function CorrespondencePage() {
       width: 85,
       valueFormatter: (value: any) => formatTime(value),
     },
-    {
-      field: "destination",
-      headerName: "Unidad / Destino",
-      width: 150,
-      renderCell: (params) => {
-        const dest =
-          params.row.unitName ||
-          params.row.unit?.unitName ||
-          params.row.destination ||
-          "—";
-        return (
-          <Box sx={{ display: "flex", alignItems: "center", height: "100%", gap: 0.8 }}>
-            <HomeWorkIcon sx={{ fontSize: 18, color: "primary.main" }} />
-            <Typography variant="body2" sx={{ fontWeight: 600 }}>
-              {dest}
-            </Typography>
-          </Box>
-        );
-      },
-    },
-    {
-      field: "recipientResidentName",
-      headerName: "Destinatario",
-      width: 170,
-      renderCell: (params) => {
-        const res =
-          params.row.recipientResidentName ||
-          (params.row.recipientResident
-            ? `${params.row.recipientResident.firstName} ${params.row.recipientResident.lastName}`
-            : "—");
-        return (
-          <Box sx={{ display: "flex", alignItems: "center", height: "100%", gap: 0.6 }}>
-            <PersonIcon sx={{ fontSize: 17, color: "text.secondary" }} />
-            <Typography variant="body2">{res}</Typography>
-          </Box>
-        );
-      },
-    },
+    ...(isInternal
+      ? [
+        {
+          field: "recipientEmployeeName",
+          headerName: "Empleado Destinatario",
+          width: 200,
+          renderCell: (params: any) => {
+            const emp =
+              params.row.recipientEmployeeName ||
+              params.row.recipientEmployee?.fullName ||
+              params.row.deliveredToName;
+            if (!emp) {
+              return (
+                <Typography variant="body2" color="text.secondary">
+                  Uso Interno / General
+                </Typography>
+              );
+            }
+            return (
+              <Box sx={{ display: "flex", alignItems: "center", height: "100%", gap: 0.6 }}>
+                <BadgeIcon sx={{ fontSize: 17, color: "secondary.main" }} />
+                <Typography variant="body2" sx={{ fontWeight: 600, color: "text.primary" }}>
+                  {emp}
+                </Typography>
+              </Box>
+            );
+          },
+        },
+      ]
+      : [
+        {
+          field: "destination",
+          headerName: "Unidad / Destino",
+          width: 150,
+          renderCell: (params: any) => {
+            const dest =
+              params.row.unitName ||
+              params.row.unit?.unitName ||
+              params.row.destination ||
+              "—";
+            return (
+              <Box sx={{ display: "flex", alignItems: "center", height: "100%", gap: 0.8 }}>
+                <HomeWorkIcon sx={{ fontSize: 18, color: "primary.main" }} />
+                <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                  {dest}
+                </Typography>
+              </Box>
+            );
+          },
+        },
+        {
+          field: "recipientResidentName",
+          headerName: "Destinatario",
+          width: 170,
+          renderCell: (params: any) => {
+            const res =
+              params.row.recipientResidentName ||
+              (params.row.recipientResident
+                ? `${params.row.recipientResident.firstName} ${params.row.recipientResident.lastName}`
+                : "—");
+            return (
+              <Box sx={{ display: "flex", alignItems: "center", height: "100%", gap: 0.6 }}>
+                <PersonIcon sx={{ fontSize: 17, color: "text.secondary" }} />
+                <Typography variant="body2">{res}</Typography>
+              </Box>
+            );
+          },
+        },
+      ]),
     {
       field: "correspondenceType",
       headerName: "Tipo",
       width: 110,
       renderCell: (params) => {
         const typeMap: Record<string, string> = {
+          BOX: "Caja",
+          ENVELOPE: "Sobre",
+          DOCUMENT: "Documento",
           LETTER: "Carta",
-          BOX: "Caja/Paquete",
-          DOCUMENT: "Sobre/Doc",
-          PACKAGE: "Encomienda",
-          FOOD_DELIVERY: "Domicilio",
+          PACKAGE: "Paquete",
+          FOOD_DELIVERY: "Comida / Domicilio",
           OTHER: "Otro",
         };
         return (
@@ -700,7 +744,7 @@ export default function CorrespondencePage() {
                   boxShadow: "none",
                 }}
               >
-                Entregar al Residente
+                {isInternal ? "Entregar al Empleado" : "Entregar al Residente"}
               </Button>
             )}
           </Box>
@@ -713,12 +757,12 @@ export default function CorrespondencePage() {
       width: 140,
       valueGetter: (value: any, row: any) => value || row.createdBy || "Guardia",
     },
-  ];
+  ], [isInternal]);
 
   return (
     <>
-      {/* Selector de Cliente para usuarios globales */}
-      {isGlobalUser && (
+      {/* Selector de Cliente con ClientAutocomplete para usuarios globales en vista de cliente */}
+      {!isInternal && isGlobalUser && (
         <Paper
           elevation={0}
           sx={{
@@ -728,102 +772,96 @@ export default function CorrespondencePage() {
             border: "1px solid",
             borderColor: "divider",
             display: "flex",
-            flexDirection: { xs: "column", sm: "row" },
-            alignItems: { xs: "stretch", sm: "center" },
-            justifyContent: "space-between",
-            gap: { xs: 1.5, sm: 2 },
+            alignItems: "center",
+            gap: 2,
           }}
         >
-          <Stack
-            direction={{ xs: "column", sm: "row" }}
-            alignItems={{ xs: "flex-start", sm: "center" }}
-            spacing={2}
-            sx={{ flex: 1 }}
+          <Typography
+            variant="body2"
+            sx={{
+              fontWeight: 600,
+              fontSize: { xs: "0.85rem", sm: "0.9rem" },
+              whiteSpace: "nowrap",
+            }}
           >
-            <Typography
-              variant="body2"
-              sx={{
-                fontWeight: 600,
-                fontSize: { xs: "0.85rem", sm: "0.9rem" },
-                whiteSpace: "nowrap",
-              }}
-            >
-              Conjunto / Cliente Activo:
-            </Typography>
-            <FormControl
+            Cliente / Puesto de Seguridad:
+          </Typography>
+          <Box sx={{ flex: 1, maxWidth: 450 }}>
+            <ClientAutocomplete
+              value={selectedClientFilter}
+              onChange={(client) => setSelectedClientFilter(client)}
+              allowAllOption={true}
+              allOptionLabel="Todos los Clientes / Conjuntos"
+              placeholder="Buscar cliente o puesto de seguridad..."
               size="small"
-              sx={{ width: { xs: "100%", sm: 300 } }}
-              disabled={viewMode === "INTERNAL"}
-            >
-              <Select
-                value={viewMode === "INTERNAL" ? "" : selectedClientId}
-                onChange={(e) => setSelectedClientId(e.target.value)}
-                displayEmpty
-              >
-                <MenuItem value="">Todos los Clientes / Conjuntos</MenuItem>
-                {clients.map((c) => (
-                  <MenuItem key={c.id} value={c.id}>
-                    {c.name} ({c.internalCode || c.nit})
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-          </Stack>
-
-          <FormControlLabel
-            control={
-              <Switch
-                checked={viewMode === "INTERNAL"}
-                onChange={(e) =>
-                  setViewMode(e.target.checked ? "INTERNAL" : "CLIENT")
-                }
-                color="primary"
-              />
-            }
-            label={
-              <Typography
-                variant="body2"
-                sx={{
-                  fontWeight: 600,
-                  fontSize: { xs: "0.8rem", sm: "0.85rem" },
-                  color: viewMode === "INTERNAL" ? "primary.main" : "text.secondary",
-                }}
-              >
-                Ver Registros Internos
-              </Typography>
-            }
-            sx={{ m: 0 }}
-          />
+            />
+          </Box>
         </Paper>
       )}
 
       {/* Barra de Búsqueda y Filtros Avanzados */}
       <MinutaFilterBar
         clientId={activeClientId}
+        showUnitFilter={!isInternal}
+        showResidentFilter={!isInternal}
         onFilterChange={handleFilterChange}
-        searchPlaceholder="Buscar por guía, destinatario, remitente o empresa..."
+        searchPlaceholder={
+          isInternal
+            ? "Buscar por guía, empleado destinatario, remitente o empresa..."
+            : "Buscar por guía, destinatario, remitente o empresa..."
+        }
       />
 
       <DataTable
-        title="Control de Correspondencia y Paquetería"
+        title={
+          isInternal
+            ? `Correspondencia de ${tenant?.name || "la Empresa"}`
+            : "Control de Correspondencia y Paquetería"
+        }
         endpoint={endpoint}
         columns={columns}
-        breadcrumbs={[{ label: "Operaciones" }, { label: "Correspondencia" }]}
+        breadcrumbs={[
+          { label: "Operaciones" },
+          {
+            label: isInternal
+              ? `Minutas de ${tenant?.name || "la Empresa"}`
+              : "Minutas del Cliente",
+          },
+          { label: "Correspondencia" },
+        ]}
         onCreate={canCreate ? handleOpenCreate : undefined}
         onEdit={canEdit ? (id) => handleEdit(id) : undefined}
         onDelete={canDelete ? handleDelete : undefined}
+        confirmDelete={true}
+        deleteDialogTitle="Confirmar Eliminación de Correspondencia"
+        deleteDialogMessage="¿Estás seguro de que deseas eliminar este registro de correspondencia? Esta acción no se puede deshacer."
+        deleteActionLabel="Eliminar"
+        deleteIcon={<DeleteIcon color="error" />}
         onView={handleViewDetail}
         refreshTrigger={refreshTrigger}
-        infoDescription="Control integral de paquetes, encomiendas y correspondencia recibida en portería y entregada a residentes."
-        infoInstructions={`1. Registra el paquete asociándolo a una Unidad/Apartamento con fotografía en recepción.
-2. Al entregar al residente, pulsa 'Entregar al Residente' para capturar la fotografía de entrega y registrar la firma de recepción.`}
+        infoDescription={
+          isInternal
+            ? "Control integral de paquetes, encomiendas y correspondencia interna recibida y entregada al personal de la empresa."
+            : "Control integral de paquetes, encomiendas y correspondencia recibida en portería y entregada a residentes."
+        }
+        infoInstructions={
+          isInternal
+            ? `1. Registra el paquete asociándolo al empleado destinatario de la empresa con fotografía en recepción.
+2. Al entregar al empleado, pulsa 'Entregar al Empleado' para capturar la fotografía de entrega y registrar la firma de recepción.`
+            : `1. Registra el paquete asociándolo a una Unidad/Apartamento con fotografía en recepción.
+2. Al entregar al residente, pulsa 'Entregar al Residente' para capturar la fotografía de entrega y registrar la firma de recepción.`
+        }
       />
 
       {/* Modal Detalle de Correspondencia */}
       <DetailDialog
         open={Boolean(detailRecord)}
         onClose={() => setDetailRecord(null)}
-        title="Detalles del Paquete / Correspondencia"
+        title={
+          isInternal
+            ? "Detalles del Paquete / Correspondencia Interna"
+            : "Detalles del Paquete / Correspondencia"
+        }
         headerContent={
           (detailPhotos.receptionUrl || detailPhotos.deliveryUrl) && (
             <Grid container spacing={2} sx={{ mb: 2 }}>
@@ -859,39 +897,66 @@ export default function CorrespondencePage() {
         fields={
           detailRecord
             ? [
-                { label: "ID Registro", value: detailRecord.id },
-                { label: "Fecha Recepción", value: formatDate(detailRecord.date) },
-                { label: "Hora Recepción", value: formatTime(detailRecord.receivedTime || detailRecord.time) },
-                {
-                  label: "Destino (Unidad)",
-                  value: detailRecord.unitName || detailRecord.unit?.unitName || detailRecord.destination || "N/A",
-                },
-                {
-                  label: "Destinatario",
-                  value: detailRecord.recipientResidentName || "Sin especificar",
-                },
-                { label: "Remitente", value: detailRecord.sender || "N/A" },
-                { label: "Empresa de Mensajería", value: detailRecord.courierCompany || "Directa" },
-                { label: "Número de Guía", value: detailRecord.trackingNumber || "Sin N°" },
-                {
-                  label: "Estado",
-                  value: (
-                    <Chip
-                      size="small"
-                      label={detailRecord.status === "DELIVERED" ? "Entregado" : "En Portería"}
-                      color={detailRecord.status === "DELIVERED" ? "success" : "warning"}
-                    />
-                  ),
-                },
-                { label: "Reclamado / Recibido Por", value: detailRecord.deliveredToName || "Pendiente de entrega" },
-                {
-                  label: "Fecha de Entrega",
-                  value: detailRecord.deliveredAt ? formatDateTime(detailRecord.deliveredAt) : "No entregado",
-                },
-                { label: "Recepcionado Por (Guardia)", value: detailRecord.receivedByName || detailRecord.createdBy || "Sistema" },
-                { label: "Observaciones / Estado del Paquete", value: detailRecord.observations || "Sin observaciones" },
-                { label: "Notas de Entrega", value: detailRecord.deliveryNotes || "Sin notas" },
-              ]
+              { label: "ID Registro", value: detailRecord.id },
+              { label: "Fecha Recepción", value: formatDate(detailRecord.date) },
+              { label: "Hora Recepción", value: formatTime(detailRecord.receivedTime || detailRecord.time) },
+              ...(isInternal
+                ? [
+                  {
+                    label: "Empleado Destinatario",
+                    value: detailRecord.recipientEmployeeName || detailRecord.recipientEmployee?.fullName || "Sin asignar",
+                  },
+                ]
+                : [
+                  {
+                    label: "Destino (Unidad)",
+                    value: detailRecord.unitName || detailRecord.unit?.unitName || detailRecord.destination || "N/A",
+                  },
+                  {
+                    label: "Destinatario",
+                    value: detailRecord.recipientResidentName || "Sin especificar",
+                  },
+                ]),
+              {
+                label: "Tipo de Correspondencia",
+                value:
+                  ({
+                    BOX: "Caja",
+                    ENVELOPE: "Sobre",
+                    DOCUMENT: "Documento",
+                    LETTER: "Carta",
+                    PACKAGE: "Paquete",
+                    FOOD_DELIVERY: "Comida / Domicilio",
+                    OTHER: "Otro",
+                  } as Record<string, string>)[detailRecord.correspondenceType] ||
+                  detailRecord.correspondenceType ||
+                  "Sin especificar",
+              },
+              { label: "Remitente", value: detailRecord.sender || "N/A" },
+              { label: "Empresa de Mensajería", value: detailRecord.courierCompany || "Directa" },
+              { label: "Número de Guía", value: detailRecord.trackingNumber || "Sin N°" },
+              {
+                label: "Estado",
+                value: (
+                  <Chip
+                    size="small"
+                    label={detailRecord.status === "DELIVERED" ? "Entregado" : "En Portería"}
+                    color={detailRecord.status === "DELIVERED" ? "success" : "warning"}
+                  />
+                ),
+              },
+              {
+                label: isInternal ? "Entregado a" : "Reclamado / Recibido Por",
+                value: detailRecord.deliveredToName || "Pendiente de entrega",
+              },
+              {
+                label: "Fecha de Entrega",
+                value: detailRecord.deliveredAt ? formatDateTime(detailRecord.deliveredAt) : "No entregado",
+              },
+              { label: "Recepcionado Por (Guardia)", value: detailRecord.receivedByName || detailRecord.createdBy || "Sistema" },
+              { label: "Observaciones / Estado del Paquete", value: detailRecord.observations || "Sin observaciones" },
+              { label: "Notas de Entrega", value: detailRecord.deliveryNotes || "Sin notas" },
+            ]
             : []
         }
       />
@@ -909,23 +974,29 @@ export default function CorrespondencePage() {
             <Box component="span">
               {isEditing
                 ? "Actualizar Paquete"
-                : isGlobalUser
-                ? viewMode === "INTERNAL"
-                  ? "Nuevo Registro Interno"
+                : isInternal
+                  ? `Nuevo Paquete - ${tenant?.name || "Empresa"}`
                   : activeClientName
-                  ? `Nuevo Registro para ${activeClientName}`
-                  : "Nuevo Ingreso de Paquete / Domicilio"
-                : "Nuevo Ingreso de Paquete / Domicilio"}
+                    ? `Nuevo Paquete para ${activeClientName}`
+                    : "Nuevo Ingreso de Paquete / Domicilio"}
             </Box>
-            {isGlobalUser && !isEditing && (
+            {isInternal ? (
               <Chip
                 size="small"
-                label={viewMode === "INTERNAL" ? "Registro Interno" : activeClientName || "Cliente"}
-                color={viewMode === "INTERNAL" ? "secondary" : "primary"}
+                label="Uso Interno"
+                color="secondary"
                 variant="outlined"
                 sx={{ fontWeight: 600, ml: "auto" }}
               />
-            )}
+            ) : isGlobalUser && !isEditing && activeClientName ? (
+              <Chip
+                size="small"
+                label={activeClientName}
+                color="primary"
+                variant="outlined"
+                sx={{ fontWeight: 600, ml: "auto" }}
+              />
+            ) : null}
           </DialogTitle>
           <DialogContent dividers sx={{ pt: 2, px: { xs: 2, sm: 3 } }}>
             <Grid container spacing={2}>
@@ -967,30 +1038,51 @@ export default function CorrespondencePage() {
                 />
               </Grid>
 
-              {/* Selector de Unidad con Autocomplete */}
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <UnitAutocomplete
-                  clientId={activeClientId}
-                  value={selectedUnit}
-                  onChange={handleUnitChange}
-                  label="Unidad / Apartamento"
-                  placeholder="Buscar torre, apto o casa..."
-                  required
-                />
-              </Grid>
+              {isInternal ? (
+                <Grid size={{ xs: 12, sm: 12 }}>
+                  <EmployeeAutocomplete
+                    value={selectedEmployee}
+                    onChange={(emp) => {
+                      setSelectedEmployee(emp);
+                      setFormData((prev) => ({
+                        ...prev,
+                        recipientEmployeeId: emp?.id || "",
+                        recipientEmployeeName: emp?.fullName || "",
+                      }));
+                    }}
+                    label="Empleado Destinatario"
+                    placeholder="Buscar empleado de la empresa..."
+                    required
+                  />
+                </Grid>
+              ) : (
+                <>
+                  {/* Selector de Unidad con Autocomplete */}
+                  <Grid size={{ xs: 12, sm: 6 }}>
+                    <UnitAutocomplete
+                      clientId={activeClientId}
+                      value={selectedUnit}
+                      onChange={handleUnitChange}
+                      label="Unidad / Apartamento"
+                      placeholder="Buscar torre, apto o casa..."
+                      required
+                    />
+                  </Grid>
 
-              {/* Selector de Residente Destinatario con Autocomplete */}
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <ResidentAutocomplete
-                  clientId={activeClientId}
-                  unitId={selectedUnit?.id}
-                  preloadedResidents={preloadedResidents}
-                  value={selectedResident}
-                  onChange={handleResidentChange}
-                  label="Residente Destinatario (Opcional)"
-                  placeholder="Buscar por nombre o documento..."
-                />
-              </Grid>
+                  {/* Selector de Residente Destinatario con Autocomplete */}
+                  <Grid size={{ xs: 12, sm: 6 }}>
+                    <ResidentAutocomplete
+                      clientId={activeClientId}
+                      unitId={selectedUnit?.id}
+                      preloadedResidents={preloadedResidents}
+                      value={selectedResident}
+                      onChange={handleResidentChange}
+                      label="Residente Destinatario (Opcional)"
+                      placeholder="Buscar por nombre o documento..."
+                    />
+                  </Grid>
+                </>
+              )}
 
               <Grid size={{ xs: 12, sm: 6 }}>
                 <FormControl fullWidth size="small">
@@ -1001,10 +1093,11 @@ export default function CorrespondencePage() {
                     value={formData.correspondenceType}
                     onChange={(e) => setFormData({ ...formData, correspondenceType: e.target.value })}
                   >
-                    <MenuItem value="BOX">Caja / Paquete</MenuItem>
-                    <MenuItem value="DOCUMENT">Sobre / Documento</MenuItem>
+                    <MenuItem value="BOX">Caja</MenuItem>
+                    <MenuItem value="ENVELOPE">Sobre</MenuItem>
+                    <MenuItem value="DOCUMENT">Documento</MenuItem>
                     <MenuItem value="LETTER">Carta</MenuItem>
-                    <MenuItem value="PACKAGE">Encomienda</MenuItem>
+                    <MenuItem value="PACKAGE">Paquete</MenuItem>
                     <MenuItem value="FOOD_DELIVERY">Comida / Domicilio</MenuItem>
                     <MenuItem value="OTHER">Otro</MenuItem>
                   </Select>
@@ -1059,7 +1152,7 @@ export default function CorrespondencePage() {
 
               <Grid size={12} sx={{ mt: 1 }}>
                 <Typography variant="subtitle2" sx={{ color: "primary.main", fontWeight: 700, mb: 0.5, display: "flex", alignItems: "center", gap: 0.5 }}>
-                  <CameraIcon sx={{ fontSize: 18 }} /> Fotografía del Paquete al Recibir (AWS S3)
+                  <CameraIcon sx={{ fontSize: 18 }} /> Fotografía del Paquete al Recibir
                 </Typography>
                 <ImageUploadCapture
                   label="Foto del Paquete / Guía en Recepción"
@@ -1092,7 +1185,7 @@ export default function CorrespondencePage() {
         PaperProps={{ sx: { borderRadius: { xs: 2, sm: 2.5 }, m: { xs: 1.5, sm: 3 } } }}
       >
         <DialogTitle sx={{ fontWeight: 700, fontSize: { xs: "1.1rem", sm: "1.25rem" } }}>
-          Entregar Paquete al Residente
+          {isInternal ? "Entregar Paquete al Empleado" : "Entregar Paquete al Residente"}
         </DialogTitle>
         <DialogContent dividers sx={{ pt: 2, px: { xs: 2, sm: 3 } }}>
           {selectedRecordForDelivery && (
@@ -1101,10 +1194,12 @@ export default function CorrespondencePage() {
                 <Grid container spacing={1}>
                   <Grid size={6}>
                     <Typography variant="caption" color="text.secondary" display="block">
-                      Destino:
+                      {isInternal ? "Empleado Destinatario:" : "Destino:"}
                     </Typography>
                     <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                      {selectedRecordForDelivery.unitName || selectedRecordForDelivery.destination || "N/A"}
+                      {isInternal
+                        ? selectedRecordForDelivery.recipientEmployeeName || selectedRecordForDelivery.destination || "N/A"
+                        : selectedRecordForDelivery.unitName || selectedRecordForDelivery.destination || "N/A"}
                     </Typography>
                   </Grid>
                   <Grid size={6}>
@@ -1139,7 +1234,7 @@ export default function CorrespondencePage() {
               size="small"
               required
               label="Nombre de Quien Recibe / Reclama"
-              placeholder="Ej: Carlos Gómez (Hermano del residente)"
+              placeholder={isInternal ? "Ej: Juan Pérez" : "Ej: Carlos Gómez (Hermano del residente)"}
               value={deliveredToName}
               onChange={(e) => setDeliveredToName(e.target.value)}
             />
@@ -1157,10 +1252,10 @@ export default function CorrespondencePage() {
 
             <Box>
               <Typography variant="subtitle2" sx={{ color: "primary.main", fontWeight: 700, mb: 0.5, display: "flex", alignItems: "center", gap: 0.5 }}>
-                <CameraIcon sx={{ fontSize: 18 }} /> Fotografía de Evidencia de Entrega (AWS S3)
+                <CameraIcon sx={{ fontSize: 18 }} /> Fotografía de Evidencia de Entrega
               </Typography>
               <ImageUploadCapture
-                label="Foto al Residente Recibiendo el Paquete"
+                label={isInternal ? "Foto al Empleado Recibiendo el Paquete" : "Foto al Residente Recibiendo el Paquete"}
                 variant="evidence"
                 value={evidenceDeliveryFile}
                 previewUrl={existingDeliveryMediaUrl}
