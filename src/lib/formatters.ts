@@ -80,6 +80,7 @@ export const formatStructureType = (type?: string): string => {
     BUILDING_CLUSTER: "Conjunto de Torres / Bloques",
     HOUSE_CLUSTER: "Conjunto Cerrado de Casas",
     MIXED: "Conjunto Mixto (Residencial + Locales)",
+    COMMERCIAL: "Comercios / Centro Comercial",
     OTHER: "Otro Tipo de Inmueble",
   };
   return map[type] || type.replace(/_/g, " ");
