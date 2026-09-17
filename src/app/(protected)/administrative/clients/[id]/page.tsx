@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
   Box,
@@ -35,8 +35,12 @@ import {
   CloudUpload as CloudUploadIcon,
   Add as AddIcon,
   Delete as DeleteIcon,
+  Image as ImageIcon,
+  Description as DescriptionIcon,
+  AttachFile as AttachFileIcon,
 } from "@mui/icons-material";
 import { HttpClient } from "@/lib/api/client";
+import { StorageApi, MediaTypeCategory } from "@/lib/api/storage";
 import { useNotification } from "@/providers/NotificationProvider";
 import DataTable from "@/components/common/DataTable";
 import PromptConfirmDialog from "@/components/common/PromptConfirmDialog";
@@ -82,6 +86,31 @@ interface CouncilMember {
   phone: string;
   email: string;
   unit: string;
+}
+
+export interface AttachedMediaItem {
+  mediaId: string;
+  fileName: string;
+  presignedUrl?: string;
+}
+
+function normalizeMediaItem(item: any): AttachedMediaItem | null {
+  if (!item) return null;
+  if (typeof item === "string") {
+    return {
+      mediaId: "",
+      fileName: item,
+      presignedUrl: item.startsWith("http") ? item : undefined,
+    };
+  }
+  if (typeof item === "object" && (item.mediaId || item.fileName || item.url || item.id)) {
+    return {
+      mediaId: item.mediaId || item.id || "",
+      fileName: item.fileName || "archivo",
+      presignedUrl: item.presignedUrl || item.url || undefined,
+    };
+  }
+  return null;
 }
 
 export default function ClientDetailPage() {
@@ -144,7 +173,16 @@ export default function ClientDetailPage() {
     exclusiveDeliveryEntry: false,
     sharedPetDeliveryEntry: true,
   });
-  const [entryImages, setEntryImages] = useState<Record<string, string>>({});
+  const [entryImages, setEntryImages] = useState<Record<string, any>>({});
+  const [uploadingKeys, setUploadingKeys] = useState<Record<string, boolean>>({});
+
+  // Hidden File Inputs & Refs
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  const docInputRef = useRef<HTMLInputElement>(null);
+  const otherFileInputRef = useRef<HTMLInputElement>(null);
+
+  const [activeImageKey, setActiveImageKey] = useState<string | null>(null);
+  const [activeDocKey, setActiveDocKey] = useState<string | null>(null);
 
   const [amenities, setAmenities] = useState({
     hasSocialRoom: false,
@@ -188,7 +226,7 @@ export default function ClientDetailPage() {
     installedTech: false,
     securityStudy: "",
   });
-  const [contractMediaFiles, setContractMediaFiles] = useState<Record<string, string>>({});
+  const [contractMediaFiles, setContractMediaFiles] = useState<Record<string, any>>({});
 
   // Tab 3: Administration & Contacts
   const [administrationType, setAdministrationType] = useState<string>("INDIVIDUAL");
@@ -316,7 +354,7 @@ export default function ClientDetailPage() {
               (ct: any) =>
                 ct.id === t.id ||
                 ct.towerName?.trim().toLowerCase() ===
-                  t.towerName?.trim().toLowerCase(),
+                t.towerName?.trim().toLowerCase(),
             );
             return {
               id: t.id,
@@ -493,21 +531,288 @@ export default function ClientDetailPage() {
     });
   };
 
-  const handleImagePlaceholder = (entryKey: string) => {
-    markDirty();
-    setEntryImages((prev) => ({
-      ...prev,
-      [entryKey]: `foto_entrada_${entryKey}.jpg (adjuntada)`,
-    }));
+  // Triggers for Hidden File Inputs
+  const triggerImageUpload = (entryKey: string) => {
+    setActiveImageKey(entryKey);
+    if (imageInputRef.current) {
+      imageInputRef.current.value = "";
+      imageInputRef.current.click();
+    }
   };
 
-  // Contract Media Placeholder
-  const handleContractDocUpload = (docKey: string) => {
+  const triggerDocUpload = (docKey: string) => {
+    setActiveDocKey(docKey);
+    if (docInputRef.current) {
+      docInputRef.current.value = "";
+      docInputRef.current.click();
+    }
+  };
+
+  const triggerOtherFileUpload = () => {
+    if (otherFileInputRef.current) {
+      otherFileInputRef.current.value = "";
+      otherFileInputRef.current.click();
+    }
+  };
+
+  // Upload Handlers
+  const handleUploadEntryImage = async (entryKey: string, file: File) => {
+    setUploadingKeys((prev) => ({ ...prev, [`entry_${entryKey}`]: true }));
+    try {
+      const res = await StorageApi.uploadMedia({
+        file,
+        entityType: MediaTypeCategory.CLIENT,
+        entityId: clientId,
+        clientId: clientId,
+        category: "ENTRANCE_IMAGE",
+        subType: entryKey,
+      });
+
+      const item: AttachedMediaItem = {
+        mediaId: res.id,
+        fileName: res.fileName,
+        presignedUrl: res.presignedUrl,
+      };
+
+      setEntryImages((prev) => ({
+        ...prev,
+        [entryKey]: item,
+      }));
+      markDirty();
+      showSuccess("Foto de entrada cargada con éxito");
+    } catch (err: any) {
+      showError(err.message || "Error al subir la foto de entrada");
+    } finally {
+      setUploadingKeys((prev) => ({ ...prev, [`entry_${entryKey}`]: false }));
+    }
+  };
+
+  const handleUploadContractDoc = async (docKey: string, file: File) => {
+    setUploadingKeys((prev) => ({ ...prev, [`contract_${docKey}`]: true }));
+    try {
+      const res = await StorageApi.uploadMedia({
+        file,
+        entityType: MediaTypeCategory.CLIENT,
+        entityId: clientId,
+        clientId: clientId,
+        category: "CONTRACT_DOC",
+        subType: docKey,
+      });
+
+      const item: AttachedMediaItem = {
+        mediaId: res.id,
+        fileName: res.fileName,
+        presignedUrl: res.presignedUrl,
+      };
+
+      setContractMediaFiles((prev) => ({
+        ...prev,
+        [docKey]: item,
+      }));
+      markDirty();
+      showSuccess(`Documento "${docKey}" cargado con éxito`);
+    } catch (err: any) {
+      showError(err.message || "Error al subir el documento contractual");
+    } finally {
+      setUploadingKeys((prev) => ({ ...prev, [`contract_${docKey}`]: false }));
+    }
+  };
+
+  const handleUploadOtherFile = async (file: File) => {
+    setUploadingKeys((prev) => ({ ...prev, other_file: true }));
+    try {
+      const res = await StorageApi.uploadMedia({
+        file,
+        entityType: MediaTypeCategory.CLIENT,
+        entityId: clientId,
+        clientId: clientId,
+        category: "OTHER_DOC",
+      });
+
+      const item: AttachedMediaItem = {
+        mediaId: res.id,
+        fileName: res.fileName,
+        presignedUrl: res.presignedUrl,
+      };
+
+      setContractMediaFiles((prev) => {
+        const existingOthers: AttachedMediaItem[] = Array.isArray(prev.otherFiles)
+          ? prev.otherFiles
+          : [];
+        return {
+          ...prev,
+          otherFiles: [...existingOthers, item],
+        };
+      });
+      markDirty();
+      showSuccess(`Archivo "${res.fileName}" cargado con éxito`);
+    } catch (err: any) {
+      showError(err.message || "Error al subir el archivo adicional");
+    } finally {
+      setUploadingKeys((prev) => ({ ...prev, other_file: false }));
+    }
+  };
+
+  // View / Download Handler (fetches fresh Presigned URL if needed)
+  const handleViewFile = async (item: AttachedMediaItem | string | null | undefined) => {
+    const norm = normalizeMediaItem(item);
+    if (!norm) return;
+
+    try {
+      if (norm.mediaId) {
+        const res = await StorageApi.getPresignedUrl(norm.mediaId);
+        if (res?.presignedUrl) {
+          window.open(res.presignedUrl, "_blank", "noopener,noreferrer");
+          return;
+        }
+      }
+      if (norm.presignedUrl) {
+        window.open(norm.presignedUrl, "_blank", "noopener,noreferrer");
+        return;
+      }
+      showError("No hay enlace disponible para este archivo");
+    } catch (err: any) {
+      showError(err.message || "Error al obtener enlace del archivo");
+    }
+  };
+
+  // Delete Handlers (S3 + DB)
+  const handleDeleteEntryImage = async (entryKey: string) => {
+    const item = normalizeMediaItem(entryImages[entryKey]);
+    if (!item) return;
+
+    if (!window.confirm("¿Está seguro de que desea eliminar esta foto? Se borrará permanentemente.")) {
+      return;
+    }
+
+    if (item.mediaId) {
+      try {
+        await StorageApi.deleteMedia(item.mediaId);
+        showSuccess("Foto eliminada correctamente");
+      } catch (err: any) {
+        showError(err.message || "Error al eliminar archivo del almacenamiento");
+        return;
+      }
+    }
+
+    setEntryImages((prev) => {
+      const copy = { ...prev };
+      delete copy[entryKey];
+      return copy;
+    });
     markDirty();
+  };
+
+  const handleDeleteContractDoc = async (docKey: string) => {
+    const item = normalizeMediaItem(contractMediaFiles[docKey]);
+    if (!item) return;
+
+    if (!window.confirm(`¿Está seguro de que desea eliminar el documento "${docKey}"? Se borrará permanentemente.`)) {
+      return;
+    }
+
+    if (item.mediaId) {
+      try {
+        await StorageApi.deleteMedia(item.mediaId);
+        showSuccess("Documento eliminado correctamente");
+      } catch (err: any) {
+        showError(err.message || "Error al eliminar archivo del almacenamiento");
+        return;
+      }
+    }
+
+    setContractMediaFiles((prev) => {
+      const copy = { ...prev };
+      delete copy[docKey];
+      return copy;
+    });
+    markDirty();
+  };
+
+  const handleDeleteOtherFile = async (index: number) => {
+    const others = Array.isArray(contractMediaFiles.otherFiles)
+      ? [...contractMediaFiles.otherFiles]
+      : [];
+    const target = others[index];
+    if (!target) return;
+
+    if (!window.confirm(`¿Está seguro de que desea eliminar este archivo? Se borrará permanentemente.`)) {
+      return;
+    }
+
+    const item = normalizeMediaItem(target);
+    if (item?.mediaId) {
+      try {
+        await StorageApi.deleteMedia(item.mediaId);
+        showSuccess("Archivo adicional eliminado correctamente");
+      } catch (err: any) {
+        showError(err.message || "Error al eliminar archivo del almacenamiento");
+        return;
+      }
+    }
+
+    others.splice(index, 1);
     setContractMediaFiles((prev) => ({
       ...prev,
-      [docKey]: `documento_${docKey}.pdf (cargado)`,
+      otherFiles: others,
     }));
+    markDirty();
+  };
+
+  // Helper renderer for Entrance Photos in Tab 1
+  const renderEntryUpload = (entryKey: string, label: string) => {
+    const isUploading = uploadingKeys[`entry_${entryKey}`];
+    const item = normalizeMediaItem(entryImages[entryKey]);
+
+    if (isUploading) {
+      return (
+        <Box sx={{ display: "flex", alignItems: "center", ml: 4, mb: 1 }}>
+          <CircularProgress size={16} sx={{ mr: 1 }} />
+          <Typography variant="caption" color="text.secondary">
+            Subiendo a S3...
+          </Typography>
+        </Box>
+      );
+    }
+
+    if (item) {
+      return (
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1, ml: 4, mb: 1, flexWrap: "wrap" }}>
+          <Chip
+            icon={<ImageIcon fontSize="small" />}
+            label={item.fileName}
+            onClick={() => handleViewFile(item)}
+            onDelete={() => handleDeleteEntryImage(entryKey)}
+            color="primary"
+            variant="outlined"
+            size="small"
+            clickable
+            sx={{ maxWidth: 280 }}
+            title="Clic para ver foto"
+          />
+          <IconButton
+            size="small"
+            color="primary"
+            title="Reemplazar foto"
+            onClick={() => triggerImageUpload(entryKey)}
+          >
+            <CloudUploadIcon fontSize="small" />
+          </IconButton>
+        </Box>
+      );
+    }
+
+    return (
+      <Button
+        size="small"
+        startIcon={<CloudUploadIcon />}
+        variant="text"
+        onClick={() => triggerImageUpload(entryKey)}
+        sx={{ ml: 4, mb: 1 }}
+      >
+        Anexar foto {label}
+      </Button>
+    );
   };
 
   // Additional Contacts for Admin Enterprise
@@ -581,8 +886,8 @@ export default function ClientDetailPage() {
           administrationType === "ENTERPRISE"
             ? enterpriseAdmin
             : {
-                identificationNumber: individualAdmin.identificationNumber,
-              },
+              identificationNumber: individualAdmin.identificationNumber,
+            },
         councilData: {
           president: councilPresident,
           treasurer: councilTreasurer,
@@ -596,21 +901,21 @@ export default function ClientDetailPage() {
           towers:
             structureType === "SINGLE_BUILDING"
               ? [
-                  {
-                    id: towers[0]?.id,
-                    towerName: "Edificio Principal",
-                    floorsAmount: Number(floorsAmount),
-                    apartmentsPerFloor: Number(apartmentsPerFloor),
-                    elevators: Number(singleElevators),
-                  },
-                ]
+                {
+                  id: towers[0]?.id,
+                  towerName: "Edificio Principal",
+                  floorsAmount: Number(floorsAmount),
+                  apartmentsPerFloor: Number(apartmentsPerFloor),
+                  elevators: Number(singleElevators),
+                },
+              ]
               : towers.map((t) => ({
-                  id: t.id,
-                  towerName: t.towerName,
-                  floorsAmount: Number(t.floorsAmount),
-                  apartmentsPerFloor: Number(t.apartmentsPerFloor),
-                  elevators: Number(t.elevators || 0),
-                })),
+                id: t.id,
+                towerName: t.towerName,
+                floorsAmount: Number(t.floorsAmount),
+                apartmentsPerFloor: Number(t.apartmentsPerFloor),
+                elevators: Number(t.elevators || 0),
+              })),
           unitsAmount: Number(unitsAmount),
           prefix: housePrefix,
           hasCommercialStores: structureType === "MIXED",
@@ -1174,7 +1479,7 @@ export default function ClientDetailPage() {
                   <TextField
                     fullWidth
                     type="number"
-                  inputProps={{ min: 0 }}
+                    inputProps={{ min: 0 }}
                     label="Cantidad de Locales Comerciales *"
                     value={commercialStoresAmount}
                     onChange={(e) => {
@@ -1201,7 +1506,7 @@ export default function ClientDetailPage() {
                           fullWidth
                           size="small"
                           type="number"
-                  inputProps={{ min: 0 }}
+                          inputProps={{ min: 0 }}
                           label="Pisos"
                           value={floorsAmount}
                           onChange={(e) => {
@@ -1215,7 +1520,7 @@ export default function ClientDetailPage() {
                           fullWidth
                           size="small"
                           type="number"
-                  inputProps={{ min: 0 }}
+                          inputProps={{ min: 0 }}
                           label="Aptos / Piso"
                           value={apartmentsPerFloor}
                           onChange={(e) => {
@@ -1229,7 +1534,7 @@ export default function ClientDetailPage() {
                           fullWidth
                           size="small"
                           type="number"
-                  inputProps={{ min: 0 }}
+                          inputProps={{ min: 0 }}
                           label="Ascensores"
                           value={singleElevators}
                           onChange={(e) => {
@@ -1272,7 +1577,7 @@ export default function ClientDetailPage() {
                             fullWidth
                             size="small"
                             type="number"
-                  inputProps={{ min: 0 }}
+                            inputProps={{ min: 0 }}
                             label="Pisos"
                             value={tower.floorsAmount}
                             onChange={(e) => handleTowerChange(idx, "floorsAmount", Number(e.target.value))}
@@ -1283,7 +1588,7 @@ export default function ClientDetailPage() {
                             fullWidth
                             size="small"
                             type="number"
-                  inputProps={{ min: 0 }}
+                            inputProps={{ min: 0 }}
                             label="Aptos / Piso"
                             value={tower.apartmentsPerFloor}
                             onChange={(e) => handleTowerChange(idx, "apartmentsPerFloor", Number(e.target.value))}
@@ -1294,7 +1599,7 @@ export default function ClientDetailPage() {
                             fullWidth
                             size="small"
                             type="number"
-                  inputProps={{ min: 0 }}
+                            inputProps={{ min: 0 }}
                             label="Ascensores"
                             value={tower.elevators}
                             onChange={(e) => handleTowerChange(idx, "elevators", Number(e.target.value))}
@@ -1329,7 +1634,7 @@ export default function ClientDetailPage() {
                           fullWidth
                           size="small"
                           type="number"
-                  inputProps={{ min: 0 }}
+                          inputProps={{ min: 0 }}
                           label="Cantidad Total de Casas"
                           value={unitsAmount}
                           onChange={(e) => {
@@ -1414,7 +1719,7 @@ export default function ClientDetailPage() {
                           fullWidth
                           size="small"
                           type="number"
-                  inputProps={{ min: 0 }}
+                          inputProps={{ min: 0 }}
                           label="Cantidad Total de Inmuebles / Unidades"
                           value={unitsAmount}
                           onChange={(e) => {
@@ -1459,17 +1764,7 @@ export default function ClientDetailPage() {
                           }
                           label="1. Entrada Principal"
                         />
-                        {entries.mainEntry && (
-                          <Button
-                            size="small"
-                            startIcon={<CloudUploadIcon />}
-                            variant="text"
-                            onClick={() => handleImagePlaceholder("mainEntry")}
-                            sx={{ ml: 4, mb: 1 }}
-                          >
-                            {entryImages["mainEntry"] || "Anexar foto Entrada Principal"}
-                          </Button>
-                        )}
+                        {entries.mainEntry && renderEntryUpload("mainEntry", "Entrada Principal")}
 
                         <FormControlLabel
                           control={
@@ -1483,17 +1778,8 @@ export default function ClientDetailPage() {
                           }
                           label="2. Vehicular separada para entrada y salida"
                         />
-                        {entries.separateVehicleEntryExit && (
-                          <Button
-                            size="small"
-                            startIcon={<CloudUploadIcon />}
-                            variant="text"
-                            onClick={() => handleImagePlaceholder("separateVehicleEntryExit")}
-                            sx={{ ml: 4, mb: 1 }}
-                          >
-                            {entryImages["separateVehicleEntryExit"] || "Anexar foto Vehicular Separada"}
-                          </Button>
-                        )}
+                        {entries.separateVehicleEntryExit &&
+                          renderEntryUpload("separateVehicleEntryExit", "Vehicular Separada")}
 
                         <FormControlLabel
                           control={
@@ -1507,17 +1793,8 @@ export default function ClientDetailPage() {
                           }
                           label="3. Vehicular compartida para entrada y salida"
                         />
-                        {entries.sharedVehicleEntryExit && (
-                          <Button
-                            size="small"
-                            startIcon={<CloudUploadIcon />}
-                            variant="text"
-                            onClick={() => handleImagePlaceholder("sharedVehicleEntryExit")}
-                            sx={{ ml: 4, mb: 1 }}
-                          >
-                            {entryImages["sharedVehicleEntryExit"] || "Anexar foto Vehicular Compartida"}
-                          </Button>
-                        )}
+                        {entries.sharedVehicleEntryExit &&
+                          renderEntryUpload("sharedVehicleEntryExit", "Vehicular Compartida")}
                       </FormGroup>
                     </Paper>
                   </Grid>
@@ -1535,17 +1812,8 @@ export default function ClientDetailPage() {
                           }
                           label="4. Entrada exclusiva mascotas"
                         />
-                        {entries.exclusivePetEntry && (
-                          <Button
-                            size="small"
-                            startIcon={<CloudUploadIcon />}
-                            variant="text"
-                            onClick={() => handleImagePlaceholder("exclusivePetEntry")}
-                            sx={{ ml: 4, mb: 1 }}
-                          >
-                            {entryImages["exclusivePetEntry"] || "Anexar foto Acceso Mascotas"}
-                          </Button>
-                        )}
+                        {entries.exclusivePetEntry &&
+                          renderEntryUpload("exclusivePetEntry", "Acceso Mascotas")}
 
                         <FormControlLabel
                           control={
@@ -1557,17 +1825,8 @@ export default function ClientDetailPage() {
                           }
                           label="5. Entrada exclusiva domiciliarios"
                         />
-                        {entries.exclusiveDeliveryEntry && (
-                          <Button
-                            size="small"
-                            startIcon={<CloudUploadIcon />}
-                            variant="text"
-                            onClick={() => handleImagePlaceholder("exclusiveDeliveryEntry")}
-                            sx={{ ml: 4, mb: 1 }}
-                          >
-                            {entryImages["exclusiveDeliveryEntry"] || "Anexar foto Domiciliarios"}
-                          </Button>
-                        )}
+                        {entries.exclusiveDeliveryEntry &&
+                          renderEntryUpload("exclusiveDeliveryEntry", "Domiciliarios")}
 
                         <FormControlLabel
                           control={
@@ -1581,17 +1840,8 @@ export default function ClientDetailPage() {
                           }
                           label="6. Entrada compartida para mascotas y domiciliarios"
                         />
-                        {entries.sharedPetDeliveryEntry && (
-                          <Button
-                            size="small"
-                            startIcon={<CloudUploadIcon />}
-                            variant="text"
-                            onClick={() => handleImagePlaceholder("sharedPetDeliveryEntry")}
-                            sx={{ ml: 4, mb: 1 }}
-                          >
-                            {entryImages["sharedPetDeliveryEntry"] || "Anexar foto Acceso Compartido"}
-                          </Button>
-                        )}
+                        {entries.sharedPetDeliveryEntry &&
+                          renderEntryUpload("sharedPetDeliveryEntry", "Acceso Compartido")}
                       </FormGroup>
                     </Paper>
                   </Grid>
@@ -1609,7 +1859,7 @@ export default function ClientDetailPage() {
                     <TextField
                       fullWidth
                       type="number"
-                  inputProps={{ min: 0 }}
+                      inputProps={{ min: 0 }}
                       label="Parqueaderos Privados"
                       value={amenities.parkingAmount}
                       onChange={(e) => {
@@ -1623,7 +1873,7 @@ export default function ClientDetailPage() {
                     <TextField
                       fullWidth
                       type="number"
-                  inputProps={{ min: 0 }}
+                      inputProps={{ min: 0 }}
                       label="Parqueaderos Visitantes"
                       value={amenities.guestParkingAmount}
                       onChange={(e) => {
@@ -1637,7 +1887,7 @@ export default function ClientDetailPage() {
                     <TextField
                       fullWidth
                       type="number"
-                  inputProps={{ min: 0 }}
+                      inputProps={{ min: 0 }}
                       label="Bicicleteros"
                       value={amenities.bicycleRackAmount}
                       onChange={(e) => {
@@ -1651,7 +1901,7 @@ export default function ClientDetailPage() {
                     <TextField
                       fullWidth
                       type="number"
-                  inputProps={{ min: 0 }}
+                      inputProps={{ min: 0 }}
                       label="Depósitos"
                       value={amenities.storageRoomAmount}
                       onChange={(e) => {
@@ -1665,7 +1915,7 @@ export default function ClientDetailPage() {
                     <TextField
                       fullWidth
                       type="number"
-                  inputProps={{ min: 0 }}
+                      inputProps={{ min: 0 }}
                       label="Salón Social"
                       value={amenities.socialRoomAmount}
                       onChange={(e) => {
@@ -1683,7 +1933,7 @@ export default function ClientDetailPage() {
                     <TextField
                       fullWidth
                       type="number"
-                  inputProps={{ min: 0 }}
+                      inputProps={{ min: 0 }}
                       label="Gimnasio"
                       value={amenities.gymAmount}
                       onChange={(e) => {
@@ -1701,7 +1951,7 @@ export default function ClientDetailPage() {
                     <TextField
                       fullWidth
                       type="number"
-                  inputProps={{ min: 0 }}
+                      inputProps={{ min: 0 }}
                       label="Piscinas"
                       value={amenities.poolAmount}
                       onChange={(e) => {
@@ -1719,7 +1969,7 @@ export default function ClientDetailPage() {
                     <TextField
                       fullWidth
                       type="number"
-                  inputProps={{ min: 0 }}
+                      inputProps={{ min: 0 }}
                       label="Canchas de Squash"
                       value={amenities.squashCourtAmount}
                       onChange={(e) => {
@@ -1737,7 +1987,7 @@ export default function ClientDetailPage() {
                     <TextField
                       fullWidth
                       type="number"
-                  inputProps={{ min: 0 }}
+                      inputProps={{ min: 0 }}
                       label="Canchas de Tenis"
                       value={amenities.tennisCourtAmount}
                       onChange={(e) => {
@@ -1755,7 +2005,7 @@ export default function ClientDetailPage() {
                     <TextField
                       fullWidth
                       type="number"
-                  inputProps={{ min: 0 }}
+                      inputProps={{ min: 0 }}
                       label="Canchas de Fútbol"
                       value={amenities.footballCourtAmount}
                       onChange={(e) => {
@@ -1773,7 +2023,7 @@ export default function ClientDetailPage() {
                     <TextField
                       fullWidth
                       type="number"
-                  inputProps={{ min: 0 }}
+                      inputProps={{ min: 0 }}
                       label="Canchas de Baloncesto"
                       value={amenities.basketballCourtAmount}
                       onChange={(e) => {
@@ -1791,7 +2041,7 @@ export default function ClientDetailPage() {
                     <TextField
                       fullWidth
                       type="number"
-                  inputProps={{ min: 0 }}
+                      inputProps={{ min: 0 }}
                       label="Parques Infantiles"
                       value={amenities.playgroundAmount}
                       onChange={(e) => {
@@ -1983,29 +2233,188 @@ export default function ClientDetailPage() {
                   📎 Documentos Contractuales Adjuntos
                 </Typography>
                 <Grid container spacing={2}>
-                  {["Contrato Principal", "RUT", "Cámara de Comercio", "Póliza de Cumplimiento"].map((doc) => (
-                    <Grid size={{ xs: 12, sm: 6, md: 3 }} key={doc}>
-                      <Paper variant="outlined" sx={{ p: 2, textAlign: "center", borderRadius: 2 }}>
-                        <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>
-                          {doc}
-                        </Typography>
-                        <Button
-                          size="small"
+                  {["Contrato Principal", "RUT", "Cámara de Comercio", "Póliza de Cumplimiento"].map((doc) => {
+                    const isUploading = uploadingKeys[`contract_${doc}`];
+                    const item = normalizeMediaItem(contractMediaFiles[doc]);
+
+                    return (
+                      <Grid size={{ xs: 12, sm: 6, md: 3 }} key={doc}>
+                        <Paper
                           variant="outlined"
-                          startIcon={<CloudUploadIcon />}
-                          onClick={() => handleContractDocUpload(doc)}
+                          sx={{
+                            p: 2,
+                            textAlign: "center",
+                            borderRadius: 2,
+                            display: "flex",
+                            flexDirection: "column",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            minHeight: 140,
+                            borderColor: item ? "primary.main" : "divider",
+                            bgcolor: item ? "action.hover" : "background.paper",
+                            transition: "all 0.2s ease",
+                          }}
                         >
-                          {contractMediaFiles[doc] ? "Actualizar Archivo" : "Adjuntar Archivo"}
-                        </Button>
-                        {contractMediaFiles[doc] && (
-                          <Typography variant="caption" display="block" color="success.main" sx={{ mt: 0.5 }}>
-                            {contractMediaFiles[doc]}
+                          <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>
+                            {doc}
                           </Typography>
-                        )}
-                      </Paper>
-                    </Grid>
-                  ))}
+
+                          {isUploading ? (
+                            <Box sx={{ display: "flex", alignItems: "center", gap: 1, my: 1 }}>
+                              <CircularProgress size={20} />
+                              <Typography variant="caption">Subiendo a S3...</Typography>
+                            </Box>
+                          ) : item ? (
+                            <Box sx={{ width: "100%", display: "flex", flexDirection: "column", alignItems: "center", gap: 1 }}>
+                              <Chip
+                                icon={<DescriptionIcon fontSize="small" />}
+                                label={item.fileName}
+                                onClick={() => handleViewFile(item)}
+                                onDelete={() => handleDeleteContractDoc(doc)}
+                                color="primary"
+                                variant="outlined"
+                                size="small"
+                                clickable
+                                sx={{ maxWidth: "100%", cursor: "pointer" }}
+                                title="Clic para ver/descargar documento"
+                              />
+                              <Button
+                                size="small"
+                                variant="text"
+                                startIcon={<CloudUploadIcon />}
+                                onClick={() => triggerDocUpload(doc)}
+                                sx={{ fontSize: "0.75rem", textTransform: "none", mt: 0.5 }}
+                              >
+                                Reemplazar
+                              </Button>
+                            </Box>
+                          ) : (
+                            <Button
+                              size="small"
+                              variant="outlined"
+                              startIcon={<CloudUploadIcon />}
+                              onClick={() => triggerDocUpload(doc)}
+                              sx={{ mt: 1 }}
+                            >
+                              Adjuntar Archivo
+                            </Button>
+                          )}
+                        </Paper>
+                      </Grid>
+                    );
+                  })}
                 </Grid>
+              </Grid>
+
+              {/* Otros Archivos */}
+              <Grid size={{ xs: 12 }}>
+                <Paper
+                  variant="outlined"
+                  sx={{
+                    p: 2.5,
+                    mt: 2,
+                    borderRadius: 2,
+                    bgcolor: "background.paper",
+                    borderStyle: "dashed",
+                  }}
+                >
+                  <Box
+                    sx={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      mb: 2,
+                      flexWrap: "wrap",
+                      gap: 1,
+                    }}
+                  >
+                    <Box>
+                      <Typography variant="subtitle2" sx={{ fontWeight: 700, display: "flex", alignItems: "center", gap: 1 }}>
+                        <AttachFileIcon fontSize="small" color="primary" />
+                        Otros Archivos y Anexos Adicionales
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        Adjunte actas, certificaciones, adendas u otros documentos legales relevantes
+                      </Typography>
+                    </Box>
+                    <Button
+                      variant="outlined"
+                      size="small"
+                      startIcon={uploadingKeys["other_file"] ? <CircularProgress size={16} /> : <AddIcon />}
+                      disabled={uploadingKeys["other_file"]}
+                      onClick={() => triggerOtherFileUpload()}
+                    >
+                      {uploadingKeys["other_file"] ? "Subiendo..." : "Agregar Archivo"}
+                    </Button>
+                  </Box>
+
+                  {Array.isArray(contractMediaFiles.otherFiles) && contractMediaFiles.otherFiles.length > 0 ? (
+                    <Grid container spacing={1.5}>
+                      {contractMediaFiles.otherFiles.map((fileObj: any, index: number) => {
+                        const item = normalizeMediaItem(fileObj);
+                        if (!item) return null;
+                        return (
+                          <Grid size={{ xs: 12, sm: 6, md: 4 }} key={item.mediaId || index}>
+                            <Paper
+                              variant="outlined"
+                              sx={{
+                                p: 1.5,
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "space-between",
+                                borderRadius: 1.5,
+                                bgcolor: "action.hover",
+                              }}
+                            >
+                              <Box
+                                sx={{
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: 1,
+                                  overflow: "hidden",
+                                  cursor: "pointer",
+                                  flex: 1,
+                                  mr: 1,
+                                }}
+                                onClick={() => handleViewFile(item)}
+                                title="Clic para ver/descargar archivo"
+                              >
+                                <DescriptionIcon color="primary" fontSize="small" />
+                                <Typography
+                                  variant="body2"
+                                  noWrap
+                                  sx={{
+                                    fontWeight: 500,
+                                    color: "primary.main",
+                                    textDecoration: "underline",
+                                    textUnderlineOffset: 2,
+                                    maxWidth: "100%",
+                                  }}
+                                >
+                                  {item.fileName}
+                                </Typography>
+                              </Box>
+                              <IconButton
+                                size="small"
+                                color="error"
+                                title="Eliminar archivo de S3"
+                                onClick={() => handleDeleteOtherFile(index)}
+                              >
+                                <DeleteIcon fontSize="small" />
+                              </IconButton>
+                            </Paper>
+                          </Grid>
+                        );
+                      })}
+                    </Grid>
+                  ) : (
+                    <Box sx={{ py: 2, textAlign: "center" }}>
+                      <Typography variant="caption" color="text.secondary">
+                        No se han cargado archivos adicionales. Haga clic en &quot;Agregar Archivo&quot; para subir documentos adicionales.
+                      </Typography>
+                    </Box>
+                  )}
+                </Paper>
               </Grid>
             </Grid>
           </Box>
@@ -2652,13 +3061,13 @@ export default function ClientDetailPage() {
               <TextField
                 fullWidth
                 type="date"
-                  InputProps={{
-                    endAdornment: (
-                      <InputAdornment position="end">
-                        <CalendarMonthIcon sx={{ color: "action.active", pointerEvents: "none" }} />
-                      </InputAdornment>
-                    ),
-                  }}
+                InputProps={{
+                  endAdornment: (
+                    <InputAdornment position="end">
+                      <CalendarMonthIcon sx={{ color: "action.active", pointerEvents: "none" }} />
+                    </InputAdornment>
+                  ),
+                }}
                 label="Fecha de Nacimiento"
                 InputLabelProps={{ shrink: true }}
                 value={residentForm.birthdate}
@@ -2714,6 +3123,44 @@ export default function ClientDetailPage() {
         confirmColor="error"
         onClose={() => setDeleteResident(null)}
         onConfirm={handleConfirmDeleteResident}
+      />
+
+      {/* Hidden File Inputs for AWS S3 Storage Uploads */}
+      <input
+        type="file"
+        ref={imageInputRef}
+        accept="image/*"
+        style={{ display: "none" }}
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file && activeImageKey) {
+            handleUploadEntryImage(activeImageKey, file);
+          }
+        }}
+      />
+      <input
+        type="file"
+        ref={docInputRef}
+        accept=".pdf,.doc,.docx,.png,.jpg,.jpeg"
+        style={{ display: "none" }}
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file && activeDocKey) {
+            handleUploadContractDoc(activeDocKey, file);
+          }
+        }}
+      />
+      <input
+        type="file"
+        ref={otherFileInputRef}
+        accept="*/*"
+        style={{ display: "none" }}
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) {
+            handleUploadOtherFile(file);
+          }
+        }}
       />
     </Box>
   );
