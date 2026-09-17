@@ -44,6 +44,7 @@ import CsvImportDialog from "@/components/common/CsvImportDialog";
 import { GridColDef } from "@mui/x-data-grid";
 import { formatDateTime } from "@/lib/formatters";
 import { CalendarMonth as CalendarMonthIcon } from "@mui/icons-material";
+import UserAutocomplete, { UserOption } from "@/components/common/UserAutocomplete";
 
 
 interface TabPanelProps {
@@ -62,6 +63,7 @@ function CustomTabPanel(props: TabPanelProps) {
 }
 
 interface TowerInput {
+  id?: string;
   towerName: string;
   floorsAmount: number;
   apartmentsPerFloor: number;
@@ -92,7 +94,10 @@ export default function ClientDetailPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [client, setClient] = useState<any | null>(null);
-  const [employees, setEmployees] = useState<{ value: string; label: string }[]>([]);
+
+  // Users for Assignment
+  const [coordinatorUser, setCoordinatorUser] = useState<UserOption | null>(null);
+  const [commercialUser, setCommercialUser] = useState<UserOption | null>(null);
 
   // Dirty state tracking
   const [isDirty, setIsDirty] = useState(false);
@@ -255,18 +260,23 @@ export default function ClientDetailPage() {
   const fetchClient = async () => {
     setLoading(true);
     try {
-      const [data, employeesData] = await Promise.all([
-        HttpClient.get<any>(`/client/${clientId}`),
-        HttpClient.get<any[]>("/employee").catch(() => []),
-      ]);
+      const data = await HttpClient.get<any>(`/client/${clientId}`);
 
       setClient(data);
-      setEmployees(
-        employeesData.map((e) => ({
-          value: e.id,
-          label: `${e.fullName} (${e.positionName || "Sin Cargo"})`,
-        })),
-      );
+      if (data.coordinatorInCharge) {
+        setCoordinatorUser({
+          id: data.coordinatorInCharge.id,
+          fullName: data.coordinatorInCharge.fullName,
+          position: data.coordinatorInCharge.position,
+        });
+      }
+      if (data.commercialContact) {
+        setCommercialUser({
+          id: data.commercialContact.id,
+          fullName: data.commercialContact.fullName,
+          position: data.commercialContact.position,
+        });
+      }
 
       // Tab 0
       setGeneralForm({
@@ -296,19 +306,31 @@ export default function ClientDetailPage() {
       setUnitsAmount(props.unitsAmount || 50);
       setCommercialStoresAmount(props.commercialStoresAmount || 0);
 
-      if (data.towers && data.towers.length > 0) {
+      const sqlTowers = data.towers || [];
+      const configTowers = props.structureConfig?.towers || [];
+
+      if (sqlTowers.length > 0) {
         setTowers(
-          data.towers.map((t: any) => ({
-            towerName: t.towerName || "Torre",
-            floorsAmount: t.floorsAmount || 10,
-            apartmentsPerFloor: t.apartmentsPerFloor || 4,
-            elevators: t.elevators || 1,
-          })),
+          sqlTowers.map((t: any) => {
+            const cfg = configTowers.find(
+              (ct: any) =>
+                ct.id === t.id ||
+                ct.towerName?.trim().toLowerCase() ===
+                  t.towerName?.trim().toLowerCase(),
+            );
+            return {
+              id: t.id,
+              towerName: t.towerName || "Torre",
+              floorsAmount: t.floorsAmount || cfg?.floorsAmount || 10,
+              apartmentsPerFloor: cfg?.apartmentsPerFloor || 4,
+              elevators: t.elevators ?? cfg?.elevators ?? 1,
+            };
+          }),
         );
         if (sType === "SINGLE_BUILDING") {
-          setFloorsAmount(data.towers[0]?.floorsAmount || 5);
-          setApartmentsPerFloor(data.towers[0]?.apartmentsPerFloor || 4);
-          setSingleElevators(data.towers[0]?.elevators || 1);
+          setFloorsAmount(sqlTowers[0]?.floorsAmount || 5);
+          setApartmentsPerFloor(configTowers[0]?.apartmentsPerFloor || 4);
+          setSingleElevators(sqlTowers[0]?.elevators || 1);
         }
       } else {
         setFloorsAmount(5);
@@ -575,6 +597,7 @@ export default function ClientDetailPage() {
             structureType === "SINGLE_BUILDING"
               ? [
                   {
+                    id: towers[0]?.id,
                     towerName: "Edificio Principal",
                     floorsAmount: Number(floorsAmount),
                     apartmentsPerFloor: Number(apartmentsPerFloor),
@@ -582,7 +605,8 @@ export default function ClientDetailPage() {
                   },
                 ]
               : towers.map((t) => ({
-                  ...t,
+                  id: t.id,
+                  towerName: t.towerName,
                   floorsAmount: Number(t.floorsAmount),
                   apartmentsPerFloor: Number(t.apartmentsPerFloor),
                   elevators: Number(t.elevators || 0),
@@ -611,10 +635,10 @@ export default function ClientDetailPage() {
   // Filtered residents computed state
   const filteredResidents = useMemo(() => {
     return residents.filter((r) => {
+      // Filtrar por torre
       if (
         filterTower !== "ALL" &&
-        r.unit?.tower?.id !== filterTower &&
-        r.unit?.towerId !== filterTower
+        r.unit?.tower?.towerName?.trim().toLowerCase() !== filterTower.trim().toLowerCase()
       ) {
         return false;
       }
@@ -1887,43 +1911,29 @@ export default function ClientDetailPage() {
               </Grid>
 
               <Grid size={{ xs: 12, sm: 6 }}>
-                <TextField
-                  select
-                  fullWidth
+                <UserAutocomplete
+                  type="coordinators"
                   label="Coordinador a Cargo"
-                  value={contractForm.coordinatorInChargeId}
-                  onChange={(e) => {
+                  value={coordinatorUser}
+                  onChange={(u) => {
                     markDirty();
-                    setContractForm({ ...contractForm, coordinatorInChargeId: e.target.value });
+                    setCoordinatorUser(u);
+                    setContractForm({ ...contractForm, coordinatorInChargeId: u?.id || "" });
                   }}
-                >
-                  <MenuItem value="">-- Sin Asignar --</MenuItem>
-                  {employees.map((emp) => (
-                    <MenuItem key={emp.value} value={emp.value}>
-                      {emp.label}
-                    </MenuItem>
-                  ))}
-                </TextField>
+                />
               </Grid>
 
               <Grid size={{ xs: 12, sm: 6 }}>
-                <TextField
-                  select
-                  fullWidth
+                <UserAutocomplete
+                  type="commercials"
                   label="Contacto Comercial Asignado"
-                  value={contractForm.commercialContactId}
-                  onChange={(e) => {
+                  value={commercialUser}
+                  onChange={(u) => {
                     markDirty();
-                    setContractForm({ ...contractForm, commercialContactId: e.target.value });
+                    setCommercialUser(u);
+                    setContractForm({ ...contractForm, commercialContactId: u?.id || "" });
                   }}
-                >
-                  <MenuItem value="">-- Sin Asignar --</MenuItem>
-                  {employees.map((emp) => (
-                    <MenuItem key={emp.value} value={emp.value}>
-                      {emp.label}
-                    </MenuItem>
-                  ))}
-                </TextField>
+                />
               </Grid>
 
               <Grid size={{ xs: 12, sm: 4 }}>

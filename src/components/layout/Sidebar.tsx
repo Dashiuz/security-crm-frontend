@@ -263,8 +263,20 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
           },
         ],
       },
+      ...(session?.user?.userType === "RESIDENCE_MANAGER"
+        ? [
+            {
+              id: "residentes-conjunto",
+              text: `Residentes de ${session?.user?.client?.name || session?.user?.clientName || "Conjunto"}`,
+              icon: <PeopleIcon />,
+              path: "/administrative/my-residents",
+              feature: "resident",
+              permission: ["resident:manage", "resident:read"],
+            },
+          ]
+        : []),
     ],
-    [tenant?.name]
+    [tenant?.name, session?.user?.userType, session?.user?.client?.name, session?.user?.clientName]
   );
 
   const [openSubmenus, setOpenSubmenus] = useState<Record<string, boolean>>({

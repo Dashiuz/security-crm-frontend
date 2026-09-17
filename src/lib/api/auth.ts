@@ -23,6 +23,7 @@ export interface User {
   roleName?: string;
   avatarUrl?: string | null;
   tenantId: string;
+  userType?: string;
   clientId?: string | null;
   clientName?: string | null;
   client?: { id: string; name: string; internalCode?: string } | null;

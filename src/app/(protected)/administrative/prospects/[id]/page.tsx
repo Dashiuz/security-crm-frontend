@@ -35,6 +35,7 @@ import {
   Delete as DeleteIcon,
   CloudUpload as CloudUploadIcon,
 } from "@mui/icons-material";
+import UserAutocomplete, { UserOption } from "@/components/common/UserAutocomplete";
 import { HttpClient } from "@/lib/api/client";
 import { useNotification } from "@/providers/NotificationProvider";
 import { CalendarMonth as CalendarMonthIcon } from "@mui/icons-material";
@@ -72,7 +73,10 @@ export default function ProspectDetailPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [prospect, setProspect] = useState<any | null>(null);
-  const [employees, setEmployees] = useState<{ value: string; label: string }[]>([]);
+
+  // Users for Assignment
+  const [coordinatorUser, setCoordinatorUser] = useState<UserOption | null>(null);
+  const [commercialUser, setCommercialUser] = useState<UserOption | null>(null);
 
   // Dirty state tracking
   const [isDirty, setIsDirty] = useState(false);
@@ -160,22 +164,12 @@ export default function ProspectDetailPage() {
     administrationType: "INDIVIDUAL",
   });
 
-  // Load prospect details
   const fetchProspectData = async () => {
     setLoading(true);
     try {
-      const [prospectData, employeesData] = await Promise.all([
-        HttpClient.get<any>(`/prospect/${prospectId}`),
-        HttpClient.get<any[]>("/employee").catch(() => []),
-      ]);
+      const prospectData = await HttpClient.get<any>(`/prospect/${prospectId}`);
 
       setProspect(prospectData);
-      setEmployees(
-        employeesData.map((e) => ({
-          value: e.id,
-          label: `${e.fullName} (${e.positionName || "Sin Cargo"})`,
-        })),
-      );
 
       const gen = {
         name: prospectData.name || "",
@@ -476,7 +470,15 @@ export default function ProspectDetailPage() {
             color="success"
             size="small"
             startIcon={<HandshakeIcon />}
-            onClick={() => setConvertDialogOpen(true)}
+            onClick={() => {
+              setCoordinatorUser(null);
+              setCommercialUser(null);
+              setConvertForm((prev) => ({
+                ...prev,
+                contractNumber: `CONT-${new Date().getFullYear()}-${Math.floor(100 + Math.random() * 900)}`,
+              }));
+              setConvertDialogOpen(true);
+            }}
             sx={{
               borderRadius: 2,
               textTransform: "none",
@@ -1416,47 +1418,27 @@ export default function ProspectDetailPage() {
             </Grid>
 
             <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                select
-                fullWidth
+              <UserAutocomplete
+                type="coordinators"
                 label="Coordinador a Cargo"
-                value={convertForm.coordinatorInChargeId}
-                onChange={(e) =>
-                  setConvertForm({
-                    ...convertForm,
-                    coordinatorInChargeId: e.target.value,
-                  })
-                }
-              >
-                <MenuItem value="">-- Sin Asignar --</MenuItem>
-                {employees.map((emp) => (
-                  <MenuItem key={emp.value} value={emp.value}>
-                    {emp.label}
-                  </MenuItem>
-                ))}
-              </TextField>
+                value={coordinatorUser}
+                onChange={(u) => {
+                  setCoordinatorUser(u);
+                  setConvertForm({ ...convertForm, coordinatorInChargeId: u?.id || "" });
+                }}
+              />
             </Grid>
 
             <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                select
-                fullWidth
+              <UserAutocomplete
+                type="commercials"
                 label="Contacto Comercial Asignado"
-                value={convertForm.commercialContactId}
-                onChange={(e) =>
-                  setConvertForm({
-                    ...convertForm,
-                    commercialContactId: e.target.value,
-                  })
-                }
-              >
-                <MenuItem value="">-- Sin Asignar --</MenuItem>
-                {employees.map((emp) => (
-                  <MenuItem key={emp.value} value={emp.value}>
-                    {emp.label}
-                  </MenuItem>
-                ))}
-              </TextField>
+                value={commercialUser}
+                onChange={(u) => {
+                  setCommercialUser(u);
+                  setConvertForm({ ...convertForm, commercialContactId: u?.id || "" });
+                }}
+              />
             </Grid>
 
             <Grid size={{ xs: 12, sm: 6 }}>

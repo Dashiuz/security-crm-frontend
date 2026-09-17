@@ -38,6 +38,7 @@ import {
 import { HttpClient } from "@/lib/api/client";
 import { useNotification } from "@/providers/NotificationProvider";
 import { CalendarMonth as CalendarMonthIcon } from "@mui/icons-material";
+import UserAutocomplete, { UserOption } from "@/components/common/UserAutocomplete";
 
 
 interface TowerInput {
@@ -77,7 +78,10 @@ export default function CreateClientPage() {
   const { showSuccess, showError } = useNotification();
   const [activeStep, setActiveStep] = useState(0);
   const [loading, setLoading] = useState(false);
-  const [employees, setEmployees] = useState<{ value: string; label: string }[]>([]);
+
+  // Users for Assignment
+  const [coordinatorUser, setCoordinatorUser] = useState<UserOption | null>(null);
+  const [commercialUser, setCommercialUser] = useState<UserOption | null>(null);
 
   // Step 1: Location & General Info
   const [locationForm, setLocationForm] = useState({
@@ -226,19 +230,6 @@ export default function CreateClientPage() {
       [entryKey]: `foto_entrada_${entryKey}.jpg (adjuntada)`,
     }));
   };
-
-  useEffect(() => {
-    HttpClient.get<any[]>("/employee")
-      .then((data) => {
-        setEmployees(
-          data.map((e) => ({
-            value: e.id,
-            label: `${e.fullName} (${e.positionName || "Sin Cargo"})`,
-          })),
-        );
-      })
-      .catch(() => {});
-  }, []);
 
   const validateStep = (stepIdx: number) => {
     if (stepIdx === 0) {
@@ -1351,40 +1342,28 @@ export default function CreateClientPage() {
                   />
                 </Grid>
 
-                <Grid size={{ xs: 12, sm: 4 }}>
-                  <TextField
-                    select
-                    fullWidth
-                    label="Contacto Comercial Asignado"
-                    value={contractForm.commercialContactId}
-                    onChange={(e) => setContractForm({ ...contractForm, commercialContactId: e.target.value })}
-                  >
-                    <MenuItem value="">-- Sin Asignar --</MenuItem>
-                    {employees.map((e) => (
-                      <MenuItem key={e.value} value={e.value}>
-                        {e.label}
-                      </MenuItem>
-                    ))}
-                  </TextField>
+                <Grid size={{ xs: 12, sm: 6 }}>
+                  <UserAutocomplete
+                    type="coordinators"
+                    label="Coordinador a Cargo"
+                    value={coordinatorUser}
+                    onChange={(u) => {
+                      setCoordinatorUser(u);
+                      setContractForm({ ...contractForm, coordinatorInChargeId: u?.id || "" });
+                    }}
+                  />
                 </Grid>
 
-                <Grid size={{ xs: 12, sm: 4 }}>
-                  <TextField
-                    select
-                    fullWidth
-                    label="Coordinador de Ingeniería / Operaciones"
-                    value={contractForm.coordinatorInChargeId}
-                    onChange={(e) =>
-                      setContractForm({ ...contractForm, coordinatorInChargeId: e.target.value })
-                    }
-                  >
-                    <MenuItem value="">-- Sin Asignar --</MenuItem>
-                    {employees.map((e) => (
-                      <MenuItem key={e.value} value={e.value}>
-                        {e.label}
-                      </MenuItem>
-                    ))}
-                  </TextField>
+                <Grid size={{ xs: 12, sm: 6 }}>
+                  <UserAutocomplete
+                    type="commercials"
+                    label="Contacto Comercial Asignado"
+                    value={commercialUser}
+                    onChange={(u) => {
+                      setCommercialUser(u);
+                      setContractForm({ ...contractForm, commercialContactId: u?.id || "" });
+                    }}
+                  />
                 </Grid>
 
                 {/* Document Attachments */}
