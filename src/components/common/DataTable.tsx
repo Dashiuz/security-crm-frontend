@@ -47,10 +47,15 @@ interface DataTableProps {
   breadcrumbs?: { label: string; href?: string }[];
   onCreate?: () => void;
   onEdit?: (id: string, row: any) => void;
-  onDelete?: (id: string, row?: any) => void;
+  onDelete?: (id: string, row?: any) => void | Promise<void>;
   onView?: (row: any) => void;
   customActions?: (row: any) => React.ReactElement<GridActionsCellItemProps>[];
   deleteIcon?: React.ReactElement;
+  deleteActionLabel?: string;
+  confirmDelete?: boolean;
+  deleteDialogTitle?: string;
+  deleteDialogMessage?: string;
+  actionsColumnWidth?: number;
   refreshTrigger?: number;
   checkboxSelection?: boolean;
   onRowSelectionModelChange?: (newSelection: any) => void;
@@ -74,6 +79,11 @@ export default function DataTable({
   onView,
   customActions,
   deleteIcon,
+  deleteActionLabel,
+  confirmDelete = false,
+  deleteDialogTitle,
+  deleteDialogMessage,
+  actionsColumnWidth,
   refreshTrigger,
   checkboxSelection = false,
   onRowSelectionModelChange,
@@ -87,11 +97,13 @@ export default function DataTable({
 }: DataTableProps) {
   const [internalRows, setInternalRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<"ALL" | "ACTIVE" | "INACTIVE">("ALL");
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedIdToDelete, setSelectedIdToDelete] =
     useState<GridRowId | null>(null);
+  const [selectedRowToDelete, setSelectedRowToDelete] = useState<any>(null);
   const [infoDialogOpen, setInfoDialogOpen] = useState(false);
 
   const activeRows = externalRows !== undefined ? externalRows : internalRows;
@@ -130,26 +142,41 @@ export default function DataTable({
   }, [activeRows, statusFilter, hideStatusFilter]);
 
   const handleDeleteClick = (id: GridRowId, row: any) => {
+    setSelectedIdToDelete(id);
+    setSelectedRowToDelete(row);
+
+    if (confirmDelete) {
+      setDeleteDialogOpen(true);
+      return;
+    }
+
     if (onDelete) {
       onDelete(id.toString(), row);
       return;
     }
-    setSelectedIdToDelete(id);
+
     setDeleteDialogOpen(true);
   };
 
   const handleConfirmDelete = async () => {
     if (!selectedIdToDelete) return;
 
+    setIsDeleting(true);
     try {
-      await HttpClient.delete(`${endpoint}/${selectedIdToDelete}`);
-      setInternalRows((prev) => prev.filter((row) => row.id !== selectedIdToDelete));
-    } catch (err) {
+      if (onDelete) {
+        await onDelete(selectedIdToDelete.toString(), selectedRowToDelete);
+      } else if (endpoint) {
+        await HttpClient.delete(`${endpoint}/${selectedIdToDelete}`);
+        setInternalRows((prev) => prev.filter((row) => row.id !== selectedIdToDelete));
+      }
+    } catch (err: any) {
       const apiError = err as ApiError;
       alert(apiError.message || "Error al eliminar el registro");
     } finally {
+      setIsDeleting(false);
       setDeleteDialogOpen(false);
       setSelectedIdToDelete(null);
+      setSelectedRowToDelete(null);
     }
   };
 
@@ -157,7 +184,12 @@ export default function DataTable({
     field: "actions",
     type: "actions",
     headerName: "Acciones",
-    width: 120,
+    width: actionsColumnWidth || (customActions ? 160 : 130),
+    sortable: false,
+    filterable: false,
+    disableColumnMenu: true,
+    align: "center",
+    headerAlign: "center",
     getActions: (params) => {
       const actions: React.ReactElement<GridActionsCellItemProps>[] = [];
 
@@ -197,8 +229,8 @@ export default function DataTable({
           <GridActionsCellItem
             key="delete"
             icon={deleteIcon || <RemoveCircleIcon color="error" />}
-            label="Inhabilitar"
-            title="Inhabilitar"
+            label={deleteActionLabel || "Inhabilitar"}
+            title={deleteActionLabel || "Inhabilitar"}
             onClick={() => handleDeleteClick(params.id, params.row)}
             showInMenu={false}
           />
@@ -427,6 +459,7 @@ export default function DataTable({
           rows={filteredRows}
           columns={finalColumns}
           getRowId={getRowId}
+          columnBufferPx={2000}
           initialState={{
             pagination: {
               paginationModel: { page: 0, pageSize: 10 },
@@ -450,38 +483,83 @@ export default function DataTable({
               display: "flex",
               alignItems: "center",
             },
+            // Columna de Acciones Fija / Sticky a la derecha
+            "& .MuiDataGrid-columnHeader[data-field='actions']": {
+              position: "sticky",
+              right: 0,
+              zIndex: 5,
+              backgroundColor: (theme) =>
+                theme.palette.mode === "dark" ? "#1e1e1e" : "#f8f9fa",
+              borderLeft: "1px solid",
+              borderColor: "divider",
+              boxShadow: "-3px 0 6px rgba(0, 0, 0, 0.06)",
+            },
+            "& .MuiDataGrid-cell[data-field='actions']": {
+              position: "sticky",
+              right: 0,
+              zIndex: 3,
+              backgroundColor: "background.paper",
+              borderLeft: "1px solid",
+              borderColor: "divider",
+              boxShadow: "-3px 0 6px rgba(0, 0, 0, 0.06)",
+            },
+            "& .MuiDataGrid-row:hover .MuiDataGrid-cell[data-field='actions']": {
+              backgroundColor: (theme) =>
+                theme.palette.mode === "dark" ? "#2a2a2a" : "#f4f6f8",
+            },
+            "& .MuiDataGrid-row.Mui-selected .MuiDataGrid-cell[data-field='actions']": {
+              backgroundColor: (theme) =>
+                theme.palette.mode === "dark" ? "#1e3a5f" : "#e3f2fd",
+            },
+            "& .MuiDataGrid-row.Mui-selected:hover .MuiDataGrid-cell[data-field='actions']": {
+              backgroundColor: (theme) =>
+                theme.palette.mode === "dark" ? "#1e3a5f" : "#d0e7fc",
+            },
           }}
         />
       </Paper>
 
-      {/* Confimation Dialog for Delete */}
+      {/* Confirmation Dialog for Delete */}
       <Dialog
         open={deleteDialogOpen}
-        onClose={() => setDeleteDialogOpen(false)}
+        onClose={() => {
+          if (!isDeleting) {
+            setDeleteDialogOpen(false);
+            setSelectedIdToDelete(null);
+            setSelectedRowToDelete(null);
+          }
+        }}
         aria-labelledby="delete-dialog-title"
         aria-describedby="delete-dialog-description"
       >
         <DialogTitle id="delete-dialog-title">
-          Confirmar Eliminación
+          {deleteDialogTitle || "Confirmar Eliminación"}
         </DialogTitle>
         <DialogContent>
           <DialogContentText id="delete-dialog-description">
-            ¿Estás seguro de que deseas eliminar este registro? Esta acción no
-            se puede deshacer.
+            {deleteDialogMessage ||
+              "¿Estás seguro de que deseas eliminar este registro? Esta acción no se puede deshacer."}
           </DialogContentText>
         </DialogContent>
         <DialogActions sx={{ p: 2 }}>
-          <Button onClick={() => setDeleteDialogOpen(false)} disabled={loading}>
+          <Button
+            onClick={() => {
+              setDeleteDialogOpen(false);
+              setSelectedIdToDelete(null);
+              setSelectedRowToDelete(null);
+            }}
+            disabled={isDeleting || loading}
+          >
             Cancelar
           </Button>
           <Button
             onClick={handleConfirmDelete}
             color="error"
             variant="contained"
-            disabled={loading}
+            disabled={isDeleting || loading}
             autoFocus
           >
-            Eliminar
+            {isDeleting ? "Eliminando..." : "Eliminar"}
           </Button>
         </DialogActions>
       </Dialog>

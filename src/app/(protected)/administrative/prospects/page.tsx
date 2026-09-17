@@ -7,6 +7,7 @@ import { GridColDef, GridActionsCellItem } from "@mui/x-data-grid";
 import { HttpClient } from "@/lib/api/client";
 import PromptConfirmDialog from "@/components/common/PromptConfirmDialog";
 import { formatDateTime } from "@/lib/formatters";
+import UserAutocomplete, { UserOption } from "@/components/common/UserAutocomplete";
 import {
   RemoveCircle as RemoveCircleIcon,
   Handshake as HandshakeIcon,
@@ -54,10 +55,13 @@ export default function ProspectsPage() {
   const router = useRouter();
   const [deleteProspect, setDeleteProspect] = useState<any | null>(null);
   const [convertProspect, setConvertProspect] = useState<any | null>(null);
-  const [employees, setEmployees] = useState<{ value: string; label: string }[]>([]);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [converting, setConverting] = useState(false);
   const { showSuccess, showError } = useNotification();
+
+  // Users for Assignment
+  const [coordinatorUser, setCoordinatorUser] = useState<UserOption | null>(null);
+  const [commercialUser, setCommercialUser] = useState<UserOption | null>(null);
 
   const [convertForm, setConvertForm] = useState({
     contractNumber: "",
@@ -71,19 +75,6 @@ export default function ProspectsPage() {
     commercialContactId: "",
     administrationType: "INDIVIDUAL",
   });
-
-  useEffect(() => {
-    HttpClient.get<any[]>("/employee")
-      .then((data) => {
-        setEmployees(
-          data.map((e) => ({
-            value: e.id,
-            label: `${e.fullName} (${e.positionName || "Sin Cargo"})`,
-          })),
-        );
-      })
-      .catch(() => {});
-  }, []);
 
   const handleCreate = () => {
     router.push("/administrative/prospects/new");
@@ -113,6 +104,8 @@ export default function ProspectsPage() {
 
   const handleOpenConvert = (row: any) => {
     setConvertProspect(row);
+    setCoordinatorUser(null);
+    setCommercialUser(null);
     setConvertForm({
       contractNumber: `CONT-${new Date().getFullYear()}-${Math.floor(100 + Math.random() * 900)}`,
       contractDate: new Date().toISOString().split("T")[0],
@@ -278,47 +271,27 @@ export default function ProspectsPage() {
             </Grid>
 
             <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                select
-                fullWidth
+              <UserAutocomplete
+                type="coordinators"
                 label="Coordinador a Cargo"
-                value={convertForm.coordinatorInChargeId}
-                onChange={(e) =>
-                  setConvertForm({
-                    ...convertForm,
-                    coordinatorInChargeId: e.target.value,
-                  })
-                }
-              >
-                <MenuItem value="">-- Sin Asignar --</MenuItem>
-                {employees.map((emp) => (
-                  <MenuItem key={emp.value} value={emp.value}>
-                    {emp.label}
-                  </MenuItem>
-                ))}
-              </TextField>
+                value={coordinatorUser}
+                onChange={(u) => {
+                  setCoordinatorUser(u);
+                  setConvertForm({ ...convertForm, coordinatorInChargeId: u?.id || "" });
+                }}
+              />
             </Grid>
 
             <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                select
-                fullWidth
+              <UserAutocomplete
+                type="commercials"
                 label="Contacto Comercial Asignado"
-                value={convertForm.commercialContactId}
-                onChange={(e) =>
-                  setConvertForm({
-                    ...convertForm,
-                    commercialContactId: e.target.value,
-                  })
-                }
-              >
-                <MenuItem value="">-- Sin Asignar --</MenuItem>
-                {employees.map((emp) => (
-                  <MenuItem key={emp.value} value={emp.value}>
-                    {emp.label}
-                  </MenuItem>
-                ))}
-              </TextField>
+                value={commercialUser}
+                onChange={(u) => {
+                  setCommercialUser(u);
+                  setConvertForm({ ...convertForm, commercialContactId: u?.id || "" });
+                }}
+              />
             </Grid>
 
             <Grid size={{ xs: 12, sm: 6 }}>

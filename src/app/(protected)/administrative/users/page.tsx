@@ -7,6 +7,7 @@ import DataTable from "@/components/common/DataTable";
 import FormDialog, { FormField } from "@/components/common/FormDialog";
 import DetailDialog from "@/components/common/DetailDialog";
 import PromptConfirmDialog from "@/components/common/PromptConfirmDialog";
+import ClientAutocomplete, { ClientOption } from "@/components/common/ClientAutocomplete";
 import {
   Dialog,
   DialogTitle,
@@ -39,7 +40,15 @@ const standardSchema = z.object({
       return [val];
     }, z.array(z.string()))
     .optional(),
-});
+  userType: z.enum(["EMPLOYEE", "RESIDENCE_MANAGER"]).optional().default("EMPLOYEE"),
+  clientId: z.string().optional(),
+  fullName: z.string().optional(),
+}).refine(data => {
+  if (data.userType === "RESIDENCE_MANAGER") {
+    return !!data.clientId && !!data.fullName;
+  }
+  return true;
+}, { message: "Conjunto y Nombre son requeridos para Administradores", path: ["clientId"] });
 
 const systemSchema = z.object({
   document: z.string().min(1, "El documento es requerido"),
@@ -277,6 +286,135 @@ function UserEditDialog({
   );
 }
 
+function StandardUserCreateDialog({
+  open,
+  onClose,
+  onSubmit,
+  allRoles,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onSubmit: (data: any) => Promise<void>;
+  allRoles: { id: string; name: string }[];
+}) {
+  const [userType, setUserType] = useState<"EMPLOYEE" | "RESIDENCE_MANAGER">("EMPLOYEE");
+  const [document, setDocument] = useState("");
+  const [fullName, setFullName] = useState("");
+  const [password, setPassword] = useState("");
+  const [clientOption, setClientOption] = useState<ClientOption | null>(null);
+  const [roleIds, setRoleIds] = useState<string[]>([]);
+  const { showError } = useNotification();
+
+  useEffect(() => {
+    if (open) {
+      setUserType("EMPLOYEE");
+      setDocument("");
+      setFullName("");
+      setPassword("");
+      setClientOption(null);
+      setRoleIds([]);
+    }
+  }, [open]);
+
+  const handleSubmit = async () => {
+    try {
+      const data: any = {
+        userType,
+        document,
+        password,
+        roleIds,
+      };
+      if (userType === "RESIDENCE_MANAGER") {
+        data.fullName = fullName;
+        data.clientId = clientOption?.id;
+      }
+      standardSchema.parse(data);
+      await onSubmit(data);
+    } catch (err: any) {
+      if (err instanceof z.ZodError) {
+        showError((err as any).errors[0].message);
+      } else {
+        showError(err.message || "Error al crear el usuario");
+      }
+    }
+  };
+
+  return (
+    <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
+      <DialogTitle>Crear Usuario</DialogTitle>
+      <Box sx={{ p: 3 }}>
+        <Stack spacing={3}>
+          <TextField
+            select
+            fullWidth
+            label="Tipo de Usuario"
+            value={userType}
+            onChange={(e) => setUserType(e.target.value as any)}
+          >
+            <MenuItem value="EMPLOYEE">Usuario para Empleado</MenuItem>
+            <MenuItem value="RESIDENCE_MANAGER">Usuario Administrador de Conjunto</MenuItem>
+          </TextField>
+
+          {userType === "RESIDENCE_MANAGER" && (
+            <>
+              <ClientAutocomplete
+                value={clientOption}
+                onChange={setClientOption}
+                error={false}
+                helperText=""
+              />
+              <TextField
+                fullWidth
+                label="Nombre Completo"
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+              />
+            </>
+          )}
+
+          <TextField
+            fullWidth
+            label={userType === "RESIDENCE_MANAGER" ? "Documento de Identidad" : "Documento del Empleado (debe existir)"}
+            value={document}
+            onChange={(e) => setDocument(e.target.value)}
+          />
+
+          <TextField
+            fullWidth
+            type="password"
+            label="ContraseÃ±a"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+          />
+
+          {userType !== "RESIDENCE_MANAGER" && (
+            <TextField
+              select
+              fullWidth
+              label="Asignar Roles (Opcional)"
+              SelectProps={{ multiple: true }}
+              value={roleIds}
+              onChange={(e) => setRoleIds(e.target.value as unknown as string[])}
+            >
+              {allRoles.map((role) => (
+                <MenuItem key={role.id} value={role.id}>
+                  {role.name}
+                </MenuItem>
+              ))}
+            </TextField>
+          )}
+        </Stack>
+      </Box>
+      <DialogActions>
+        <Button onClick={onClose}>Cancelar</Button>
+        <Button variant="contained" onClick={handleSubmit}>
+          Crear
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+}
+
 // --- Main Page ---
 
 const columns: GridColDef[] = [
@@ -297,6 +435,13 @@ const columns: GridColDef[] = [
   },
   { field: "department", headerName: "Departamento", width: 130 },
   { field: "position", headerName: "Cargo", width: 130 },
+  {
+    field: "userType",
+    headerName: "Tipo",
+    width: 140,
+    valueGetter: (value: any) =>
+      value === "RESIDENCE_MANAGER" ? "Admin. Conjunto" : "Empleado",
+  },
   { field: "isActive", headerName: "Activo", type: "boolean", width: 80 },
 ];
 
@@ -442,34 +587,39 @@ Haz clic en el icono de borrado para inhabilitar la cuenta confirmando con la cÃ
         confirmColor="error"
       />
 
-      <FormDialog
-        open={dialogOpen}
-        onClose={() => setDialogOpen(false)}
-        onSubmit={handleSubmit}
-        title={isSystemTenant ? "Crear Usuario Administrador (GODLIKE)" : "Crear Usuario"}
-        schema={isSystemTenant ? systemSchema : standardSchema}
-        defaultValues={
-          isSystemTenant
-            ? {
-                department: "system",
-                position: "system manager",
-              }
-            : undefined
-        }
-        fields={
-          (isSystemTenant ? systemFields : standardFields).map((f) =>
-            f.name === "roleIds"
-              ? {
-                  ...f,
-                  options: allRoles.map((r) => ({
-                    value: r.id,
-                    label: r.name,
-                  })),
-                }
-              : f,
-          ) as any
-        }
-      />
+      {isSystemTenant ? (
+        <FormDialog
+          open={dialogOpen}
+          onClose={() => setDialogOpen(false)}
+          onSubmit={handleSubmit}
+          title="Crear Usuario Administrador (GODLIKE)"
+          schema={systemSchema}
+          defaultValues={{
+            department: "system",
+            position: "system manager",
+          }}
+          fields={
+            systemFields.map((f) =>
+              f.name === "roleIds"
+                ? {
+                    ...f,
+                    options: allRoles.map((r) => ({
+                      value: r.id,
+                      label: r.name,
+                    })),
+                  }
+                : f,
+            ) as any
+          }
+        />
+      ) : (
+        <StandardUserCreateDialog
+          open={dialogOpen}
+          onClose={() => setDialogOpen(false)}
+          onSubmit={handleSubmit}
+          allRoles={allRoles}
+        />
+      )}
 
       <UserEditDialog
         open={editDialogOpen}

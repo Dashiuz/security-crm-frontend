@@ -1,10 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { useNotification } from "@/providers/NotificationProvider";
 import DataTable from "@/components/common/DataTable";
-import FormDialog, { FormField } from "@/components/common/FormDialog";
-import { z } from "zod";
 import { HttpClient } from "@/lib/api/client";
 import { AuthService } from "@/lib/api/auth";
 import { Box, Typography, Chip } from "@mui/material";
@@ -26,64 +25,37 @@ interface Tenant {
   secondaryColor?: string;
   sidebarColor?: string;
   features?: string[];
+  profile?: {
+    legalName?: string;
+    taxId?: string;
+    contactEmail?: string;
+    contactPhone?: string;
+  };
+  subscription?: {
+    planTier?: string;
+    status?: string;
+    maxClients?: number;
+    maxUsers?: number;
+    maxEmployees?: number;
+  };
 }
-
-interface Feature {
-  key: string;
-  name: string;
-  description?: string;
-}
-
-const tenantSchema = z.object({
-  name: z.string().min(1, "El nombre es obligatorio"),
-  slug: z.string().min(1, "El identificador (slug) es obligatorio"),
-  isActive: z.boolean(),
-  logoUrl: z.string().optional(),
-  primaryColor: z.string().optional(),
-  secondaryColor: z.string().optional(),
-  sidebarColor: z.string().optional(),
-  features: z.array(z.string()).optional(),
-});
-
-type TenantFormData = z.infer<typeof tenantSchema>;
-
-import DetailDialog from "@/components/common/DetailDialog";
-
-// ... existing interfaces ...
 
 export default function TenantsPage() {
-  const [featuresList, setFeaturesList] = useState<Feature[]>([]);
-  const [isFormOpen, setIsFormOpen] = useState(false);
-  const [editingTenant, setEditingTenant] = useState<Tenant | null>(null);
-  const [detailTenant, setDetailTenant] = useState<Tenant | null>(null);
+  const router = useRouter();
   const [statusTargetTenant, setStatusTargetTenant] = useState<Tenant | null>(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const { showSuccess, showError } = useNotification();
 
-  useEffect(() => {
-    const loadFeatures = async () => {
-      try {
-        const data = await HttpClient.get<Feature[]>("/features");
-        setFeaturesList(data);
-      } catch (error) {
-        showError("Error cargando el catálogo de características.");
-      }
-    };
-    loadFeatures();
-  }, [showError]);
-
   const handleCreate = () => {
-    setEditingTenant(null);
-    setIsFormOpen(true);
+    router.push("/administrative/tenants/create");
   };
 
-  const handleEdit = (id: string, row: any) => {
-    setEditingTenant(row as Tenant);
-    setIsFormOpen(true);
+  const handleEdit = (id: string) => {
+    router.push(`/administrative/tenants/${id}`);
   };
 
   const handleView = (row: any) => {
-    setDetailTenant(row as Tenant);
+    router.push(`/administrative/tenants/${row.id}`);
   };
 
   const handleConfirmToggleStatus = async () => {
@@ -163,85 +135,46 @@ export default function TenantsPage() {
     return actions;
   };
 
-  const handleFormSubmit = async (data: TenantFormData) => {
-    try {
-      const { features, ...tenantPayload } = data;
-
-      if (editingTenant) {
-        await HttpClient.patch(`/tenants/${editingTenant.id}`, tenantPayload);
-        if (features !== undefined) {
-          await HttpClient.put(`/tenants/${editingTenant.id}/features`, {
-            featureKeys: features,
-          });
-        }
-      } else {
-        const newTenant = await HttpClient.post<Tenant>("/tenants", tenantPayload);
-        if (features !== undefined && features.length > 0) {
-          await HttpClient.put(`/tenants/${newTenant.id}/features`, {
-            featureKeys: features,
-          });
-        }
-      }
-      setIsFormOpen(false);
-      setRefreshTrigger((prev) => prev + 1);
-    } catch (error) {
-      throw error;
-    }
-  };
-
   const columns = [
-    { field: "name", headerName: "Nombre", flex: 1 },
-    { field: "slug", headerName: "Identificador (Slug)", flex: 1 },
+    { field: "name", headerName: "Nombre de la Empresa", flex: 1.2 },
+    { field: "slug", headerName: "Slug", flex: 0.9 },
+    {
+      field: "planTier",
+      headerName: "Plan",
+      flex: 0.8,
+      valueGetter: (_: any, row: any) => row.subscription?.planTier || "BASIC",
+      renderCell: (params: any) => (
+        <Chip
+          label={params.value}
+          size="small"
+          color={
+            params.value === "ENTERPRISE"
+              ? "secondary"
+              : params.value === "PRO"
+              ? "primary"
+              : "default"
+          }
+          variant="outlined"
+        />
+      ),
+    },
+    {
+      field: "contactEmail",
+      headerName: "Correo de Contacto",
+      flex: 1.1,
+      valueGetter: (_: any, row: any) => row.profile?.contactEmail || "N/A",
+    },
     {
       field: "isActive",
       headerName: "Estado",
-      flex: 1,
-      valueFormatter: (value: boolean) => (value ? "Activo" : "Inactivo"),
-    },
-  ];
-
-  const formFields: FormField<TenantFormData>[] = [
-    {
-      name: "name",
-      label: "Nombre de la Empresa",
-      required: true,
-      placeholder: "Ej: Security Inc",
-    },
-    {
-      name: "slug",
-      label: "Identificador (Slug)",
-      required: true,
-      placeholder: "Ej: security-inc",
-    },
-    {
-      name: "isActive",
-      label: "Estado Activo",
-      type: "select",
-      options: [
-        { value: "true", label: "Activo" },
-        { value: "false", label: "Inactivo" },
-      ],
-      required: true,
-    },
-    {
-      name: "logoUrl",
-      label: "URL del Logo",
-    },
-    {
-      name: "primaryColor",
-      label: "Color Primario (Hex)",
-      placeholder: "Ej: #1976d2",
-    },
-    {
-      name: "secondaryColor",
-      label: "Color Secundario (Hex)",
-      placeholder: "Ej: #9c27b0",
-    },
-    {
-      name: "features",
-      label: "Módulos Habilitados",
-      type: "multiselect",
-      options: featuresList.map((f) => ({ value: f.key, label: f.name })),
+      flex: 0.8,
+      renderCell: (params: any) => (
+        <Chip
+          label={params.value ? "Activo" : "Inactivo"}
+          color={params.value ? "success" : "default"}
+          size="small"
+        />
+      ),
     },
   ];
 
@@ -267,46 +200,6 @@ export default function TenantsPage() {
         refreshTrigger={refreshTrigger}
       />
 
-      <DetailDialog
-        open={Boolean(detailTenant)}
-        onClose={() => setDetailTenant(null)}
-        title="Detalles de la Empresa"
-        fields={
-          detailTenant
-            ? [
-                { label: "Nombre", value: detailTenant.name },
-                { label: "Identificador (Slug)", value: detailTenant.slug },
-                {
-                  label: "Estado",
-                  value: (
-                    <Chip
-                      label={detailTenant.isActive ? "Activo" : "Inactivo"}
-                      color={detailTenant.isActive ? "success" : "default"}
-                      size="small"
-                    />
-                  ),
-                },
-                { label: "URL Logo", value: detailTenant.logoUrl || "No especificado" },
-                { label: "Color Primario", value: detailTenant.primaryColor || "Default" },
-                { label: "Color Secundario", value: detailTenant.secondaryColor || "Default" },
-                {
-                  label: "Módulos Habilitados",
-                  value:
-                    detailTenant.features && detailTenant.features.length > 0 ? (
-                      <Box sx={{ display: "flex", gap: 0.5, flexWrap: "wrap", mt: 0.5 }}>
-                        {detailTenant.features.map((f) => (
-                          <Chip key={f} label={f} size="small" variant="outlined" color="primary" />
-                        ))}
-                      </Box>
-                    ) : (
-                      "Ninguno"
-                    ),
-                },
-              ]
-            : []
-        }
-      />
-
       <PromptConfirmDialog
         open={Boolean(statusTargetTenant)}
         onClose={() => setStatusTargetTenant(null)}
@@ -329,38 +222,6 @@ export default function TenantsPage() {
             : "Activar Empresa"
         }
         confirmColor={statusTargetTenant?.isActive ? "error" : "primary"}
-      />
-
-      <FormDialog
-        open={isFormOpen}
-        onClose={() => setIsFormOpen(false)}
-        onSubmit={handleFormSubmit}
-        title={editingTenant ? "Editar Empresa" : "Nueva Empresa"}
-        schema={tenantSchema}
-        fields={formFields}
-        defaultValues={
-          editingTenant
-            ? {
-                name: editingTenant.name,
-                slug: editingTenant.slug,
-                isActive: editingTenant.isActive,
-                logoUrl: editingTenant.logoUrl || "",
-                primaryColor: editingTenant.primaryColor || "",
-                secondaryColor: editingTenant.secondaryColor || "",
-                sidebarColor: editingTenant.sidebarColor || "",
-                features: editingTenant.features || [],
-              }
-            : {
-                name: "",
-                slug: "",
-                isActive: true,
-                logoUrl: "",
-                primaryColor: "#1976d2",
-                secondaryColor: "#9c27b0",
-                sidebarColor: "",
-                features: [],
-              }
-        }
       />
     </Box>
   );
