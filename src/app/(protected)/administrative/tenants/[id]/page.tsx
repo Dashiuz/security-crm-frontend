@@ -1037,6 +1037,7 @@ export default function TenantDetailPage() {
                     render={({ field, fieldState }) => (
                       <TextField
                         {...field}
+                        onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : "")}
                         label="Máximo de Clientes / Propiedades"
                         type="number"
                         fullWidth
@@ -1055,6 +1056,7 @@ export default function TenantDetailPage() {
                     render={({ field, fieldState }) => (
                       <TextField
                         {...field}
+                        onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : "")}
                         label="Máximo de Cuentas de Usuario"
                         type="number"
                         fullWidth
@@ -1073,6 +1075,7 @@ export default function TenantDetailPage() {
                     render={({ field, fieldState }) => (
                       <TextField
                         {...field}
+                        onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : "")}
                         label="Máximo de Empleados"
                         type="number"
                         fullWidth
@@ -1216,6 +1219,7 @@ export default function TenantDetailPage() {
                     render={({ field, fieldState }) => (
                       <TextField
                         {...field}
+                        onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : "")}
                         label="Tiempo de Inactividad de Sesión (Min)"
                         type="number"
                         fullWidth

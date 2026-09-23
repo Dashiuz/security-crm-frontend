@@ -734,6 +734,7 @@ export default function CreateTenantPage() {
                 render={({ field, fieldState }) => (
                   <TextField
                     {...field}
+                    onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : "")}
                     label="Máximo de Clientes / Conjuntos"
                     type="number"
                     fullWidth
@@ -752,6 +753,7 @@ export default function CreateTenantPage() {
                 render={({ field, fieldState }) => (
                   <TextField
                     {...field}
+                    onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : "")}
                     label="Máximo de Usuarios del Sistema"
                     type="number"
                     fullWidth
@@ -770,6 +772,7 @@ export default function CreateTenantPage() {
                 render={({ field, fieldState }) => (
                   <TextField
                     {...field}
+                    onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : "")}
                     label="Máximo de Empleados"
                     type="number"
                     fullWidth
@@ -917,6 +920,7 @@ export default function CreateTenantPage() {
                 render={({ field, fieldState }) => (
                   <TextField
                     {...field}
+                    onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : "")}
                     label="Expiración de Sesión (Minutos)"
                     type="number"
                     fullWidth
