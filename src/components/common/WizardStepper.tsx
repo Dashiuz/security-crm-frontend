@@ -176,7 +176,13 @@ export default function WizardStepper({
           justifyContent: "space-between",
         }}
       >
-        <Box sx={{ mb: 4 }}>{steps[activeStep]?.content}</Box>
+        <Box sx={{ mb: 4 }}>
+          {steps.map((step, index) => (
+            <Box key={index} sx={{ display: activeStep === index ? "block" : "none" }}>
+              {step.content}
+            </Box>
+          ))}
+        </Box>
 
         {/* Footer de navegación */}
         <Box>

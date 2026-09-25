@@ -82,13 +82,13 @@ export default function CreateTenantPage() {
     resolver: zodResolver(tenantProfileSchema),
     defaultValues: {
       legalName: "",
-      taxId: "",
+      taxId: "900.123.456-7",
       contactEmail: "",
-      contactPhone: "",
-      address: "",
+      contactPhone: "+57 601 2345678",
+      address: "Calle 100 # 15 - 20 Oficina 501",
       city: "Bogotá",
       country: "Colombia",
-      legalRepresentative: "",
+      legalRepresentative: "Juan Carlos Pérez",
     },
     mode: "onTouched",
   });
@@ -151,11 +151,6 @@ export default function CreateTenantPage() {
       .replace(/[^a-z0-9\s-]/g, "")
       .replace(/[\s-]+/g, "-");
     generalForm.setValue("slug", generatedSlug, { shouldValidate: true });
-
-    // Autollenar legalName si está vacío
-    if (!profileForm.getValues("legalName")) {
-      profileForm.setValue("legalName", currentName, { shouldValidate: true });
-    }
   };
 
   // Toggle de selección de características
@@ -734,7 +729,7 @@ export default function CreateTenantPage() {
                 render={({ field, fieldState }) => (
                   <TextField
                     {...field}
-                    onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : "")}
+                    onChange={(e) => field.onChange(Number(e.target.value))}
                     label="Máximo de Clientes / Conjuntos"
                     type="number"
                     fullWidth
@@ -753,7 +748,7 @@ export default function CreateTenantPage() {
                 render={({ field, fieldState }) => (
                   <TextField
                     {...field}
-                    onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : "")}
+                    onChange={(e) => field.onChange(Number(e.target.value))}
                     label="Máximo de Usuarios del Sistema"
                     type="number"
                     fullWidth
