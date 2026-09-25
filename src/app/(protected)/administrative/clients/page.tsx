@@ -1,20 +1,45 @@
 "use client";
 
 import { useState } from "react";
+import dynamic from "next/dynamic";
 import { useNotification } from "@/providers/NotificationProvider";
+import { useTenant } from "@/providers/TenantProvider";
 import DataTable from "@/components/common/DataTable";
 import { GridColDef, GridActionsCellItem } from "@mui/x-data-grid";
 import { HttpClient } from "@/lib/api/client";
 import PromptConfirmDialog from "@/components/common/PromptConfirmDialog";
 import CsvImportDialog from "@/components/common/CsvImportDialog";
 import { formatDateTime } from "@/lib/formatters";
-import { Button } from "@mui/material";
+import { Button, Box, CircularProgress, Dialog, DialogTitle, DialogContent } from "@mui/material";
 import {
   RestoreFromTrash as RestoreFromTrashIcon,
   RemoveCircle as RemoveCircleIcon,
   CloudUpload as CloudUploadIcon,
+  Security as SecurityIcon,
+  Map as MapIcon,
 } from "@mui/icons-material";
 import { useRouter } from "next/navigation";
+import MapboxLocationPicker from "@/components/security-studies/MapboxLocationPicker";
+
+const SecurityCanvasEditor = dynamic(
+  () => import("@/components/security-studies/SecurityCanvasEditor"),
+  {
+    ssr: false,
+    loading: () => (
+      <Box
+        sx={{
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          height: 600,
+        }}
+      >
+        <CircularProgress />
+      </Box>
+    ),
+  },
+);
+
 
 const columns: GridColDef[] = [
   { field: "internalCode", headerName: "Código", width: 100 },
@@ -41,11 +66,39 @@ const columns: GridColDef[] = [
 
 export default function ClientsPage() {
   const router = useRouter();
+  const { isFeatureEnabled } = useTenant();
   const [deleteClient, setDeleteClient] = useState<any | null>(null);
   const [reactivateClient, setReactivateClient] = useState<any | null>(null);
   const [csvImportOpen, setCsvImportOpen] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const { showSuccess, showError } = useNotification();
+
+  // Geofence states
+  const [geofenceClient, setGeofenceClient] = useState<any | null>(null);
+  const [geofenceData, setGeofenceData] = useState<any | null>(null);
+  const [geofenceLocationPickerOpen, setGeofenceLocationPickerOpen] = useState(false);
+  const [geofenceCanvasEditorOpen, setGeofenceCanvasEditorOpen] = useState(false);
+  const [loadingGeofence, setLoadingGeofence] = useState(false);
+
+  const handleOpenGeofence = async (row: any) => {
+    setLoadingGeofence(true);
+    setGeofenceClient(row);
+    try {
+      const res = await HttpClient.get<any>(
+        `/administrative/security-studies/client/${row.id}/geofence`,
+      );
+      setGeofenceData(res);
+      if (res.hasBaseImage) {
+        setGeofenceCanvasEditorOpen(true);
+      } else {
+        setGeofenceLocationPickerOpen(true);
+      }
+    } catch (err: any) {
+      showError(err.message || "Error al obtener geocerca del cliente.");
+    } finally {
+      setLoadingGeofence(false);
+    }
+  };
 
   const handleCreate = () => {
     router.push("/administrative/clients/new");
@@ -105,8 +158,37 @@ export default function ClientsPage() {
   };
 
   const customActions = (row: any) => {
+    const actions = [];
+    if (row.isActive && !row.deletedAt) {
+      if (isFeatureEnabled("sec_study")) {
+        actions.push(
+          <GridActionsCellItem
+            key={`studies-${row.id}`}
+            icon={<SecurityIcon color="primary" />}
+            label="Estudios de Seguridad"
+            title="Estudios de Seguridad"
+            showInMenu={false}
+            onClick={() =>
+              router.push(`/administrative/clients/${row.id}/security-studies`)
+            }
+          />,
+        );
+      }
+      if (isFeatureEnabled("canva")) {
+        actions.push(
+          <GridActionsCellItem
+            key={`geofence-${row.id}`}
+            icon={<MapIcon color="secondary" />}
+            label="Configurar Geofence"
+            title="Configurar Geofence (Perímetro Mapbox)"
+            showInMenu={false}
+            onClick={() => handleOpenGeofence(row)}
+          />,
+        );
+      }
+    }
     if (!row.isActive || row.deletedAt) {
-      return [
+      actions.push(
         <GridActionsCellItem
           key={`reactivate-${row.id}`}
           icon={<RestoreFromTrashIcon color="success" />}
@@ -115,9 +197,9 @@ export default function ClientsPage() {
           showInMenu={false}
           onClick={() => setReactivateClient(row)}
         />,
-      ];
+      );
     }
-    return [];
+    return actions;
   };
 
   return (
@@ -210,6 +292,81 @@ export default function ClientsPage() {
           }
         }}
       />
+
+      {/* Mapbox Geofence Location Picker Dialog */}
+      <Dialog
+        open={geofenceLocationPickerOpen && Boolean(geofenceClient)}
+        onClose={() => setGeofenceLocationPickerOpen(false)}
+        maxWidth="lg"
+        fullWidth
+      >
+        <DialogTitle sx={{ fontWeight: 700 }}>
+          Configurar Ubicación e Imagen Satelital Base - {geofenceClient?.name}
+        </DialogTitle>
+        <DialogContent>
+          {geofenceClient && (
+            <MapboxLocationPicker
+              clientId={geofenceClient.id}
+              clientName={geofenceClient.name}
+              initialAddress={geofenceClient.address || ""}
+              onBaseGenerated={(baseData) => {
+                setGeofenceData((prev: any) => ({
+                  ...prev,
+                  hasBaseImage: true,
+                  baseImageS3Key: baseData.baseImageS3Key,
+                  baseImageUrl: baseData.presignedUrl,
+                  center: baseData.center,
+                  zoom: baseData.zoom,
+                  bbox: baseData.bbox,
+                }));
+                setGeofenceLocationPickerOpen(false);
+                setGeofenceCanvasEditorOpen(true);
+              }}
+              onCancel={() => setGeofenceLocationPickerOpen(false)}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Fullscreen Geofence Canvas Editor */}
+      {geofenceCanvasEditorOpen && geofenceClient && geofenceData && (
+        <Box
+          sx={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            width: "100vw",
+            height: "100vh",
+            zIndex: 9999,
+            bgcolor: "background.default",
+          }}
+        >
+          <SecurityCanvasEditor
+            clientId={geofenceClient.id}
+            mode="geofence"
+            baseImageUrl={geofenceData.baseImageUrl}
+            bbox={
+              geofenceData.bbox || {
+                minLat: 0,
+                minLng: 0,
+                maxLat: 0,
+                maxLng: 0,
+              }
+            }
+            clientGeofence={geofenceData.geofence}
+            clientName={geofenceClient.name || "Cliente"}
+            onPerimeterApproved={() => {
+              showSuccess("¡Geofence aprobado y guardado exitosamente!");
+              setGeofenceCanvasEditorOpen(false);
+              setRefreshTrigger((prev) => prev + 1);
+            }}
+            onClose={() => {
+              setGeofenceCanvasEditorOpen(false);
+              setRefreshTrigger((prev) => prev + 1);
+            }}
+          />
+        </Box>
+      )}
     </>
   );
 }

@@ -38,6 +38,7 @@ export interface ImageUploadCaptureProps {
   aspectRatio?: string;
   previewUrl?: string | null;
   helperText?: string;
+  modalZIndex?: number;
 }
 
 export default function ImageUploadCapture({
@@ -49,6 +50,7 @@ export default function ImageUploadCapture({
   aspectRatio = "16/9",
   previewUrl: externalPreviewUrl,
   helperText,
+  modalZIndex = 15000,
 }: ImageUploadCaptureProps) {
   const { showError, showSuccess } = useNotification();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -455,7 +457,12 @@ export default function ImageUploadCapture({
       )}
 
       {/* Modal Zoom Preview */}
-      <Dialog open={zoomModalOpen} onClose={() => setZoomModalOpen(false)} maxWidth="md">
+      <Dialog
+        open={zoomModalOpen}
+        onClose={() => setZoomModalOpen(false)}
+        maxWidth="md"
+        sx={{ zIndex: modalZIndex }}
+      >
         <DialogContent sx={{ p: 1, bgcolor: "black", textAlign: "center" }}>
           {localPreview && (
             <Box
@@ -484,6 +491,7 @@ export default function ImageUploadCapture({
         maxWidth="sm"
         fullWidth
         PaperProps={{ sx: { borderRadius: 3, bgcolor: "background.paper", overflow: "hidden" } }}
+        sx={{ zIndex: modalZIndex }}
       >
         <DialogTitle sx={{ pb: 1, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <Stack direction="row" spacing={1} alignItems="center">

@@ -200,11 +200,6 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
             permission: ["client:manage", "client:read"],
           },
           {
-            text: "Estudios de Seguridad",
-            icon: <SecurityStudyIcon />,
-            disabled: true,
-          },
-          {
             text: "Proyectos de Tecnología",
             icon: <TechProjectIcon />,
             disabled: true,
@@ -265,15 +260,15 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
       },
       ...(session?.user?.userType === "RESIDENCE_MANAGER"
         ? [
-            {
-              id: "residentes-conjunto",
-              text: `Residentes de ${session?.user?.client?.name || session?.user?.clientName || "Conjunto"}`,
-              icon: <PeopleIcon />,
-              path: "/administrative/my-residents",
-              feature: "resident",
-              permission: ["resident:manage", "resident:read"],
-            },
-          ]
+          {
+            id: "residentes-conjunto",
+            text: `Residentes de ${session?.user?.client?.name || session?.user?.clientName || "Conjunto"}`,
+            icon: <PeopleIcon />,
+            path: "/administrative/my-residents",
+            feature: "resident",
+            permission: ["resident:manage", "resident:read"],
+          },
+        ]
         : []),
     ],
     [tenant?.name, session?.user?.userType, session?.user?.client?.name, session?.user?.clientName]
