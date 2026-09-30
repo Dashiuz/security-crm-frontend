@@ -26,6 +26,7 @@ import {
   OpenInNew as OpenInNewIcon,
   FileDownload as DownloadIcon,
   DeleteOutline as DeleteIcon,
+  Edit as EditIcon,
 } from "@mui/icons-material";
 import { HttpClient } from "@/lib/api/client";
 import { useNotification } from "@/providers/NotificationProvider";
@@ -38,6 +39,7 @@ interface StudyFilesDialogProps {
   isDiscontinued: boolean;
   files: any[];
   onFilesUpdated: () => void;
+  onEditCanvas?: (file: any) => void;
 }
 
 export default function StudyFilesDialog({
@@ -47,6 +49,7 @@ export default function StudyFilesDialog({
   isDiscontinued,
   files = [],
   onFilesUpdated,
+  onEditCanvas,
 }: StudyFilesDialogProps) {
   const [uploading, setUploading] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -133,7 +136,7 @@ export default function StudyFilesDialog({
             {uploading && (
               <Box sx={{ mt: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 1 }}>
                 <CircularProgress size={20} />
-                <Typography variant="body2" color="primary">Subiendo a S3...</Typography>
+                <Typography variant="body2" color="primary">Subiendo a la nube...</Typography>
               </Box>
             )}
           </Box>
@@ -229,6 +232,34 @@ export default function StudyFilesDialog({
                 </Stack>
 
                 <Stack direction="row" alignItems="center" spacing={0.5}>
+                  {(file.mimeType?.startsWith("image/") ||
+                    ["jpg", "jpeg", "png", "webp"].some((ext) =>
+                      file.name?.toLowerCase().endsWith(ext),
+                    )) &&
+                    onEditCanvas && (
+                      <Tooltip title="Editar y realizar anotaciones sobre la imagen con Canva">
+                        <span>
+                          <Button
+                            size="small"
+                            variant="contained"
+                            color="primary"
+                            startIcon={<EditIcon fontSize="small" />}
+                            onClick={() => onEditCanvas(file)}
+                            disabled={!file.url}
+                            sx={{
+                              textTransform: "none",
+                              fontSize: "0.8rem",
+                              fontWeight: 600,
+                              px: 1.2,
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            Editar con Canva
+                          </Button>
+                        </span>
+                      </Tooltip>
+                    )}
+
                   <Tooltip title="Abrir documento o imagen en una pestaña nueva">
                     <span>
                       <Button

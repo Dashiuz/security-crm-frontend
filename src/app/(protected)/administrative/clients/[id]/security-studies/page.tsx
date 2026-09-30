@@ -85,6 +85,11 @@ export default function ClientSecurityStudiesPage({ params }: PageProps) {
   const [geofenceEditorActive, setGeofenceEditorActive] = useState(false);
   const [geofenceBaseImageUrl, setGeofenceBaseImageUrl] = useState<string | null>(null);
   const [filesStudy, setFilesStudy] = useState<any | null>(null);
+  const [activePhotoCanvas, setActivePhotoCanvas] = useState<{
+    studyId: string;
+    file: any;
+    isDiscontinued: boolean;
+  } | null>(null);
 
   // Discontinue prompt
   const [discontinueStudy, setDiscontinueStudy] = useState<any | null>(null);
@@ -346,6 +351,43 @@ export default function ClientSecurityStudiesPage({ params }: PageProps) {
           onPerimeterApproved={() => fetchStudies()}
           onClose={() => {
             setActiveEditorStudy(null);
+            fetchStudies();
+          }}
+        />
+      </Box>
+    );
+  }
+
+  // --- FULLSCREEN CAD ATTACHED PHOTO EDITOR (Freehand, Shapes & Devices on Photo) ---
+  if (activePhotoCanvas) {
+    return (
+      <Box
+        sx={{
+          position: "fixed",
+          top: 0,
+          left: 0,
+          width: "100vw",
+          height: "100vh",
+          zIndex: 9999,
+          bgcolor: "background.default",
+        }}
+      >
+        <SecurityCanvasEditor
+          studyId={activePhotoCanvas.studyId}
+          fileId={activePhotoCanvas.file.id}
+          mode="attachment_photo"
+          baseImageUrl={activePhotoCanvas.file.url}
+          initialCanvasState={activePhotoCanvas.file.canvasState}
+          isReadOnly={activePhotoCanvas.isDiscontinued}
+          clientName={`${client?.name || "Cliente"} • ${activePhotoCanvas.file.name}`}
+          onSaveCanvas={async (newState) => {
+            await HttpClient.patch(
+              `/administrative/security-studies/${activePhotoCanvas.studyId}/files/${activePhotoCanvas.file.id}/canvas`,
+              { canvasState: newState },
+            );
+          }}
+          onClose={() => {
+            setActivePhotoCanvas(null);
             fetchStudies();
           }}
         />
@@ -703,7 +745,7 @@ export default function ClientSecurityStudiesPage({ params }: PageProps) {
                             px: 1.8,
                           }}
                         >
-                          {isCurrent ? "Abrir Canva" : "Ver Canva"}
+                          {isCurrent ? "Canva Satelital" : "Ver Canva Satelital"}
                         </Button>
                       )}
 
@@ -987,6 +1029,14 @@ export default function ClientSecurityStudiesPage({ params }: PageProps) {
           files={filesStudy.files || []}
           onFilesUpdated={() => {
             fetchStudies();
+            setFilesStudy(null);
+          }}
+          onEditCanvas={(file) => {
+            setActivePhotoCanvas({
+              studyId: filesStudy.id,
+              file,
+              isDiscontinued: filesStudy.status === "DISCONTINUED",
+            });
             setFilesStudy(null);
           }}
         />
