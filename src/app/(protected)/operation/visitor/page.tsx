@@ -468,7 +468,7 @@ export default function VisitorControlPage({ isInternal = false }: VisitorContro
           });
         } catch (s3Err) {
           console.error("Error subiendo foto de salida:", s3Err);
-          showError("Salida registrada, pero ocurrió un problema al subir la foto a S3.");
+          showError("Salida registrada, pero ocurrió un problema al subir la foto a la nube.");
         }
       }
 

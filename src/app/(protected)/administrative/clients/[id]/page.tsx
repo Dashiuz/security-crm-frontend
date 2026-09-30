@@ -769,7 +769,7 @@ export default function ClientDetailPage() {
         <Box sx={{ display: "flex", alignItems: "center", ml: 4, mb: 1 }}>
           <CircularProgress size={16} sx={{ mr: 1 }} />
           <Typography variant="caption" color="text.secondary">
-            Subiendo a S3...
+            Subiendo a la nube...
           </Typography>
         </Box>
       );
@@ -2262,7 +2262,7 @@ export default function ClientDetailPage() {
                           {isUploading ? (
                             <Box sx={{ display: "flex", alignItems: "center", gap: 1, my: 1 }}>
                               <CircularProgress size={20} />
-                              <Typography variant="caption">Subiendo a S3...</Typography>
+                              <Typography variant="caption">Subiendo a la nube...</Typography>
                             </Box>
                           ) : item ? (
                             <Box sx={{ width: "100%", display: "flex", flexDirection: "column", alignItems: "center", gap: 1 }}>
@@ -2397,7 +2397,7 @@ export default function ClientDetailPage() {
                               <IconButton
                                 size="small"
                                 color="error"
-                                title="Eliminar archivo de S3"
+                                title="Eliminar archivo de la nube"
                                 onClick={() => handleDeleteOtherFile(index)}
                               >
                                 <DeleteIcon fontSize="small" />

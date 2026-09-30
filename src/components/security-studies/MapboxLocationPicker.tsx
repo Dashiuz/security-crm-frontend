@@ -581,7 +581,7 @@ export default function MapboxLocationPicker({
               }}
             >
               {generating
-                ? "Capturando en Full HD y Almacenando en AWS S3..."
+                ? "Capturando en Full HD y Almacenando en la nube..."
                 : "Capturar e Inicializar Canva (1920x1080)"}
             </Button>
           </Box>

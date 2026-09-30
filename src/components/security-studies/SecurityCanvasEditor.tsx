@@ -18,6 +18,8 @@ import {
   DialogContent,
   DialogActions,
   Alert,
+  Popover,
+  Drawer,
 } from "@mui/material";
 
 // High z-index Tooltip to float above the fullscreen canvas container (zIndex: 9999)
@@ -65,6 +67,29 @@ import {
   Delete as DeleteIcon,
   DeleteOutline as DeleteOutlineIcon,
   Close as CloseIcon,
+  Brush as BrushIcon,
+  Highlight as HighlightIcon,
+  TrendingFlat as ArrowRightAltIcon,
+  CropSquare as CropSquareIcon,
+  CropLandscape as CropLandscapeIcon,
+  RadioButtonUnchecked as CircleIcon,
+  ChangeHistory as DiamondIcon,
+  Palette as PaletteIcon,
+  LineWeight as LineWeightIcon,
+  Create as CreateIcon,
+  CameraIndoor as CameraDomeIcon,
+  SmartDisplay as AnalyticsIcon,
+  Thermostat as ThermalIcon,
+  Storage as DvrIcon,
+  NotificationsActive as IntrusionAlarmIcon,
+  ReportProblem as EmergencyAlarmIcon,
+  Face as FacialRecognitionIcon,
+  Lightbulb as PostLightIcon,
+  WbIncandescent as FloodlightIcon,
+  ElectricalServices as ElectricCabinetIcon,
+  BatteryChargingFull as UpsIcon,
+  Router as NetworkSwitchIcon,
+  SettingsSuggest as GeneratorIcon,
 } from "@mui/icons-material";
 import {
   Stage,
@@ -72,6 +97,8 @@ import {
   Image as KonvaImage,
   Line,
   Circle,
+  Ellipse,
+  Arrow,
   Group,
   Text,
   Rect,
@@ -85,6 +112,19 @@ import { tokenStore } from "@/lib/api/token-store";
 // Full HD Canvas Resolution
 const CANVAS_WIDTH = 1920;
 const CANVAS_HEIGHT = 1080;
+
+const PALETTE_COLORS = [
+  "#EF4444", // Rojo
+  "#3B82F6", // Azul
+  "#10B981", // Verde
+  "#F59E0B", // Ámbar / Amarillo
+  "#8B5CF6", // Púrpura
+  "#EC4899", // Rosa
+  "#FFFFFF", // Blanco
+  "#000000", // Negro
+];
+
+const STROKE_WIDTHS = [2, 4, 8, 16, 24];
 
 function useBlobImage(
   studyId?: string,
@@ -103,7 +143,9 @@ function useBlobImage(
       try {
         const apiBase =
           process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3000/api";
-        const proxyUrl = studyId
+        const proxyUrl = directUrl
+          ? directUrl
+          : studyId
           ? `${apiBase}/administrative/security-studies/${studyId}/image-file`
           : clientId
           ? `${apiBase}/administrative/security-studies/client/${clientId}/image-file`
@@ -177,9 +219,9 @@ function useBlobImage(
 
 function parseGeofenceToPoints(
   geofence: any,
-  bbox: BoundingBox,
+  bbox?: BoundingBox,
 ): { x: number; y: number; lat: number; lng: number }[] {
-  if (!geofence) return [];
+  if (!geofence || !bbox) return [];
   if (Array.isArray(geofence.points) && geofence.points.length > 0) {
     return geofence.points;
   }
@@ -208,9 +250,21 @@ export interface CanvasDevice {
     | "camera_ptz"
     | "camera_bullet"
     | "camera_dome"
+    | "cam_analytics"
+    | "cam_thermal"
+    | "dvr_nvr"
     | "sensor_motion"
+    | "alarm_intrusion"
+    | "alarm_emergency"
     | "gatehouse"
-    | "vehicle_barrier";
+    | "vehicle_barrier"
+    | "facial_panel"
+    | "led_post_light"
+    | "led_floodlight"
+    | "electric_cabinet"
+    | "ups_backup"
+    | "network_switch"
+    | "power_generator";
   name: string;
   status?: DeviceStatus;
   x: number;
@@ -226,6 +280,31 @@ export interface CanvasFacilityLine {
   points: number[];
 }
 
+export interface CanvasDrawingStroke {
+  id: string;
+  tool: "pencil" | "marker" | "highlighter";
+  color: string;
+  strokeWidth: number;
+  opacity: number;
+  points: number[];
+}
+
+export interface CanvasShape {
+  id: string;
+  type: "rectangle" | "square" | "circle" | "ellipse" | "rhombus" | "arrow";
+  x: number;
+  y: number;
+  width?: number;
+  height?: number;
+  radiusX?: number;
+  radiusY?: number;
+  points?: number[];
+  stroke: string;
+  strokeWidth: number;
+  fill?: string;
+  opacity?: number;
+}
+
 export interface CanvasState {
   version: string;
   geofencePolygon: {
@@ -234,27 +313,201 @@ export interface CanvasState {
   };
   facilities: CanvasFacilityLine[];
   devices: CanvasDevice[];
+  strokes?: CanvasDrawingStroke[];
+  shapes?: CanvasShape[];
 }
 
 export interface SecurityCanvasEditorProps {
   studyId?: string;
+  fileId?: string;
   clientId?: string;
-  mode?: "geofence" | "study";
-  baseImageUrl: string;
-  bbox: BoundingBox;
+  mode?: "geofence" | "study" | "attachment_photo";
+  baseImageUrl?: string;
+  bbox?: BoundingBox;
   initialCanvasState?: any;
   clientGeofence?: any;
   isReadOnly?: boolean;
   clientName: string;
   onPerimeterApproved?: () => void;
   onClose?: () => void;
+  onSaveCanvas?: (canvasState: any) => Promise<void>;
 }
+
+export interface ToolSubItem {
+  id: string;
+  name: string;
+  desc: string;
+  icon: React.ReactNode;
+  toolType: "device" | "facility" | "pencil" | "marker" | "highlighter" | "shape";
+  deviceType?: CanvasDevice["type"];
+  facilityType?: CanvasFacilityLine["type"];
+  shapeType?: CanvasShape["type"];
+}
+
+export interface ToolCategory {
+  id: string;
+  name: string;
+  shortName: string;
+  icon: React.ReactNode;
+  isDirect?: boolean;
+  activeToolName?: string;
+  subItems?: ToolSubItem[];
+  hasStatusPicker?: boolean;
+  hasColorPicker?: boolean;
+  showInModes: ("geofence" | "study" | "attachment_photo")[];
+}
+
+export const STATUS_OPTIONS: { id: DeviceStatus; label: string; color: string }[] = [
+  { id: "EXISTING", label: "Existente", color: "#10B981" },
+  { id: "PLANNED", label: "A Instalar", color: "#3B82F6" },
+  { id: "DAMAGED", label: "Dañado", color: "#EF4444" },
+];
+
+const TOOL_CATEGORIES: ToolCategory[] = [
+  {
+    id: "select",
+    name: "Mover / Paneo (Pan)",
+    shortName: "Mover",
+    icon: <PanToolIcon fontSize="small" />,
+    isDirect: true,
+    activeToolName: "select",
+    showInModes: ["geofence", "study", "attachment_photo"],
+  },
+  {
+    id: "eraser",
+    name: "Goma de Borrar / Eliminar",
+    shortName: "Borrar",
+    icon: <DeleteOutlineIcon fontSize="small" />,
+    isDirect: true,
+    activeToolName: "eraser",
+    showInModes: ["geofence", "study", "attachment_photo"],
+  },
+  {
+    id: "perimeter",
+    name: "Polígono Perimetral (Geofence)",
+    shortName: "Geocerca",
+    icon: <TimelineIcon fontSize="small" />,
+    isDirect: true,
+    activeToolName: "perimeter",
+    showInModes: ["geofence"],
+  },
+  {
+    id: "drawing",
+    name: "Trazo y Dibujo",
+    shortName: "Dibujo",
+    icon: <BrushIcon fontSize="small" />,
+    hasColorPicker: true,
+    showInModes: ["study", "attachment_photo"],
+    subItems: [
+      { id: "pencil", name: "Lápiz", desc: "Trazo fino libre continuo", icon: <CreateIcon fontSize="small" />, toolType: "pencil" },
+      { id: "marker", name: "Marcador", desc: "Pincel de trazo visible", icon: <BrushIcon fontSize="small" />, toolType: "marker" },
+      { id: "highlighter", name: "Resaltador", desc: "Trazo ancho translúcido al 35%", icon: <HighlightIcon fontSize="small" />, toolType: "highlighter" },
+    ],
+  },
+  {
+    id: "shapes",
+    name: "Formas y Flechas",
+    shortName: "Figuras",
+    icon: <CropSquareIcon fontSize="small" />,
+    hasColorPicker: true,
+    showInModes: ["study", "attachment_photo"],
+    subItems: [
+      { id: "arrow", name: "Flecha", desc: "Señalización direccional", icon: <ArrowRightAltIcon fontSize="small" />, toolType: "shape", shapeType: "arrow" },
+      { id: "rectangle", name: "Rectángulo", desc: "Caja delimitadora", icon: <CropLandscapeIcon fontSize="small" />, toolType: "shape", shapeType: "rectangle" },
+      { id: "square", name: "Cuadrado", desc: "Cuadrado regular", icon: <CropSquareIcon fontSize="small" />, toolType: "shape", shapeType: "square" },
+      { id: "circle", name: "Círculo / Elipse", desc: "Zona circular delimitadora", icon: <CircleIcon fontSize="small" />, toolType: "shape", shapeType: "circle" },
+      { id: "rhombus", name: "Rombo", desc: "Señal de precaución", icon: <DiamondIcon fontSize="small" />, toolType: "shape", shapeType: "rhombus" },
+    ],
+  },
+  {
+    id: "facilities",
+    name: "Líneas Perimetrales",
+    shortName: "Líneas",
+    icon: <FenceIcon fontSize="small" />,
+    hasStatusPicker: true,
+    showInModes: ["study", "attachment_photo"],
+    subItems: [
+      { id: "electric_fence", name: "Cercado Eléctrico", desc: "Cerramiento electrificado", icon: <FlashOnIcon fontSize="small" />, toolType: "facility", facilityType: "electric_fence" },
+      { id: "perimeter_wall", name: "Muro Perimetral", desc: "Muro o cerramiento físico", icon: <FenceIcon fontSize="small" />, toolType: "facility", facilityType: "perimeter_wall" },
+      { id: "motion_barrier", name: "Barrera Infrarroja", desc: "Sensor perimetral de paso", icon: <LinearScaleIcon fontSize="small" />, toolType: "facility", facilityType: "motion_barrier" },
+    ],
+  },
+  {
+    id: "cameras",
+    name: "Cámaras de Seguridad",
+    shortName: "Cámaras",
+    icon: <VideocamIcon fontSize="small" />,
+    hasStatusPicker: true,
+    showInModes: ["study", "attachment_photo"],
+    subItems: [
+      { id: "camera_bullet", name: "Cámara Bullet", desc: "Enfoque perimetral fijo", icon: <VideocamIcon fontSize="small" />, toolType: "device", deviceType: "camera_bullet" },
+      { id: "camera_dome", name: "Cámara Domo", desc: "Interiores y domos 360", icon: <CameraDomeIcon fontSize="small" />, toolType: "device", deviceType: "camera_dome" },
+      { id: "camera_ptz", name: "Cámara PTZ", desc: "Zoom y rotación motorizada", icon: <VideocamIcon fontSize="small" />, toolType: "device", deviceType: "camera_ptz" },
+      { id: "cam_analytics", name: "Cámara con IA", desc: "LPR, analítica y cruce de línea", icon: <AnalyticsIcon fontSize="small" />, toolType: "device", deviceType: "cam_analytics" },
+      { id: "cam_thermal", name: "Cámara Térmica", desc: "Detección calórica y niebla", icon: <ThermalIcon fontSize="small" />, toolType: "device", deviceType: "cam_thermal" },
+      { id: "dvr_nvr", name: "Servidor / NVR", desc: "Grabador de video central", icon: <DvrIcon fontSize="small" />, toolType: "device", deviceType: "dvr_nvr" },
+    ],
+  },
+  {
+    id: "alarms",
+    name: "Sensores y Alarmas",
+    shortName: "Alarmas",
+    icon: <IntrusionAlarmIcon fontSize="small" />,
+    hasStatusPicker: true,
+    showInModes: ["study", "attachment_photo"],
+    subItems: [
+      { id: "sensor_motion", name: "Sensor Movimiento", desc: "Detector PIR / presencia", icon: <SensorsIcon fontSize="small" />, toolType: "device", deviceType: "sensor_motion" },
+      { id: "alarm_intrusion", name: "Sirena / Alarma", desc: "Sirena y estrobo disuasivo", icon: <IntrusionAlarmIcon fontSize="small" />, toolType: "device", deviceType: "alarm_intrusion" },
+      { id: "alarm_emergency", name: "Botón de Pánico", desc: "Pulsador de auxilio / SOS", icon: <EmergencyAlarmIcon fontSize="small" />, toolType: "device", deviceType: "alarm_emergency" },
+    ],
+  },
+  {
+    id: "access",
+    name: "Control de Acceso",
+    shortName: "Acceso",
+    icon: <MeetingRoomIcon fontSize="small" />,
+    hasStatusPicker: true,
+    showInModes: ["study", "attachment_photo"],
+    subItems: [
+      { id: "gatehouse", name: "Portería / Caseta", desc: "Puesto de control de guardia", icon: <MeetingRoomIcon fontSize="small" />, toolType: "device", deviceType: "gatehouse" },
+      { id: "vehicle_barrier", name: "Talanquera", desc: "Barrera vehicular automática", icon: <DirectionsCarIcon fontSize="small" />, toolType: "device", deviceType: "vehicle_barrier" },
+      { id: "facial_panel", name: "Panel Facial", desc: "Control peatonal biométrico", icon: <FacialRecognitionIcon fontSize="small" />, toolType: "device", deviceType: "facial_panel" },
+    ],
+  },
+  {
+    id: "lighting_network",
+    name: "Iluminación y Red",
+    shortName: "Luz / Red",
+    icon: <FloodlightIcon fontSize="small" />,
+    hasStatusPicker: true,
+    showInModes: ["study", "attachment_photo"],
+    subItems: [
+      { id: "led_floodlight", name: "Reflector LED", desc: "Iluminación disuasiva de área", icon: <FloodlightIcon fontSize="small" />, toolType: "device", deviceType: "led_floodlight" },
+      { id: "led_post_light", name: "Luminaria Poste", desc: "Poste de alumbrado perimetral", icon: <PostLightIcon fontSize="small" />, toolType: "device", deviceType: "led_post_light" },
+      { id: "network_switch", name: "Switch PoE / Red", desc: "Gabinete de datos e interconexión", icon: <NetworkSwitchIcon fontSize="small" />, toolType: "device", deviceType: "network_switch" },
+    ],
+  },
+  {
+    id: "energy",
+    name: "Energía y Respaldo",
+    shortName: "Energía",
+    icon: <UpsIcon fontSize="small" />,
+    hasStatusPicker: true,
+    showInModes: ["study", "attachment_photo"],
+    subItems: [
+      { id: "electric_cabinet", name: "Tablero Eléctrico", desc: "Alimentación principal y breakers", icon: <ElectricCabinetIcon fontSize="small" />, toolType: "device", deviceType: "electric_cabinet" },
+      { id: "ups_backup", name: "UPS / Baterías", desc: "Respaldo contra apagones", icon: <UpsIcon fontSize="small" />, toolType: "device", deviceType: "ups_backup" },
+      { id: "power_generator", name: "Planta Eléctrica", desc: "Generador diésel/gas de respaldo", icon: <GeneratorIcon fontSize="small" />, toolType: "device", deviceType: "power_generator" },
+    ],
+  },
+];
 
 export default function SecurityCanvasEditor({
   studyId,
+  fileId,
   clientId,
   mode = studyId ? "study" : "geofence",
-  baseImageUrl,
+  baseImageUrl = "",
   bbox,
   initialCanvasState,
   clientGeofence,
@@ -262,6 +515,7 @@ export default function SecurityCanvasEditor({
   clientName,
   onPerimeterApproved,
   onClose,
+  onSaveCanvas,
 }: SecurityCanvasEditorProps) {
   const [image, imageLoading] = useBlobImage(studyId, clientId, baseImageUrl);
   const stageRef = useRef<any>(null);
@@ -309,6 +563,8 @@ export default function SecurityCanvasEditor({
         ...d,
         status: d.status || "EXISTING",
       })),
+      strokes: (initialCanvasState?.strokes || []).map((s: any) => ({ ...s })),
+      shapes: (initialCanvasState?.shapes || []).map((sh: any) => ({ ...sh })),
     };
   });
 
@@ -322,9 +578,68 @@ export default function SecurityCanvasEditor({
   // Active in-progress drawing points
   const [drawingPoints, setDrawingPoints] = useState<{ x: number; y: number }[]>([]);
 
+  // Drawing & Paint Tools State
+  const [strokeColor, setStrokeColor] = useState<string>("#EF4444");
+  const [strokeWidth, setStrokeWidth] = useState<number>(4);
+  const [activeShapeType, setActiveShapeType] = useState<CanvasShape["type"]>("rectangle");
+  const [isDrawing, setIsDrawing] = useState(false);
+  const [currentStroke, setCurrentStroke] = useState<number[]>([]);
+  const [shapeStart, setShapeStart] = useState<{ x: number; y: number } | null>(null);
+  const [shapeCurrent, setShapeCurrent] = useState<{ x: number; y: number } | null>(null);
+
+  // Canvas Resolution & Dynamic Viewport
+  const containerRef = useRef<HTMLDivElement>(null);
+  const canvasWidth =
+    mode === "attachment_photo" && image?.naturalWidth
+      ? image.naturalWidth
+      : CANVAS_WIDTH;
+  const canvasHeight =
+    mode === "attachment_photo" && image?.naturalHeight
+      ? image.naturalHeight
+      : CANVAS_HEIGHT;
+  const scaleFactor = Math.max(1, Math.max(canvasWidth, canvasHeight) / 1920);
+
   // Stage Pan & Zoom
-  const [stageScale, setStageScale] = useState(0.75); // initial fit for 1080p
+  const [stageScale, setStageScale] = useState(0.75);
   const [stagePos, setStagePos] = useState({ x: 40, y: 20 });
+
+  const fitAndCenterStage = useCallback(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    const contW = container.clientWidth || (typeof window !== "undefined" ? window.innerWidth : 1920);
+    const contH = container.clientHeight || (typeof window !== "undefined" ? window.innerHeight - 80 : 1080);
+
+    const pad = 48;
+    const availW = Math.max(contW - pad, 100);
+    const availH = Math.max(contH - pad, 100);
+
+    const curW =
+      mode === "attachment_photo" && image?.naturalWidth
+        ? image.naturalWidth
+        : CANVAS_WIDTH;
+    const curH =
+      mode === "attachment_photo" && image?.naturalHeight
+        ? image.naturalHeight
+        : CANVAS_HEIGHT;
+
+    const fitScale = Math.min(availW / curW, availH / curH, 1.5);
+    const fitX = Math.round((contW - curW * fitScale) / 2);
+    const fitY = Math.round((contH - curH * fitScale) / 2);
+
+    setStageScale(fitScale);
+    setStagePos({ x: fitX, y: fitY });
+  }, [mode, image]);
+
+  useEffect(() => {
+    if (image) {
+      const timer1 = setTimeout(fitAndCenterStage, 50);
+      const timer2 = setTimeout(fitAndCenterStage, 250);
+      return () => {
+        clearTimeout(timer1);
+        clearTimeout(timer2);
+      };
+    }
+  }, [image, fitAndCenterStage]);
 
   // Autosaver state
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">("saved");
@@ -335,6 +650,69 @@ export default function SecurityCanvasEditor({
   const [approving, setApproving] = useState(false);
 
   const { showError, showSuccess } = useNotification();
+
+  // Desktop Flyout and Mobile Bottom Sheet UI state
+  const [flyoutCategory, setFlyoutCategory] = useState<string | null>(null);
+  const [flyoutAnchorEl, setFlyoutAnchorEl] = useState<HTMLElement | null>(null);
+  const [mobileSheetCategory, setMobileSheetCategory] = useState<string | null>(null);
+
+  const handleSelectSubItem = (item: ToolSubItem) => {
+    if (item.toolType === "pencil" || item.toolType === "marker" || item.toolType === "highlighter") {
+      setActiveTool(item.toolType);
+    } else if (item.toolType === "shape" && item.shapeType) {
+      setActiveTool("shape");
+      setActiveShapeType(item.shapeType);
+    } else if (item.toolType === "facility" && item.facilityType) {
+      setActiveTool("facility");
+      setFacilityTypeToAdd(item.facilityType);
+    } else if (item.toolType === "device" && item.deviceType) {
+      setActiveTool("device");
+      setDeviceTypeToAdd(item.deviceType);
+    }
+    setFlyoutCategory(null);
+    setFlyoutAnchorEl(null);
+    setMobileSheetCategory(null);
+  };
+
+  const isSubItemSelected = (item: ToolSubItem) => {
+    if (item.toolType === "pencil" || item.toolType === "marker" || item.toolType === "highlighter") {
+      return activeTool === item.toolType;
+    }
+    if (item.toolType === "shape") {
+      return activeTool === "shape" && activeShapeType === item.shapeType;
+    }
+    if (item.toolType === "facility") {
+      return activeTool === "facility" && facilityTypeToAdd === item.facilityType;
+    }
+    if (item.toolType === "device") {
+      return activeTool === "device" && deviceTypeToAdd === item.deviceType;
+    }
+    return false;
+  };
+
+  const isCategoryActive = (catId: string) => {
+    if (catId === "select") return activeTool === "select";
+    if (catId === "perimeter") return activeTool === "perimeter";
+    if (catId === "eraser") return activeTool === "eraser";
+    if (catId === "drawing") return ["pencil", "marker", "highlighter"].includes(activeTool);
+    if (catId === "shapes") return activeTool === "shape";
+    if (catId === "facilities") return activeTool === "facility";
+    if (catId === "cameras")
+      return activeTool === "device" && ["camera_bullet", "camera_dome", "camera_ptz", "cam_analytics", "cam_thermal", "dvr_nvr"].includes(deviceTypeToAdd);
+    if (catId === "alarms")
+      return activeTool === "device" && ["sensor_motion", "alarm_intrusion", "alarm_emergency"].includes(deviceTypeToAdd);
+    if (catId === "access")
+      return activeTool === "device" && ["gatehouse", "vehicle_barrier", "facial_panel"].includes(deviceTypeToAdd);
+    if (catId === "lighting_network")
+      return activeTool === "device" && ["led_post_light", "led_floodlight", "network_switch"].includes(deviceTypeToAdd);
+    if (catId === "energy")
+      return activeTool === "device" && ["electric_cabinet", "ups_backup", "power_generator"].includes(deviceTypeToAdd);
+    return false;
+  };
+
+  const visibleCategories = TOOL_CATEGORIES.filter((c) => c.showInModes.includes(mode));
+  const activeFlyoutCategoryObj = TOOL_CATEGORIES.find((c) => c.id === flyoutCategory);
+  const activeMobileCategoryObj = TOOL_CATEGORIES.find((c) => c.id === mobileSheetCategory);
 
   // 1. Debounce Autosaver
   const triggerAutosave = useCallback(
@@ -348,8 +726,17 @@ export default function SecurityCanvasEditor({
 
       saveTimeoutRef.current = setTimeout(async () => {
         try {
-          if (mode === "geofence" && clientId) {
-            if (newState.geofencePolygon?.points?.length >= 3) {
+          if (mode === "attachment_photo") {
+            if (onSaveCanvas) {
+              await onSaveCanvas(newState);
+            } else if (studyId && fileId) {
+              await HttpClient.patch(
+                `/administrative/security-studies/${studyId}/files/${fileId}/canvas`,
+                { canvasState: newState },
+              );
+            }
+          } else if (mode === "geofence" && clientId) {
+            if (newState.geofencePolygon.points.length >= 3) {
               const coords = newState.geofencePolygon.points.map((p) => [p.lng, p.lat]);
               coords.push([coords[0][0], coords[0][1]]);
               await HttpClient.patch(
@@ -374,7 +761,7 @@ export default function SecurityCanvasEditor({
         }
       }, 1500);
     },
-    [studyId, clientId, mode, isReadOnly, showError],
+    [studyId, fileId, clientId, mode, isReadOnly, onSaveCanvas, showError],
   );
 
   const updateCanvasState = (updater: (prev: CanvasState) => CanvasState) => {
@@ -402,7 +789,7 @@ export default function SecurityCanvasEditor({
     const scaleBy = 1.1;
     const direction = e.evt.deltaY < 0 ? 1 : -1;
     let newScale = direction > 0 ? oldScale * scaleBy : oldScale / scaleBy;
-    newScale = Math.max(0.3, Math.min(newScale, 4));
+    newScale = Math.max(0.05, Math.min(newScale, 6));
 
     setStageScale(newScale);
     setStagePos({
@@ -411,9 +798,177 @@ export default function SecurityCanvasEditor({
     });
   };
 
+  const getStagePointerCoords = () => {
+    const stage = stageRef.current;
+    if (!stage) return null;
+    const pointer = stage.getPointerPosition();
+    if (!pointer) return null;
+    const x = Math.round((pointer.x - stage.x()) / stage.scaleX());
+    const y = Math.round((pointer.y - stage.y()) / stage.scaleY());
+    return { x, y };
+  };
+
+  const handleStageMouseDown = () => {
+    if (isReadOnly) return;
+    const isFreehand = ["pencil", "marker", "highlighter"].includes(activeTool);
+    const isShape = activeTool === "shape";
+    if (!isFreehand && !isShape) return;
+
+    const coords = getStagePointerCoords();
+    if (!coords) return;
+    if (coords.x < 0 || coords.x > canvasWidth || coords.y < 0 || coords.y > canvasHeight) return;
+
+    setIsDrawing(true);
+    if (isFreehand) {
+      setCurrentStroke([coords.x, coords.y]);
+    } else if (isShape) {
+      setShapeStart(coords);
+      setShapeCurrent(coords);
+    }
+  };
+
+  const handleStageMouseMove = () => {
+    if (!isDrawing) return;
+    const coords = getStagePointerCoords();
+    if (!coords) return;
+
+    if (["pencil", "marker", "highlighter"].includes(activeTool)) {
+      setCurrentStroke((prev) => [...prev, coords.x, coords.y]);
+    } else if (activeTool === "shape") {
+      setShapeCurrent(coords);
+    }
+  };
+
+  const handleStageMouseUp = () => {
+    if (!isDrawing) return;
+    setIsDrawing(false);
+
+    if (["pencil", "marker", "highlighter"].includes(activeTool)) {
+      if (currentStroke.length >= 2) {
+        const isHighlighter = activeTool === "highlighter";
+        const points =
+          currentStroke.length === 2
+            ? [currentStroke[0], currentStroke[1], currentStroke[0] + 1, currentStroke[1] + 1]
+            : currentStroke;
+
+        const newStroke: CanvasDrawingStroke = {
+          id: "stroke_" + Date.now(),
+          tool: activeTool as "pencil" | "marker" | "highlighter",
+          color: strokeColor,
+          strokeWidth: isHighlighter ? Math.max(strokeWidth, 16) : strokeWidth,
+          opacity: isHighlighter ? 0.35 : 1,
+          points,
+        };
+        updateCanvasState((prev) => ({
+          ...prev,
+          strokes: [...(prev.strokes || []), newStroke],
+        }));
+      }
+      setCurrentStroke([]);
+    } else if (activeTool === "shape" && shapeStart && shapeCurrent) {
+      const dx = shapeCurrent.x - shapeStart.x;
+      const dy = shapeCurrent.y - shapeStart.y;
+      const dist = Math.hypot(dx, dy);
+
+      if (dist > 5) {
+        let newShape: CanvasShape | null = null;
+        const id = "shape_" + Date.now();
+
+        if (activeShapeType === "arrow") {
+          newShape = {
+            id,
+            type: "arrow",
+            x: shapeStart.x,
+            y: shapeStart.y,
+            points: [shapeStart.x, shapeStart.y, shapeCurrent.x, shapeCurrent.y],
+            stroke: strokeColor,
+            strokeWidth,
+          };
+        } else if (activeShapeType === "rectangle") {
+          newShape = {
+            id,
+            type: "rectangle",
+            x: Math.min(shapeStart.x, shapeCurrent.x),
+            y: Math.min(shapeStart.y, shapeCurrent.y),
+            width: Math.abs(dx),
+            height: Math.abs(dy),
+            stroke: strokeColor,
+            strokeWidth,
+          };
+        } else if (activeShapeType === "square") {
+          const side = Math.max(Math.abs(dx), Math.abs(dy));
+          newShape = {
+            id,
+            type: "square",
+            x: dx >= 0 ? shapeStart.x : shapeStart.x - side,
+            y: dy >= 0 ? shapeStart.y : shapeStart.y - side,
+            width: side,
+            height: side,
+            stroke: strokeColor,
+            strokeWidth,
+          };
+        } else if (activeShapeType === "circle") {
+          const radius = Math.round(dist / 2);
+          newShape = {
+            id,
+            type: "circle",
+            x: Math.round((shapeStart.x + shapeCurrent.x) / 2),
+            y: Math.round((shapeStart.y + shapeCurrent.y) / 2),
+            radiusX: radius,
+            radiusY: radius,
+            stroke: strokeColor,
+            strokeWidth,
+          };
+        } else if (activeShapeType === "ellipse") {
+          newShape = {
+            id,
+            type: "ellipse",
+            x: Math.round((shapeStart.x + shapeCurrent.x) / 2),
+            y: Math.round((shapeStart.y + shapeCurrent.y) / 2),
+            radiusX: Math.round(Math.abs(dx) / 2),
+            radiusY: Math.round(Math.abs(dy) / 2),
+            stroke: strokeColor,
+            strokeWidth,
+          };
+        } else if (activeShapeType === "rhombus") {
+          const cx = Math.round((shapeStart.x + shapeCurrent.x) / 2);
+          const cy = Math.round((shapeStart.y + shapeCurrent.y) / 2);
+          const rx = Math.round(Math.abs(dx) / 2);
+          const ry = Math.round(Math.abs(dy) / 2);
+          newShape = {
+            id,
+            type: "rhombus",
+            x: cx,
+            y: cy,
+            points: [
+              cx, cy - ry,
+              cx + rx, cy,
+              cx, cy + ry,
+              cx - rx, cy,
+            ],
+            stroke: strokeColor,
+            strokeWidth,
+          };
+        }
+
+        if (newShape) {
+          updateCanvasState((prev) => ({
+            ...prev,
+            shapes: [...(prev.shapes || []), newShape!],
+          }));
+        }
+      }
+      setShapeStart(null);
+      setShapeCurrent(null);
+    }
+  };
+
   // 3. Stage Click / Tap for Drawing or Placing Devices
   const handleStageClick = (e: any) => {
     if (isReadOnly) return;
+    if (["pencil", "marker", "highlighter", "shape"].includes(activeTool)) {
+      return;
+    }
 
     const stage = stageRef.current;
     if (!stage) return;
@@ -434,14 +989,16 @@ export default function SecurityCanvasEditor({
     const x = Math.round((pointer.x - stage.x()) / stage.scaleX());
     const y = Math.round((pointer.y - stage.y()) / stage.scaleY());
 
-    if (x < 0 || x > CANVAS_WIDTH || y < 0 || y > CANVAS_HEIGHT) return;
+    if (x < 0 || x > canvasWidth || y < 0 || y > canvasHeight) return;
 
     if (activeTool === "select") {
       setSelectedElement(null);
       return;
     }
 
-    const gps = MapboxMath.pixelToLatLng(x, y, bbox, CANVAS_WIDTH, CANVAS_HEIGHT);
+    const gps = bbox
+      ? MapboxMath.pixelToLatLng(x, y, bbox, CANVAS_WIDTH, CANVAS_HEIGHT)
+      : { lat: 0, lng: 0 };
 
     // Geofencing Perimeter Tool
     if (activeTool === "perimeter") {
@@ -540,7 +1097,9 @@ export default function SecurityCanvasEditor({
     if (isReadOnly) return;
     const x = Math.round(e.target.x());
     const y = Math.round(e.target.y());
-    const gps = MapboxMath.pixelToLatLng(x, y, bbox, CANVAS_WIDTH, CANVAS_HEIGHT);
+    const gps = bbox
+      ? MapboxMath.pixelToLatLng(x, y, bbox, CANVAS_WIDTH, CANVAS_HEIGHT)
+      : { lat: 0, lng: 0 };
 
     updateCanvasState((prev) => ({
       ...prev,
@@ -607,6 +1166,24 @@ export default function SecurityCanvasEditor({
       curr?.type === "vertex" && curr.index === vertexIndex ? null : curr,
     );
     showSuccess("Vértice perimetral eliminado.");
+  };
+
+  const removeStroke = (strokeId: string) => {
+    if (isReadOnly) return;
+    updateCanvasState((prev) => ({
+      ...prev,
+      strokes: (prev.strokes || []).filter((s) => s.id !== strokeId),
+    }));
+    showSuccess("Trazo eliminado.");
+  };
+
+  const removeShape = (shapeId: string) => {
+    if (isReadOnly) return;
+    updateCanvasState((prev) => ({
+      ...prev,
+      shapes: (prev.shapes || []).filter((s) => s.id !== shapeId),
+    }));
+    showSuccess("Figura eliminada.");
   };
 
   const handleDeleteSelected = () => {
@@ -687,7 +1264,9 @@ export default function SecurityCanvasEditor({
     if (isReadOnly) return;
     const x = Math.round(e.target.x());
     const y = Math.round(e.target.y());
-    const gps = MapboxMath.pixelToLatLng(x, y, bbox, CANVAS_WIDTH, CANVAS_HEIGHT);
+    const gps = bbox
+      ? MapboxMath.pixelToLatLng(x, y, bbox, CANVAS_WIDTH, CANVAS_HEIGHT)
+      : { lat: 0, lng: 0 };
 
     updateCanvasState((prev) => {
       const nextPoints = [...prev.geofencePolygon.points];
@@ -750,7 +1329,8 @@ export default function SecurityCanvasEditor({
   const handleDownloadSnapshot = () => {
     const stage = stageRef.current;
     if (!stage) return;
-    const dataUrl = stage.toDataURL({ pixelRatio: 2 });
+    const pixelRatio = mode === "attachment_photo" ? 1 : 2;
+    const dataUrl = stage.toDataURL({ pixelRatio });
     const link = document.createElement("a");
     link.download = `Estudio_Seguridad_${clientName.replace(/\s+/g, "_")}.png`;
     link.href = dataUrl;
@@ -801,7 +1381,9 @@ export default function SecurityCanvasEditor({
           >
             {mode === "geofence"
               ? `Geofence: ${clientName}`
-              : `Canva: ${clientName}`}
+              : mode === "attachment_photo"
+              ? `Edición de Foto: ${clientName}`
+              : `Canva Satelital: ${clientName}`}
           </Typography>
 
           {/* Status Chip */}
@@ -809,6 +1391,17 @@ export default function SecurityCanvasEditor({
             <Chip
               label="SSOT"
               color="secondary"
+              size="small"
+              sx={{
+                fontWeight: 700,
+                height: 24,
+                display: { xs: "none", sm: "inline-flex" },
+              }}
+            />
+          ) : mode === "attachment_photo" ? (
+            <Chip
+              label="FOTO"
+              color="info"
               size="small"
               sx={{
                 fontWeight: 700,
@@ -899,7 +1492,7 @@ export default function SecurityCanvasEditor({
             <Tooltip title="Acercar Vista">
               <IconButton
                 size="small"
-                onClick={() => setStageScale((s) => Math.min(s * 1.2, 4))}
+                onClick={() => setStageScale((s) => Math.min(s * 1.2, 6))}
                 sx={{ p: { xs: 0.5, sm: 0.8 } }}
               >
                 <ZoomInIcon fontSize="small" />
@@ -908,7 +1501,7 @@ export default function SecurityCanvasEditor({
             <Tooltip title="Alejar Vista">
               <IconButton
                 size="small"
-                onClick={() => setStageScale((s) => Math.max(s / 1.2, 0.3))}
+                onClick={() => setStageScale((s) => Math.max(s / 1.2, 0.05))}
                 sx={{ p: { xs: 0.5, sm: 0.8 } }}
               >
                 <ZoomOutIcon fontSize="small" />
@@ -917,10 +1510,7 @@ export default function SecurityCanvasEditor({
             <Tooltip title="Restablecer Vista y Centrar">
               <IconButton
                 size="small"
-                onClick={() => {
-                  setStageScale(0.75);
-                  setStagePos({ x: 40, y: 20 });
-                }}
+                onClick={fitAndCenterStage}
                 sx={{ p: { xs: 0.5, sm: 0.8 } }}
               >
                 <RestartAltIcon fontSize="small" />
@@ -1020,602 +1610,731 @@ export default function SecurityCanvasEditor({
 
       {/* Main Workspace Area */}
       <Box sx={{ display: "flex", flex: 1, position: "relative", overflow: "hidden" }}>
-        {/* Left Toolbar (CAD Controls with Rich Tooltips) */}
+        {/* 1. Desktop Left Sidebar: Compact Parent Categories with Flyouts */}
         {!isReadOnly && (
-          <Paper
-            elevation={2}
-            sx={{
-              width: 76,
-              p: 1,
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              gap: 1.2,
-              borderRadius: 0,
-              borderRight: "1px solid",
-              borderColor: "divider",
-              zIndex: 10,
-              bgcolor: "background.paper",
-            }}
-          >
-            {/* Tool 1: Pan / Select */}
-            <Tooltip
-              arrow
-              placement="right"
-              title={
-                <Box sx={{ p: 0.5, maxWidth: 220 }}>
-                  <Typography variant="subtitle2" fontWeight={700} color="warning.light">
-                    Mover / Paneo (Pan)
-                  </Typography>
-                  <Typography variant="caption" sx={{ color: "text.secondary", display: "block" }}>
-                    Arrastra el lienzo CAD para desplazarte. Rueda del mouse para acercar/alejar.
-                  </Typography>
-                </Box>
-              }
+          <>
+            <Paper
+              elevation={2}
+              sx={{
+                width: 72,
+                py: 1,
+                px: 0.5,
+                display: { xs: "none", md: "flex" },
+                flexDirection: "column",
+                alignItems: "center",
+                gap: 0.6,
+                borderRadius: 0,
+                borderRight: "1px solid",
+                borderColor: "divider",
+                zIndex: 10,
+                bgcolor: "background.paper",
+                overflowY: "auto",
+                overflowX: "hidden",
+                maxHeight: "100%",
+                "&::-webkit-scrollbar": { width: "3px" },
+                "&::-webkit-scrollbar-thumb": {
+                  backgroundColor: "rgba(255,255,255,0.2)",
+                  borderRadius: "3px",
+                },
+              }}
             >
-              <IconButton
-                color={activeTool === "select" ? "primary" : "default"}
-                onClick={() => setActiveTool("select")}
-                sx={{
-                  bgcolor: activeTool === "select" ? "action.selected" : "transparent",
-                  border: activeTool === "select" ? "1px solid" : "none",
-                  borderColor: "primary.main",
-                }}
-              >
-                <PanToolIcon />
-              </IconButton>
-            </Tooltip>
+              {visibleCategories.map((cat) => {
+                const active = isCategoryActive(cat.id);
+                return (
+                  <React.Fragment key={cat.id}>
+                    <Tooltip arrow placement="right" title={flyoutCategory === cat.id ? "" : cat.name}>
+                      <Box
+                        onClick={(e) => {
+                          if (cat.isDirect) {
+                            if (cat.id === "select") setActiveTool("select");
+                            if (cat.id === "perimeter") setActiveTool("perimeter");
+                            if (cat.id === "eraser") {
+                              setActiveTool("eraser");
+                              setSelectedElement(null);
+                            }
+                            setFlyoutCategory(null);
+                            setFlyoutAnchorEl(null);
+                          } else {
+                            if (flyoutCategory === cat.id) {
+                              setFlyoutCategory(null);
+                              setFlyoutAnchorEl(null);
+                            } else {
+                              setFlyoutCategory(cat.id);
+                              setFlyoutAnchorEl(e.currentTarget);
+                            }
+                          }
+                        }}
+                        sx={{
+                          width: 58,
+                          minHeight: 46,
+                          borderRadius: 2,
+                          display: "flex",
+                          flexDirection: "column",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          cursor: "pointer",
+                          bgcolor: active ? "action.selected" : "transparent",
+                          border: active ? "1.5px solid" : "1px solid transparent",
+                          borderColor: active
+                            ? cat.id === "eraser"
+                              ? "error.main"
+                              : cat.id === "perimeter"
+                              ? "secondary.main"
+                              : "primary.main"
+                            : "transparent",
+                          color: active
+                            ? cat.id === "eraser"
+                              ? "error.light"
+                              : cat.id === "perimeter"
+                              ? "secondary.light"
+                              : "primary.light"
+                            : "text.primary",
+                          transition: "all 0.15s ease",
+                          "&:hover": {
+                            bgcolor: "action.hover",
+                            borderColor: active ? "primary.main" : "divider",
+                          },
+                        }}
+                      >
+                        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+                          {cat.icon}
+                        </Box>
+                        <Typography
+                          variant="caption"
+                          sx={{
+                            fontSize: "0.58rem",
+                            fontWeight: active ? 800 : 500,
+                            lineHeight: 1,
+                            mt: 0.3,
+                            textAlign: "center",
+                            color: "inherit",
+                          }}
+                        >
+                          {cat.shortName}
+                        </Typography>
+                      </Box>
+                    </Tooltip>
+                    {/* Visual divider separating direct tools (mover, borrar, etc.) from placement categories */}
+                    {((cat.id === "eraser" && mode !== "geofence") || (cat.id === "perimeter" && mode === "geofence")) && (
+                      <Divider sx={{ width: "80%", my: 0.4, borderColor: "rgba(255, 255, 255, 0.12)" }} />
+                    )}
+                  </React.Fragment>
+                );
+              })}
+            </Paper>
 
-            <Divider sx={{ width: "100%" }} />
+            {/* Desktop Flyout Popover */}
+            <Popover
+              open={Boolean(flyoutAnchorEl && activeFlyoutCategoryObj && activeFlyoutCategoryObj.subItems)}
+              anchorEl={flyoutAnchorEl}
+              onClose={() => {
+                setFlyoutCategory(null);
+                setFlyoutAnchorEl(null);
+              }}
+              anchorOrigin={{ vertical: "top", horizontal: "right" }}
+              transformOrigin={{ vertical: "top", horizontal: "left" }}
+              disableRestoreFocus
+              sx={{
+                zIndex: 100000,
+              }}
+              slotProps={{
+                root: {
+                  sx: { zIndex: 100000 },
+                },
+                backdrop: {
+                  sx: { zIndex: 100000, bgcolor: "transparent" },
+                },
+                paper: {
+                  sx: {
+                    zIndex: 100000,
+                    bgcolor: "#0f172a",
+                    backgroundImage: "linear-gradient(rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0))",
+                    border: "1px solid rgba(255, 255, 255, 0.16)",
+                    borderRadius: 2.5,
+                    boxShadow: "0 20px 45px rgba(0, 0, 0, 0.75)",
+                    p: 2,
+                    width: (activeFlyoutCategoryObj?.subItems?.length || 0) > 3 ? 500 : 330,
+                    maxWidth: "calc(100vw - 90px)",
+                    boxSizing: "border-box",
+                    ml: 1,
+                  },
+                },
+              }}
+            >
+              {activeFlyoutCategoryObj && (
+                <Box>
+                  {/* Category Header */}
+                  <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 1.5 }}>
+                    <Stack direction="row" alignItems="center" spacing={1}>
+                      <Box sx={{ color: "primary.light", display: "flex" }}>
+                        {activeFlyoutCategoryObj.icon}
+                      </Box>
+                      <Typography variant="subtitle2" sx={{ fontWeight: 800, color: "#FFF", fontSize: "0.9rem" }}>
+                        {activeFlyoutCategoryObj.name}
+                      </Typography>
+                    </Stack>
+                    <IconButton
+                      size="small"
+                      onClick={() => {
+                        setFlyoutCategory(null);
+                        setFlyoutAnchorEl(null);
+                      }}
+                      sx={{ color: "rgba(255,255,255,0.6)", p: 0.5 }}
+                    >
+                      <CloseIcon fontSize="small" />
+                    </IconButton>
+                  </Box>
 
-            {/* Tool 2: Perimeter (Only in geofence mode) */}
-            {mode === "geofence" && (
-              <Tooltip
-                arrow
-                placement="right"
-                title={
-                  <Box sx={{ p: 0.5, maxWidth: 220 }}>
-                    <Typography variant="subtitle2" fontWeight={700} color="warning.light">
-                      Polígono Perimetral (Geofence)
-                    </Typography>
-                    <Typography variant="caption" sx={{ color: "text.secondary", display: "block" }}>
-                      Haz clic para marcar los vértices exteriores del conjunto. Base matemática para el control de rondas GPS.
+                  {/* Sub-items Grid */}
+                  <Box
+                    sx={{
+                      display: "grid",
+                      gridTemplateColumns:
+                        activeFlyoutCategoryObj.subItems && activeFlyoutCategoryObj.subItems.length > 3
+                          ? "repeat(2, minmax(0, 1fr))"
+                          : "1fr",
+                      gap: 1,
+                    }}
+                  >
+                    {activeFlyoutCategoryObj.subItems?.map((sub) => {
+                      const selected = isSubItemSelected(sub);
+                      return (
+                        <Box
+                          key={sub.id}
+                          onClick={() => handleSelectSubItem(sub)}
+                          sx={{
+                            p: 1,
+                            borderRadius: 2,
+                            bgcolor: selected ? "rgba(59, 130, 246, 0.2)" : "rgba(255, 255, 255, 0.04)",
+                            border: selected ? "1.5px solid #3B82F6" : "1px solid rgba(255, 255, 255, 0.08)",
+                            cursor: "pointer",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 1,
+                            minWidth: 0,
+                            boxSizing: "border-box",
+                            transition: "all 0.15s ease",
+                            "&:hover": {
+                              bgcolor: "rgba(59, 130, 246, 0.15)",
+                              borderColor: "rgba(59, 130, 246, 0.5)",
+                              transform: "translateY(-1px)",
+                            },
+                          }}
+                        >
+                          <Box
+                            sx={{
+                              width: 32,
+                              height: 32,
+                              borderRadius: 1.5,
+                              bgcolor: selected ? "primary.main" : "rgba(255, 255, 255, 0.08)",
+                              color: "#FFF",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              flexShrink: 0,
+                            }}
+                          >
+                            {sub.icon}
+                          </Box>
+                          <Box sx={{ minWidth: 0, flex: 1, overflow: "hidden" }}>
+                            <Typography
+                              variant="body2"
+                              sx={{
+                                fontWeight: 700,
+                                color: "#FFF",
+                                fontSize: "0.8rem",
+                                lineHeight: 1.2,
+                                whiteSpace: "nowrap",
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                              }}
+                            >
+                              {sub.name}
+                            </Typography>
+                            <Typography
+                              variant="caption"
+                              sx={{
+                                color: "rgba(255, 255, 255, 0.6)",
+                                fontSize: "0.68rem",
+                                display: "block",
+                                mt: 0.2,
+                                whiteSpace: "nowrap",
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                              }}
+                            >
+                              {sub.desc}
+                            </Typography>
+                          </Box>
+                        </Box>
+                      );
+                    })}
+                  </Box>
+
+                  {/* Device / Facility Status Picker in Flyout */}
+                  {activeFlyoutCategoryObj.hasStatusPicker && (
+                    <Box sx={{ mt: 1.5, pt: 1.5, borderTop: "1px solid rgba(255, 255, 255, 0.1)" }}>
+                      <Typography variant="caption" sx={{ color: "rgba(255, 255, 255, 0.7)", fontWeight: 700, display: "block", mb: 0.8 }}>
+                        Estado al posicionar:
+                      </Typography>
+                      <Stack direction="row" spacing={0.8}>
+                        {STATUS_OPTIONS.map((st) => {
+                          const isSelected = deviceStatusToAdd === st.id;
+                          return (
+                            <Box
+                              key={st.id}
+                              component="button"
+                              type="button"
+                              onClick={() => setDeviceStatusToAdd(st.id)}
+                              sx={{
+                                flex: 1,
+                                height: 28,
+                                borderRadius: "9999px",
+                                display: "inline-flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                gap: 0.6,
+                                px: 1,
+                                fontSize: "0.72rem",
+                                fontWeight: isSelected ? 800 : 600,
+                                fontFamily: "inherit",
+                                cursor: "pointer",
+                                outline: "none",
+                                transition: "all 0.18s ease-in-out",
+                                bgcolor: isSelected ? st.color : "rgba(255, 255, 255, 0.05)",
+                                color: isSelected ? "#FFFFFF" : "rgba(255, 255, 255, 0.85)",
+                                border: isSelected ? "1.5px solid #FFFFFF" : "1px solid rgba(255, 255, 255, 0.18)",
+                                boxShadow: isSelected ? `0 2px 8px ${st.color}88` : "none",
+                                "&:hover": {
+                                  bgcolor: st.color,
+                                  color: "#FFFFFF",
+                                  borderColor: isSelected ? "#FFFFFF" : st.color,
+                                  boxShadow: `0 0 10px ${st.color}77`,
+                                  "& .status-dot": {
+                                    color: "#FFFFFF",
+                                  },
+                                },
+                              }}
+                            >
+                              <Box
+                                component="span"
+                                className="status-dot"
+                                sx={{
+                                  color: isSelected ? "#FFFFFF" : st.color,
+                                  fontSize: "0.85rem",
+                                  lineHeight: 1,
+                                  transition: "color 0.18s ease-in-out",
+                                }}
+                              >
+                                ●
+                              </Box>
+                              <Box component="span" sx={{ lineHeight: 1 }}>
+                                {st.label}
+                              </Box>
+                            </Box>
+                          );
+                        })}
+                      </Stack>
+                    </Box>
+                  )}
+
+                  {/* Drawing & Shapes Color/Width Picker in Flyout */}
+                  {activeFlyoutCategoryObj.hasColorPicker && (
+                    <Box sx={{ mt: 1.5, pt: 1.5, borderTop: "1px solid rgba(255, 255, 255, 0.1)" }}>
+                      <Typography variant="caption" sx={{ color: "rgba(255, 255, 255, 0.7)", fontWeight: 700, display: "block", mb: 0.8 }}>
+                        Color de trazo / figura:
+                      </Typography>
+                      <Stack direction="row" spacing={0.8} alignItems="center" sx={{ mb: 1.2, flexWrap: "wrap", gap: 0.6 }}>
+                        {PALETTE_COLORS.map((c) => (
+                          <Box
+                            key={c}
+                            onClick={() => setStrokeColor(c)}
+                            sx={{
+                              width: 20,
+                              height: 20,
+                              borderRadius: "50%",
+                              bgcolor: c,
+                              cursor: "pointer",
+                              border: strokeColor === c ? "2px solid #FFF" : "1px solid rgba(255,255,255,0.3)",
+                              boxShadow: strokeColor === c ? `0 0 8px ${c}` : "none",
+                              transform: strokeColor === c ? "scale(1.2)" : "scale(1)",
+                              transition: "transform 0.15s ease",
+                              "&:hover": { transform: "scale(1.2)" },
+                            }}
+                          />
+                        ))}
+                      </Stack>
+                      <Typography variant="caption" sx={{ color: "rgba(255, 255, 255, 0.7)", fontWeight: 700, display: "block", mb: 0.8 }}>
+                        Grosor:
+                      </Typography>
+                      <Stack direction="row" spacing={0.6}>
+                        {STROKE_WIDTHS.map((w) => (
+                          <Chip
+                            key={w}
+                            label={`${w}px`}
+                            size="small"
+                            onClick={() => setStrokeWidth(w)}
+                            sx={{
+                              flex: 1,
+                              height: 24,
+                              fontSize: "0.72rem",
+                              fontWeight: strokeWidth === w ? 700 : 500,
+                              bgcolor: strokeWidth === w ? "primary.main" : "rgba(255, 255, 255, 0.1)",
+                              color: "#FFF",
+                              cursor: "pointer",
+                            }}
+                          />
+                        ))}
+                      </Stack>
+                    </Box>
+                  )}
+                </Box>
+              )}
+            </Popover>
+
+            {/* 2. Mobile Bottom Navigation: Floating Dock */}
+            <Paper
+              elevation={6}
+              sx={{
+                position: "absolute",
+                bottom: 12,
+                left: "50%",
+                transform: "translateX(-50%)",
+                zIndex: 1100,
+                maxWidth: "calc(100% - 24px)",
+                bgcolor: "rgba(15, 23, 42, 0.94)",
+                backdropFilter: "blur(16px)",
+                border: "1px solid rgba(255, 255, 255, 0.16)",
+                borderRadius: 4,
+                boxShadow: "0 10px 30px rgba(0, 0, 0, 0.7)",
+                px: 1,
+                py: 0.6,
+                display: { xs: "flex", md: "none" },
+                alignItems: "center",
+                gap: 0.6,
+                overflowX: "auto",
+                "&::-webkit-scrollbar": { display: "none" },
+                scrollbarWidth: "none",
+              }}
+            >
+              {visibleCategories.map((cat) => {
+                const active = isCategoryActive(cat.id);
+                return (
+                  <Box
+                    key={cat.id}
+                    onClick={() => {
+                      if (cat.isDirect) {
+                        if (cat.id === "select") setActiveTool("select");
+                        if (cat.id === "perimeter") setActiveTool("perimeter");
+                        if (cat.id === "eraser") {
+                          setActiveTool("eraser");
+                          setSelectedElement(null);
+                        }
+                        setMobileSheetCategory(null);
+                      } else {
+                        setMobileSheetCategory(cat.id);
+                      }
+                    }}
+                    sx={{
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      minWidth: 46,
+                      height: 44,
+                      borderRadius: 2,
+                      cursor: "pointer",
+                      bgcolor: active ? "rgba(59, 130, 246, 0.25)" : "transparent",
+                      border: active ? "1.5px solid #3B82F6" : "1px solid transparent",
+                      color: active ? "primary.light" : "rgba(255, 255, 255, 0.75)",
+                      transition: "all 0.15s ease",
+                      px: 0.5,
+                      "&:active": { transform: "scale(0.95)" },
+                    }}
+                  >
+                    <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      {cat.icon}
+                    </Box>
+                    <Typography
+                      variant="caption"
+                      sx={{
+                        fontSize: "0.58rem",
+                        fontWeight: active ? 800 : 500,
+                        lineHeight: 1,
+                        mt: 0.2,
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {cat.shortName}
                     </Typography>
                   </Box>
-                }
-              >
-                <IconButton
-                  color={activeTool === "perimeter" ? "secondary" : "default"}
-                  onClick={() => setActiveTool("perimeter")}
-                  sx={{
-                    bgcolor: activeTool === "perimeter" ? "action.selected" : "transparent",
-                    border: activeTool === "perimeter" ? "1px solid" : "none",
-                    borderColor: "secondary.main",
-                  }}
-                >
-                  <TimelineIcon />
-                </IconButton>
-              </Tooltip>
-            )}
+                );
+              })}
+            </Paper>
 
-            {/* Tools: Facilities and Devices (Only in study mode) */}
-            {mode === "study" && (
-              <>
-                <Tooltip
-                  arrow
-                  placement="right"
-                  title={
-                    <Box sx={{ p: 0.5, maxWidth: 220 }}>
-                      <Typography variant="subtitle2" fontWeight={700} color="warning.light">
-                        Cercado Eléctrico
-                      </Typography>
-                      <Typography variant="caption" sx={{ color: "text.secondary", display: "block" }}>
-                        Traza líneas punteadas de cerramientos electrificados perimetrales.
-                      </Typography>
-                    </Box>
-                  }
-                >
-                  <IconButton
-                    color={
-                      activeTool === "facility" && facilityTypeToAdd === "electric_fence"
-                        ? "warning"
-                        : "default"
-                    }
-                    onClick={() => {
-                      setActiveTool("facility");
-                      setFacilityTypeToAdd("electric_fence");
-                    }}
-                    sx={{
-                      bgcolor:
-                        activeTool === "facility" && facilityTypeToAdd === "electric_fence"
-                          ? "action.selected"
-                          : "transparent",
-                    }}
-                  >
-                    <FlashOnIcon />
-                  </IconButton>
-                </Tooltip>
-
-                {/* Tool: Perimeter Wall */}
-                <Tooltip
-                  arrow
-                  placement="right"
-                  title={
-                    <Box sx={{ p: 0.5, maxWidth: 220 }}>
-                      <Typography variant="subtitle2" fontWeight={700} color="warning.light">
-                        Muro / Cerramiento Físico
-                      </Typography>
-                      <Typography variant="caption" sx={{ color: "text.secondary", display: "block" }}>
-                        Traza muros continuos sólidos, rejas o concertinas de seguridad.
-                      </Typography>
-                    </Box>
-                  }
-                >
-                  <IconButton
-                    color={
-                      activeTool === "facility" && facilityTypeToAdd === "perimeter_wall"
-                        ? "warning"
-                        : "default"
-                    }
-                    onClick={() => {
-                      setActiveTool("facility");
-                      setFacilityTypeToAdd("perimeter_wall");
-                    }}
-                    sx={{
-                      bgcolor:
-                        activeTool === "facility" && facilityTypeToAdd === "perimeter_wall"
-                          ? "action.selected"
-                          : "transparent",
-                    }}
-                  >
-                    <FenceIcon />
-                  </IconButton>
-                </Tooltip>
-
-                {/* Tool: Motion Sensor Barrier (Trazos) */}
-                <Tooltip
-                  arrow
-                  placement="right"
-                  title={
-                    <Box sx={{ p: 0.5, maxWidth: 220 }}>
-                      <Typography variant="subtitle2" fontWeight={700} color="warning.light">
-                        Sensor de Movimiento (Trazos)
-                      </Typography>
-                      <Typography variant="caption" sx={{ color: "text.secondary", display: "block" }}>
-                        Traza líneas de puntitos de barreras fotoeléctricas o sensores infrarrojos por tramos.
-                      </Typography>
-                    </Box>
-                  }
-                >
-                  <IconButton
-                    color={
-                      activeTool === "facility" && facilityTypeToAdd === "motion_barrier"
-                        ? "warning"
-                        : "default"
-                    }
-                    onClick={() => {
-                      setActiveTool("facility");
-                      setFacilityTypeToAdd("motion_barrier");
-                    }}
-                    sx={{
-                      bgcolor:
-                        activeTool === "facility" && facilityTypeToAdd === "motion_barrier"
-                          ? "action.selected"
-                          : "transparent",
-                    }}
-                  >
-                    <LinearScaleIcon />
-                  </IconButton>
-                </Tooltip>
-
-                <Divider sx={{ width: "100%" }} />
-
-                {/* Device Tools */}
-                <Tooltip
-                  arrow
-                  placement="right"
-                  title={
-                    <Box sx={{ p: 0.5, maxWidth: 220 }}>
-                      <Typography variant="subtitle2" fontWeight={700} color="warning.light">
-                        Cámara Bullet (Fija Exterior)
-                      </Typography>
-                      <Typography variant="caption" sx={{ color: "text.secondary", display: "block" }}>
-                        Cámara exterior fija para vigilancia continua de perímetros y accesos.
-                      </Typography>
-                    </Box>
-                  }
-                >
-                  <IconButton
-                    color={
-                      activeTool === "device" && deviceTypeToAdd === "camera_bullet"
-                        ? "primary"
-                        : "default"
-                    }
-                    onClick={() => {
-                      setActiveTool("device");
-                      setDeviceTypeToAdd("camera_bullet");
-                    }}
-                    sx={{
-                      bgcolor:
-                        activeTool === "device" && deviceTypeToAdd === "camera_bullet"
-                          ? "action.selected"
-                          : "transparent",
-                    }}
-                  >
-                    <VideocamIcon />
-                  </IconButton>
-                </Tooltip>
-
-                <Tooltip
-                  arrow
-                  placement="right"
-                  title={
-                    <Box sx={{ p: 0.5, maxWidth: 220 }}>
-                      <Typography variant="subtitle2" fontWeight={700} color="warning.light">
-                        Cámara PTZ (Motorizada 360°)
-                      </Typography>
-                      <Typography variant="caption" sx={{ color: "text.secondary", display: "block" }}>
-                        Cámara motorizada con zoom de largo alcance para grandes áreas abiertas.
-                      </Typography>
-                    </Box>
-                  }
-                >
-                  <IconButton
-                    color={
-                      activeTool === "device" && deviceTypeToAdd === "camera_ptz"
-                        ? "primary"
-                        : "default"
-                    }
-                    onClick={() => {
-                      setActiveTool("device");
-                      setDeviceTypeToAdd("camera_ptz");
-                    }}
-                    sx={{
-                      bgcolor:
-                        activeTool === "device" && deviceTypeToAdd === "camera_ptz"
-                          ? "action.selected"
-                          : "transparent",
-                    }}
-                  >
-                    <VideocamIcon sx={{ transform: "rotate(45deg)" }} />
-                  </IconButton>
-                </Tooltip>
-
-                <Tooltip
-                  arrow
-                  placement="right"
-                  title={
-                    <Box sx={{ p: 0.5, maxWidth: 220 }}>
-                      <Typography variant="subtitle2" fontWeight={700} color="warning.light">
-                        Sensor de Movimiento / Intrusión
-                      </Typography>
-                      <Typography variant="caption" sx={{ color: "text.secondary", display: "block" }}>
-                        Sensor volumétrico infrarrojo o detector puntual de paso.
-                      </Typography>
-                    </Box>
-                  }
-                >
-                  <IconButton
-                    color={
-                      activeTool === "device" && deviceTypeToAdd === "sensor_motion"
-                        ? "warning"
-                        : "default"
-                    }
-                    onClick={() => {
-                      setActiveTool("device");
-                      setDeviceTypeToAdd("sensor_motion");
-                    }}
-                    sx={{
-                      bgcolor:
-                        activeTool === "device" && deviceTypeToAdd === "sensor_motion"
-                          ? "action.selected"
-                          : "transparent",
-                    }}
-                  >
-                    <SensorsIcon />
-                  </IconButton>
-                </Tooltip>
-
-                <Tooltip
-                  arrow
-                  placement="right"
-                  title={
-                    <Box sx={{ p: 0.5, maxWidth: 220 }}>
-                      <Typography variant="subtitle2" fontWeight={700} color="warning.light">
-                        Portería / Puesto de Control
-                      </Typography>
-                      <Typography variant="caption" sx={{ color: "text.secondary", display: "block" }}>
-                        Garita física, recepción o punto fijo de guardas de seguridad.
-                      </Typography>
-                    </Box>
-                  }
-                >
-                  <IconButton
-                    color={
-                      activeTool === "device" && deviceTypeToAdd === "gatehouse"
-                        ? "success"
-                        : "default"
-                    }
-                    onClick={() => {
-                      setActiveTool("device");
-                      setDeviceTypeToAdd("gatehouse");
-                    }}
-                    sx={{
-                      bgcolor:
-                        activeTool === "device" && deviceTypeToAdd === "gatehouse"
-                          ? "action.selected"
-                          : "transparent",
-                    }}
-                  >
-                    <MeetingRoomIcon />
-                  </IconButton>
-                </Tooltip>
-
-                <Tooltip
-                  arrow
-                  placement="right"
-                  title={
-                    <Box sx={{ p: 0.5, maxWidth: 220 }}>
-                      <Typography variant="subtitle2" fontWeight={700} color="warning.light">
-                        Talanquera / Barrera Vehicular
-                      </Typography>
-                      <Typography variant="caption" sx={{ color: "text.secondary", display: "block" }}>
-                        Punto de control de entrada y salida de vehículos con barrera automática.
-                      </Typography>
-                    </Box>
-                  }
-                >
-                  <IconButton
-                    color={
-                      activeTool === "device" && deviceTypeToAdd === "vehicle_barrier"
-                        ? "secondary"
-                        : "default"
-                    }
-                    onClick={() => {
-                      setActiveTool("device");
-                      setDeviceTypeToAdd("vehicle_barrier");
-                    }}
-                    sx={{
-                      bgcolor:
-                        activeTool === "device" && deviceTypeToAdd === "vehicle_barrier"
-                          ? "action.selected"
-                          : "transparent",
-                    }}
-                  >
-                    <DirectionsCarIcon />
-                  </IconButton>
-                </Tooltip>
-
-                {/* Status Picker for New Devices */}
-                <Divider sx={{ width: "100%", my: 0.5 }} />
-                <Typography
-                  variant="caption"
-                  sx={{
-                    fontSize: "0.6rem",
-                    fontWeight: 800,
-                    color: "text.secondary",
-                    textAlign: "center",
-                    textTransform: "uppercase",
-                    letterSpacing: 0.5,
-                  }}
-                >
-                  Estado
-                </Typography>
-
-                <Tooltip
-                  arrow
-                  placement="right"
-                  title={
-                    <Box sx={{ p: 0.5 }}>
-                      <Typography variant="subtitle2" fontWeight={700} sx={{ color: "#10B981" }}>
-                        Existente (Verde)
-                      </Typography>
-                      <Typography variant="caption" sx={{ color: "text.secondary", display: "block" }}>
-                        Equipo ya instalado y operativo en el cliente.
-                      </Typography>
-                    </Box>
-                  }
-                >
-                  <IconButton
-                    size="small"
-                    onClick={() => {
-                      setDeviceStatusToAdd("EXISTING");
-                    }}
-                    sx={{
-                      width: 32,
-                      height: 32,
-                      bgcolor:
-                        deviceStatusToAdd === "EXISTING"
-                          ? "rgba(16, 185, 129, 0.25)"
-                          : "transparent",
-                      border: "2px solid",
-                      borderColor:
-                        deviceStatusToAdd === "EXISTING"
-                          ? "#10B981"
-                          : "rgba(16, 185, 129, 0.4)",
-                      "&:hover": {
-                        bgcolor: "rgba(16, 185, 129, 0.15)",
-                        borderColor: "#10B981",
-                      },
-                    }}
-                  >
-                    <Box
-                      sx={{
-                        width: 12,
-                        height: 12,
-                        borderRadius: "50%",
-                        bgcolor: "#10B981",
-                        boxShadow:
-                          deviceStatusToAdd === "EXISTING"
-                            ? "0 0 6px #10B981"
-                            : "none",
-                      }}
-                    />
-                  </IconButton>
-                </Tooltip>
-
-                <Tooltip
-                  arrow
-                  placement="right"
-                  title={
-                    <Box sx={{ p: 0.5 }}>
-                      <Typography variant="subtitle2" fontWeight={700} sx={{ color: "#3B82F6" }}>
-                        A Implementar / Nuevo (Azul)
-                      </Typography>
-                      <Typography variant="caption" sx={{ color: "text.secondary", display: "block" }}>
-                        Propuesta de nuevo equipo a instalar (nuevo negocio).
-                      </Typography>
-                    </Box>
-                  }
-                >
-                  <IconButton
-                    size="small"
-                    onClick={() => {
-                      setDeviceStatusToAdd("PLANNED");
-                    }}
-                    sx={{
-                      width: 32,
-                      height: 32,
-                      bgcolor:
-                        deviceStatusToAdd === "PLANNED"
-                          ? "rgba(59, 130, 246, 0.25)"
-                          : "transparent",
-                      border: "2px solid",
-                      borderColor:
-                        deviceStatusToAdd === "PLANNED"
-                          ? "#3B82F6"
-                          : "rgba(59, 130, 246, 0.4)",
-                      "&:hover": {
-                        bgcolor: "rgba(59, 130, 246, 0.15)",
-                        borderColor: "#3B82F6",
-                      },
-                    }}
-                  >
-                    <Box
-                      sx={{
-                        width: 12,
-                        height: 12,
-                        borderRadius: "50%",
-                        bgcolor: "#3B82F6",
-                        boxShadow:
-                          deviceStatusToAdd === "PLANNED"
-                            ? "0 0 6px #3B82F6"
-                            : "none",
-                      }}
-                    />
-                  </IconButton>
-                </Tooltip>
-
-                <Tooltip
-                  arrow
-                  placement="right"
-                  title={
-                    <Box sx={{ p: 0.5 }}>
-                      <Typography variant="subtitle2" fontWeight={700} sx={{ color: "#EF4444" }}>
-                        Dañada / Inoperativa (Rojo)
-                      </Typography>
-                      <Typography variant="caption" sx={{ color: "text.secondary", display: "block" }}>
-                        Equipo averiado, quemado o que requiere mantenimiento.
-                      </Typography>
-                    </Box>
-                  }
-                >
-                  <IconButton
-                    size="small"
-                    onClick={() => {
-                      setDeviceStatusToAdd("DAMAGED");
-                    }}
-                    sx={{
-                      width: 32,
-                      height: 32,
-                      bgcolor:
-                        deviceStatusToAdd === "DAMAGED"
-                          ? "rgba(239, 68, 68, 0.25)"
-                          : "transparent",
-                      border: "2px solid",
-                      borderColor:
-                        deviceStatusToAdd === "DAMAGED"
-                          ? "#EF4444"
-                          : "rgba(239, 68, 68, 0.4)",
-                      "&:hover": {
-                        bgcolor: "rgba(239, 68, 68, 0.15)",
-                        borderColor: "#EF4444",
-                      },
-                    }}
-                  >
-                    <Box
-                      sx={{
-                        width: 12,
-                        height: 12,
-                        borderRadius: "50%",
-                        bgcolor: "#EF4444",
-                        boxShadow:
-                          deviceStatusToAdd === "DAMAGED"
-                            ? "0 0 6px #EF4444"
-                            : "none",
-                      }}
-                    />
-                  </IconButton>
-                </Tooltip>
-              </>
-            )}
-
-            <Divider sx={{ width: "100%" }} />
-
-            {/* Tool: Eraser */}
-            <Tooltip
-              arrow
-              placement="right"
-              title={
-                <Box sx={{ p: 0.5, maxWidth: 220 }}>
-                  <Typography variant="subtitle2" fontWeight={700} color="warning.light">
-                    Goma de Borrar / Eliminar
-                  </Typography>
-                  <Typography variant="caption" sx={{ color: "text.secondary", display: "block" }}>
-                    Haz clic directo sobre cualquier cámara, sensor, muro, cercado o vértice para eliminarlo inmediatamente del plano.
-                  </Typography>
-                </Box>
-              }
+            {/* Mobile Bottom Sheet Drawer */}
+            <Drawer
+              anchor="bottom"
+              open={Boolean(mobileSheetCategory && activeMobileCategoryObj && activeMobileCategoryObj.subItems)}
+              onClose={() => setMobileSheetCategory(null)}
+              sx={{ zIndex: 100000 }}
+              slotProps={{
+                backdrop: {
+                  sx: { zIndex: 100000, bgcolor: "rgba(0, 0, 0, 0.65)" },
+                },
+              }}
+              PaperProps={{
+                sx: {
+                  zIndex: 100000,
+                  bgcolor: "#0f172a",
+                  borderTopLeftRadius: 20,
+                  borderTopRightRadius: 20,
+                  border: "1px solid rgba(255, 255, 255, 0.16)",
+                  borderBottom: "none",
+                  p: 2,
+                  pb: 4,
+                  maxHeight: "80vh",
+                  overflowY: "auto",
+                },
+              }}
             >
-              <IconButton
-                color={activeTool === "eraser" ? "error" : "default"}
-                onClick={() => {
-                  setActiveTool("eraser");
-                  setSelectedElement(null);
-                }}
-                sx={{
-                  bgcolor: activeTool === "eraser" ? "action.selected" : "transparent",
-                  border: activeTool === "eraser" ? "1px solid" : "none",
-                  borderColor: "error.main",
-                }}
-              >
-                <DeleteOutlineIcon />
-              </IconButton>
-            </Tooltip>
-          </Paper>
+              {activeMobileCategoryObj && (
+                <Box>
+                  {/* Drag Handle Bar */}
+                  <Box
+                    sx={{
+                      width: 38,
+                      height: 4,
+                      borderRadius: 2,
+                      bgcolor: "rgba(255, 255, 255, 0.3)",
+                      mx: "auto",
+                      mb: 2,
+                    }}
+                  />
+
+                  {/* Drawer Header */}
+                  <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 2 }}>
+                    <Stack direction="row" alignItems="center" spacing={1}>
+                      <Box sx={{ color: "primary.light", display: "flex" }}>
+                        {activeMobileCategoryObj.icon}
+                      </Box>
+                      <Typography variant="subtitle1" sx={{ fontWeight: 800, color: "#FFF" }}>
+                        {activeMobileCategoryObj.name}
+                      </Typography>
+                    </Stack>
+                    <IconButton size="small" onClick={() => setMobileSheetCategory(null)} sx={{ color: "rgba(255,255,255,0.7)" }}>
+                      <CloseIcon fontSize="small" />
+                    </IconButton>
+                  </Box>
+
+                  {/* Subitems Grid */}
+                  <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 1 }}>
+                    {activeMobileCategoryObj.subItems?.map((sub) => {
+                      const selected = isSubItemSelected(sub);
+                      return (
+                        <Box
+                          key={sub.id}
+                          onClick={() => handleSelectSubItem(sub)}
+                          sx={{
+                            p: 1.2,
+                            borderRadius: 2,
+                            bgcolor: selected ? "rgba(59, 130, 246, 0.2)" : "rgba(255, 255, 255, 0.04)",
+                            border: selected ? "1.5px solid #3B82F6" : "1px solid rgba(255, 255, 255, 0.08)",
+                            cursor: "pointer",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 1.2,
+                            transition: "all 0.15s ease",
+                            "&:active": { transform: "scale(0.97)" },
+                          }}
+                        >
+                          <Box
+                            sx={{
+                              width: 34,
+                              height: 34,
+                              borderRadius: 1.5,
+                              bgcolor: selected ? "primary.main" : "rgba(255, 255, 255, 0.08)",
+                              color: "#FFF",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              flexShrink: 0,
+                            }}
+                          >
+                            {sub.icon}
+                          </Box>
+                          <Box sx={{ minWidth: 0, flex: 1 }}>
+                            <Typography
+                              variant="body2"
+                              sx={{ fontWeight: 700, color: "#FFF", fontSize: "0.82rem", lineHeight: 1.2 }}
+                            >
+                              {sub.name}
+                            </Typography>
+                            <Typography
+                              variant="caption"
+                              sx={{
+                                color: "rgba(255, 255, 255, 0.6)",
+                                fontSize: "0.68rem",
+                                display: "block",
+                                mt: 0.2,
+                                whiteSpace: "nowrap",
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                              }}
+                            >
+                              {sub.desc}
+                            </Typography>
+                          </Box>
+                        </Box>
+                      );
+                    })}
+                  </Box>
+
+                  {/* Device / Facility Status Picker in Drawer */}
+                  {activeMobileCategoryObj.hasStatusPicker && (
+                    <Box sx={{ mt: 2, pt: 1.5, borderTop: "1px solid rgba(255, 255, 255, 0.1)" }}>
+                      <Typography variant="caption" sx={{ color: "rgba(255, 255, 255, 0.7)", fontWeight: 700, display: "block", mb: 0.8 }}>
+                        Estado al posicionar:
+                      </Typography>
+                      <Stack direction="row" spacing={1}>
+                        {STATUS_OPTIONS.map((st) => {
+                          const isSelected = deviceStatusToAdd === st.id;
+                          return (
+                            <Box
+                              key={st.id}
+                              component="button"
+                              type="button"
+                              onClick={() => setDeviceStatusToAdd(st.id)}
+                              sx={{
+                                flex: 1,
+                                height: 28,
+                                borderRadius: "9999px",
+                                display: "inline-flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                gap: 0.6,
+                                px: 1,
+                                fontSize: "0.75rem",
+                                fontWeight: isSelected ? 800 : 600,
+                                fontFamily: "inherit",
+                                cursor: "pointer",
+                                outline: "none",
+                                transition: "all 0.18s ease-in-out",
+                                bgcolor: isSelected ? st.color : "rgba(255, 255, 255, 0.05)",
+                                color: isSelected ? "#FFFFFF" : "rgba(255, 255, 255, 0.85)",
+                                border: isSelected ? "1.5px solid #FFFFFF" : "1px solid rgba(255, 255, 255, 0.18)",
+                                boxShadow: isSelected ? `0 2px 8px ${st.color}88` : "none",
+                                "&:hover": {
+                                  bgcolor: st.color,
+                                  color: "#FFFFFF",
+                                  borderColor: isSelected ? "#FFFFFF" : st.color,
+                                  boxShadow: `0 0 10px ${st.color}77`,
+                                  "& .status-dot": {
+                                    color: "#FFFFFF",
+                                  },
+                                },
+                              }}
+                            >
+                              <Box
+                                component="span"
+                                className="status-dot"
+                                sx={{
+                                  color: isSelected ? "#FFFFFF" : st.color,
+                                  fontSize: "0.85rem",
+                                  lineHeight: 1,
+                                  transition: "color 0.18s ease-in-out",
+                                }}
+                              >
+                                ●
+                              </Box>
+                              <Box component="span" sx={{ lineHeight: 1 }}>
+                                {st.label}
+                              </Box>
+                            </Box>
+                          );
+                        })}
+                      </Stack>
+                    </Box>
+                  )}
+
+                  {/* Drawing & Shapes Color/Width Picker in Drawer */}
+                  {activeMobileCategoryObj.hasColorPicker && (
+                    <Box sx={{ mt: 2, pt: 1.5, borderTop: "1px solid rgba(255, 255, 255, 0.1)" }}>
+                      <Typography variant="caption" sx={{ color: "rgba(255, 255, 255, 0.7)", fontWeight: 700, display: "block", mb: 0.8 }}>
+                        Color de trazo / figura:
+                      </Typography>
+                      <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1.5, flexWrap: "wrap", gap: 0.8 }}>
+                        {PALETTE_COLORS.map((c) => (
+                          <Box
+                            key={c}
+                            onClick={() => setStrokeColor(c)}
+                            sx={{
+                              width: 24,
+                              height: 24,
+                              borderRadius: "50%",
+                              bgcolor: c,
+                              cursor: "pointer",
+                              border: strokeColor === c ? "2px solid #FFF" : "1px solid rgba(255,255,255,0.3)",
+                              boxShadow: strokeColor === c ? `0 0 8px ${c}` : "none",
+                              transform: strokeColor === c ? "scale(1.2)" : "scale(1)",
+                              transition: "transform 0.15s ease",
+                            }}
+                          />
+                        ))}
+                      </Stack>
+                      <Typography variant="caption" sx={{ color: "rgba(255, 255, 255, 0.7)", fontWeight: 700, display: "block", mb: 0.8 }}>
+                        Grosor:
+                      </Typography>
+                      <Stack direction="row" spacing={0.8}>
+                        {STROKE_WIDTHS.map((w) => (
+                          <Chip
+                            key={w}
+                            label={`${w}px`}
+                            size="small"
+                            onClick={() => setStrokeWidth(w)}
+                            sx={{
+                              flex: 1,
+                              height: 26,
+                              fontSize: "0.75rem",
+                              fontWeight: strokeWidth === w ? 700 : 500,
+                              bgcolor: strokeWidth === w ? "primary.main" : "rgba(255, 255, 255, 0.1)",
+                              color: "#FFF",
+                              cursor: "pointer",
+                            }}
+                          />
+                        ))}
+                      </Stack>
+                    </Box>
+                  )}
+                </Box>
+              )}
+            </Drawer>
+          </>
         )}
 
         {/* Floating Contextual Instruction Bar */}
         <Box
           sx={{
             position: "absolute",
-            top: 12,
-            left: !isReadOnly ? 96 : 16,
+            top: { xs: 8, md: 12 },
+            left: !isReadOnly ? { xs: 8, md: 88 } : 16,
+            right: { xs: 8, md: "auto" },
+            maxWidth: { xs: "calc(100% - 16px)", md: "calc(100% - 110px)" },
             zIndex: 10,
-            bgcolor: "rgba(0,0,0,0.85)",
-            backdropFilter: "blur(6px)",
+            bgcolor: "rgba(15, 23, 42, 0.94)",
+            backdropFilter: "blur(12px)",
             color: "white",
-            px: 2,
-            py: 0.8,
-            borderRadius: 2,
-            display: "flex",
-            alignItems: "center",
-            gap: 2,
-            border: "1px solid rgba(255,255,255,0.15)",
+            px: { xs: 1.2, sm: 2 },
+            py: { xs: 0.8, sm: 1 },
+            borderRadius: 2.5,
+            border: "1px solid rgba(255, 255, 255, 0.16)",
+            boxShadow: "0 8px 32px rgba(0, 0, 0, 0.5)",
+            boxSizing: "border-box",
             pointerEvents:
               selectedElement ||
               activeTool === "perimeter" ||
-              activeTool === "facility"
+              activeTool === "facility" ||
+              ["pencil", "marker", "highlighter", "shape"].includes(activeTool)
                 ? "auto"
                 : "none",
           }}
@@ -1629,90 +2348,211 @@ export default function SecurityCanvasEditor({
 
           {/* Selected Element Action Bar */}
           {selectedElement && !isReadOnly && (
-            <Stack
-              direction="row"
-              alignItems="center"
-              spacing={1.5}
+            <Box
               sx={{
-                bgcolor: "rgba(20, 25, 40, 0.95)",
-                px: 1.5,
-                py: 0.5,
-                borderRadius: 1.5,
-                border: "1px solid rgba(255, 255, 255, 0.2)",
+                width: "100%",
+                display: "flex",
+                flexDirection: { xs: "column", md: "row" },
+                alignItems: { xs: "stretch", md: "center" },
+                gap: { xs: 0.8, md: 1.5 },
               }}
             >
-              <Typography variant="body2" sx={{ fontSize: "0.85rem", fontWeight: 700, color: "#fff" }}>
-                Seleccionado: {getSelectedElementName()}
-              </Typography>
+              {/* Header: Element Title and Mobile Action Buttons */}
+              <Box
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 1,
+                  minWidth: 0,
+                  flex: 1,
+                }}
+              >
+                <Stack direction="row" alignItems="center" spacing={1} sx={{ minWidth: 0, flex: 1 }}>
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      fontSize: { xs: "0.8rem", sm: "0.88rem" },
+                      fontWeight: 800,
+                      color: "#FFF",
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                    }}
+                  >
+                    {getSelectedElementName()}
+                  </Typography>
+                </Stack>
 
+                {/* Mobile action buttons (Delete & Close) in first row */}
+                <Box sx={{ display: { xs: "flex", md: "none" }, alignItems: "center", gap: 0.8, flexShrink: 0 }}>
+                  <Button
+                    size="small"
+                    variant="contained"
+                    color="error"
+                    startIcon={<DeleteIcon sx={{ fontSize: "0.95rem !important" }} />}
+                    onClick={handleDeleteSelected}
+                    sx={{
+                      py: 0.25,
+                      px: 1,
+                      textTransform: "none",
+                      fontSize: "0.72rem",
+                      fontWeight: 700,
+                      borderRadius: 1.5,
+                      minWidth: 0,
+                    }}
+                  >
+                    Eliminar
+                  </Button>
+                  <IconButton
+                    size="small"
+                    onClick={() => setSelectedElement(null)}
+                    title="Cerrar"
+                    sx={{
+                      color: "rgba(255, 255, 255, 0.7)",
+                      bgcolor: "rgba(255, 255, 255, 0.08)",
+                      p: 0.4,
+                      borderRadius: 1.5,
+                      "&:hover": {
+                        bgcolor: "rgba(255, 255, 255, 0.16)",
+                        color: "#FFF",
+                      },
+                    }}
+                  >
+                    <CloseIcon fontSize="small" />
+                  </IconButton>
+                </Box>
+              </Box>
+
+              {/* Status Picker: Full-width row on mobile, inline on desktop */}
               {(selectedElement.type === "device" || selectedElement.type === "facility") && (
-                <Stack direction="row" spacing={0.5} alignItems="center" sx={{ mx: 0.5 }}>
+                <Box
+                  sx={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 0.8,
+                    pt: { xs: 0.6, md: 0 },
+                    borderTop: { xs: "1px solid rgba(255, 255, 255, 0.08)", md: "none" },
+                  }}
+                >
                   <Typography
                     variant="caption"
-                    sx={{ color: "rgba(255, 255, 255, 0.6)", fontSize: "0.72rem", mr: 0.5 }}
+                    sx={{
+                      color: "rgba(255, 255, 255, 0.65)",
+                      fontSize: "0.72rem",
+                      fontWeight: 700,
+                      flexShrink: 0,
+                    }}
                   >
                     Estado:
                   </Typography>
-                  {(["EXISTING", "PLANNED", "DAMAGED"] as DeviceStatus[]).map((st) => {
-                    let isCurrent = false;
-                    if (selectedElement.type === "device") {
-                      const selDev = canvasData.devices.find((d) => d.id === selectedElement.id);
-                      isCurrent = (selDev?.status || "EXISTING") === st;
-                    } else if (selectedElement.type === "facility") {
-                      const selFac = canvasData.facilities.find((f) => f.id === selectedElement.id);
-                      isCurrent = (selFac?.status || "EXISTING") === st;
-                    }
-                    const color = getDeviceStatusColor(st);
-                    return (
-                      <Chip
-                        key={st}
-                        size="small"
-                        label={getDeviceStatusLabel(st)}
-                        onClick={() => {
-                          if (selectedElement.type === "device") {
-                            handleChangeDeviceStatus(selectedElement.id, st);
-                          } else if (selectedElement.type === "facility") {
-                            handleChangeFacilityStatus(selectedElement.id, st);
-                          }
-                        }}
-                        sx={{
-                          height: 22,
-                          fontSize: "0.72rem",
-                          fontWeight: isCurrent ? 700 : 500,
-                          color: isCurrent ? "#fff" : "rgba(255, 255, 255, 0.7)",
-                          bgcolor: isCurrent ? color : "rgba(255, 255, 255, 0.08)",
-                          border: `1px solid ${isCurrent ? color : "rgba(255, 255, 255, 0.2)"}`,
-                          cursor: "pointer",
-                          "&:hover": {
-                            bgcolor: isCurrent ? color : "rgba(255, 255, 255, 0.15)",
-                          },
-                        }}
-                      />
-                    );
-                  })}
-                </Stack>
+                  <Stack direction="row" spacing={0.8} sx={{ flex: 1 }}>
+                    {STATUS_OPTIONS.map((st) => {
+                      let isCurrent = false;
+                      if (selectedElement.type === "device") {
+                        const selDev = canvasData.devices.find((d) => d.id === selectedElement.id);
+                        isCurrent = (selDev?.status || "EXISTING") === st.id;
+                      } else if (selectedElement.type === "facility") {
+                        const selFac = canvasData.facilities.find((f) => f.id === selectedElement.id);
+                        isCurrent = (selFac?.status || "EXISTING") === st.id;
+                      }
+                      return (
+                        <Box
+                          key={st.id}
+                          component="button"
+                          type="button"
+                          onClick={() => {
+                            if (selectedElement.type === "device") {
+                              handleChangeDeviceStatus(selectedElement.id, st.id);
+                            } else if (selectedElement.type === "facility") {
+                              handleChangeFacilityStatus(selectedElement.id, st.id);
+                            }
+                          }}
+                          sx={{
+                            flex: 1,
+                            height: 25,
+                            borderRadius: "9999px",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            gap: 0.5,
+                            px: 0.8,
+                            fontSize: "0.72rem",
+                            fontWeight: isCurrent ? 800 : 500,
+                            fontFamily: "inherit",
+                            cursor: "pointer",
+                            outline: "none",
+                            transition: "all 0.15s ease",
+                            bgcolor: isCurrent ? st.color : "rgba(255, 255, 255, 0.06)",
+                            color: isCurrent ? "#FFF" : "rgba(255, 255, 255, 0.75)",
+                            border: isCurrent ? "1.5px solid #FFFFFF" : "1px solid rgba(255, 255, 255, 0.15)",
+                            boxShadow: isCurrent ? `0 2px 6px ${st.color}88` : "none",
+                            "&:hover": {
+                              bgcolor: st.color,
+                              color: "#FFF",
+                              borderColor: "#FFF",
+                              "& .status-pill-dot": { color: "#FFF" },
+                            },
+                          }}
+                        >
+                          <Box
+                            component="span"
+                            className="status-pill-dot"
+                            sx={{
+                              color: isCurrent ? "#FFF" : st.color,
+                              fontSize: "0.75rem",
+                              lineHeight: 1,
+                            }}
+                          >
+                            ●
+                          </Box>
+                          <Box component="span" sx={{ lineHeight: 1 }}>
+                            {st.label}
+                          </Box>
+                        </Box>
+                      );
+                    })}
+                  </Stack>
+                </Box>
               )}
 
-              <Button
-                size="small"
-                variant="contained"
-                color="error"
-                startIcon={<DeleteIcon />}
-                onClick={handleDeleteSelected}
-                sx={{ py: 0.2, textTransform: "none", fontSize: "0.75rem", fontWeight: 700 }}
-              >
-                Eliminar (Supr)
-              </Button>
-              <Button
-                size="small"
-                variant="outlined"
-                color="inherit"
-                onClick={() => setSelectedElement(null)}
-                sx={{ py: 0.2, textTransform: "none", fontSize: "0.75rem" }}
-              >
-                Cerrar (Esc)
-              </Button>
-            </Stack>
+              {/* Desktop action buttons inline */}
+              <Box sx={{ display: { xs: "none", md: "flex" }, alignItems: "center", gap: 1, flexShrink: 0 }}>
+                <Button
+                  size="small"
+                  variant="contained"
+                  color="error"
+                  startIcon={<DeleteIcon sx={{ fontSize: "0.95rem !important" }} />}
+                  onClick={handleDeleteSelected}
+                  sx={{
+                    py: 0.3,
+                    px: 1.5,
+                    textTransform: "none",
+                    fontSize: "0.75rem",
+                    fontWeight: 700,
+                    borderRadius: 1.5,
+                  }}
+                >
+                  Eliminar (Supr)
+                </Button>
+                <Button
+                  size="small"
+                  variant="outlined"
+                  color="inherit"
+                  onClick={() => setSelectedElement(null)}
+                  sx={{
+                    py: 0.3,
+                    px: 1.5,
+                    textTransform: "none",
+                    fontSize: "0.75rem",
+                    borderRadius: 1.5,
+                    borderColor: "rgba(255, 255, 255, 0.3)",
+                  }}
+                >
+                  Cerrar (Esc)
+                </Button>
+              </Box>
+            </Box>
           )}
 
           {!imageLoading && !selectedElement && activeTool === "eraser" && (
@@ -1809,10 +2649,111 @@ export default function SecurityCanvasEditor({
               </span>
             </Typography>
           )}
+
+          {!imageLoading && ["pencil", "marker", "highlighter", "shape"].includes(activeTool) && (
+            <Stack direction="row" alignItems="center" spacing={1.5} sx={{ flexWrap: "wrap", gap: 1 }}>
+              <Typography variant="body2" sx={{ fontSize: "0.85rem", fontWeight: 700, color: "#fff" }}>
+                {activeTool === "pencil"
+                  ? "✏️ Lápiz"
+                  : activeTool === "marker"
+                  ? "🖌️ Marcador"
+                  : activeTool === "highlighter"
+                  ? "🖍️ Resaltador"
+                  : "📐 Figura"}
+              </Typography>
+
+              {/* Color Swatches */}
+              <Stack direction="row" spacing={0.6} alignItems="center">
+                <Typography variant="caption" sx={{ color: "rgba(255, 255, 255, 0.7)", fontSize: "0.72rem", mr: 0.2 }}>
+                  Color:
+                </Typography>
+                {PALETTE_COLORS.map((c) => (
+                  <Box
+                    key={c}
+                    onClick={() => setStrokeColor(c)}
+                    sx={{
+                      width: 18,
+                      height: 18,
+                      borderRadius: "50%",
+                      bgcolor: c,
+                      cursor: "pointer",
+                      border: strokeColor === c ? "2px solid #FFF" : "1px solid rgba(255,255,255,0.3)",
+                      boxShadow: strokeColor === c ? "0 0 6px " + c : "none",
+                      transform: strokeColor === c ? "scale(1.2)" : "scale(1)",
+                      transition: "transform 0.15s ease",
+                      "&:hover": { transform: "scale(1.2)" },
+                    }}
+                  />
+                ))}
+              </Stack>
+
+              {/* Stroke Width Selector */}
+              <Stack direction="row" spacing={0.5} alignItems="center">
+                <Typography variant="caption" sx={{ color: "rgba(255, 255, 255, 0.7)", fontSize: "0.72rem", mr: 0.2 }}>
+                  Grosor:
+                </Typography>
+                {STROKE_WIDTHS.map((w) => (
+                  <Chip
+                    key={w}
+                    label={`${w}px`}
+                    size="small"
+                    onClick={() => setStrokeWidth(w)}
+                    sx={{
+                      height: 22,
+                      fontSize: "0.72rem",
+                      fontWeight: strokeWidth === w ? 700 : 500,
+                      bgcolor: strokeWidth === w ? "primary.main" : "rgba(255, 255, 255, 0.1)",
+                      color: "#FFF",
+                      cursor: "pointer",
+                      "&:hover": {
+                        bgcolor: strokeWidth === w ? "primary.dark" : "rgba(255, 255, 255, 0.2)",
+                      },
+                    }}
+                  />
+                ))}
+              </Stack>
+
+              {/* Shape Type Selector if shape tool */}
+              {activeTool === "shape" && (
+                <Stack direction="row" spacing={0.5} alignItems="center">
+                  <Typography variant="caption" sx={{ color: "rgba(255, 255, 255, 0.7)", fontSize: "0.72rem", mr: 0.2 }}>
+                    Tipo:
+                  </Typography>
+                  {[
+                    { type: "rectangle", label: "Rectángulo" },
+                    { type: "square", label: "Cuadrado" },
+                    { type: "circle", label: "Círculo" },
+                    { type: "ellipse", label: "Elipse" },
+                    { type: "rhombus", label: "Rombo" },
+                    { type: "arrow", label: "Flecha" },
+                  ].map((sh) => (
+                    <Chip
+                      key={sh.type}
+                      label={sh.label}
+                      size="small"
+                      onClick={() => setActiveShapeType(sh.type as any)}
+                      sx={{
+                        height: 22,
+                        fontSize: "0.72rem",
+                        fontWeight: activeShapeType === sh.type ? 700 : 500,
+                        bgcolor: activeShapeType === sh.type ? "secondary.main" : "rgba(255, 255, 255, 0.1)",
+                        color: "#FFF",
+                        cursor: "pointer",
+                        "&:hover": {
+                          bgcolor: activeShapeType === sh.type ? "secondary.dark" : "rgba(255, 255, 255, 0.2)",
+                        },
+                      }}
+                    />
+                  ))}
+                </Stack>
+              )}
+            </Stack>
+          )}
         </Box>
 
         {/* Konva Stage Canvas Container */}
         <Box
+          ref={containerRef}
           sx={{
             flex: 1,
             bgcolor: "#0d0d0d",
@@ -1824,19 +2765,29 @@ export default function SecurityCanvasEditor({
                 ? "grab"
                 : activeTool === "perimeter"
                 ? "crosshair"
+                : ["pencil", "marker", "highlighter", "shape"].includes(activeTool)
+                ? "crosshair"
+                : activeTool === "eraser"
+                ? "not-allowed"
                 : "cell",
           }}
         >
           <Stage
             ref={stageRef}
-            width={CANVAS_WIDTH}
-            height={CANVAS_HEIGHT}
+            width={canvasWidth}
+            height={canvasHeight}
             draggable={activeTool === "select" && !isReadOnly}
             scaleX={stageScale}
             scaleY={stageScale}
             x={stagePos.x}
             y={stagePos.y}
             onWheel={handleWheel}
+            onMouseDown={handleStageMouseDown}
+            onMouseMove={handleStageMouseMove}
+            onMouseUp={handleStageMouseUp}
+            onTouchStart={handleStageMouseDown}
+            onTouchMove={handleStageMouseMove}
+            onTouchEnd={handleStageMouseUp}
             onClick={handleStageClick}
             onTap={handleStageClick}
             onDragEnd={(e) => {
@@ -1845,18 +2796,18 @@ export default function SecurityCanvasEditor({
               }
             }}
           >
-            {/* 1. Base Layer (Mapbox Satellite Image) */}
+            {/* 1. Base Layer (Satellite Image or User Uploaded Photo) */}
             <Layer>
               {image ? (
                 <KonvaImage
                   image={image}
-                  width={CANVAS_WIDTH}
-                  height={CANVAS_HEIGHT}
+                  width={canvasWidth}
+                  height={canvasHeight}
                 />
               ) : (
                 <Rect
-                  width={CANVAS_WIDTH}
-                  height={CANVAS_HEIGHT}
+                  width={canvasWidth}
+                  height={canvasHeight}
                   fill="#1a1a1a"
                 />
               )}
@@ -2027,6 +2978,8 @@ export default function SecurityCanvasEditor({
                     key={dev.id}
                     x={dev.x}
                     y={dev.y}
+                    scaleX={scaleFactor}
+                    scaleY={scaleFactor}
                     draggable={!isReadOnly && activeTool === "select"}
                     onDragEnd={(e) => handleDeviceDragEnd(dev.id, e)}
                     onMouseEnter={(e) => {
@@ -2159,6 +3112,210 @@ export default function SecurityCanvasEditor({
                 );
               })}
             </Layer>
+
+            {/* 5. Layer Geometric Shapes & Arrows */}
+            <Layer listening={activeTool === "eraser"}>
+              {canvasData.shapes?.map((sh) => {
+                const handleEraserClick = (e: any) => {
+                  if (activeTool === "eraser") {
+                    e.cancelBubble = true;
+                    removeShape(sh.id);
+                  }
+                };
+
+                if (sh.type === "arrow" && sh.points) {
+                  return (
+                    <Arrow
+                      key={sh.id}
+                      points={sh.points}
+                      stroke={sh.stroke}
+                      fill={sh.stroke}
+                      strokeWidth={sh.strokeWidth}
+                      pointerLength={Math.round(14 * scaleFactor)}
+                      pointerWidth={Math.round(14 * scaleFactor)}
+                      hitStrokeWidth={20}
+                      onClick={handleEraserClick}
+                      onTap={handleEraserClick}
+                    />
+                  );
+                }
+
+                if (sh.type === "circle" || sh.type === "ellipse") {
+                  return (
+                    <Ellipse
+                      key={sh.id}
+                      x={sh.x}
+                      y={sh.y}
+                      radiusX={sh.radiusX || 20}
+                      radiusY={sh.radiusY || 20}
+                      stroke={sh.stroke}
+                      strokeWidth={sh.strokeWidth}
+                      fill={sh.fill}
+                      hitStrokeWidth={16}
+                      onClick={handleEraserClick}
+                      onTap={handleEraserClick}
+                    />
+                  );
+                }
+
+                if (sh.type === "rhombus" && sh.points) {
+                  return (
+                    <Line
+                      key={sh.id}
+                      points={sh.points}
+                      closed
+                      stroke={sh.stroke}
+                      strokeWidth={sh.strokeWidth}
+                      fill={sh.fill}
+                      hitStrokeWidth={16}
+                      onClick={handleEraserClick}
+                      onTap={handleEraserClick}
+                    />
+                  );
+                }
+
+                return (
+                  <Rect
+                    key={sh.id}
+                    x={sh.x}
+                    y={sh.y}
+                    width={sh.width || 40}
+                    height={sh.height || 40}
+                    stroke={sh.stroke}
+                    strokeWidth={sh.strokeWidth}
+                    fill={sh.fill}
+                    hitStrokeWidth={16}
+                    onClick={handleEraserClick}
+                    onTap={handleEraserClick}
+                  />
+                );
+              })}
+            </Layer>
+
+            {/* 6. Layer Freehand Strokes (Pencil, Marker, Highlighter) */}
+            <Layer listening={activeTool === "eraser"}>
+              {canvasData.strokes?.map((str) => (
+                <Line
+                  key={str.id}
+                  points={str.points}
+                  stroke={str.color}
+                  strokeWidth={str.strokeWidth}
+                  opacity={str.opacity ?? 1}
+                  tension={0.5}
+                  lineCap="round"
+                  lineJoin="round"
+                  hitStrokeWidth={Math.max(str.strokeWidth + 10, 16)}
+                  onClick={(e) => {
+                    if (activeTool === "eraser") {
+                      e.cancelBubble = true;
+                      removeStroke(str.id);
+                    }
+                  }}
+                  onTap={(e) => {
+                    if (activeTool === "eraser") {
+                      e.cancelBubble = true;
+                      removeStroke(str.id);
+                    }
+                  }}
+                />
+              ))}
+            </Layer>
+
+            {/* 7. Layer Active In-Progress Drawing Preview */}
+            <Layer listening={false}>
+              {isDrawing && currentStroke.length >= 2 && (
+                <Line
+                  points={currentStroke}
+                  stroke={strokeColor}
+                  strokeWidth={activeTool === "highlighter" ? Math.max(strokeWidth, 16) : strokeWidth}
+                  opacity={activeTool === "highlighter" ? 0.35 : 1}
+                  tension={0.5}
+                  lineCap="round"
+                  lineJoin="round"
+                />
+              )}
+
+              {isDrawing && shapeStart && shapeCurrent && activeTool === "shape" && (
+                <>
+                  {activeShapeType === "arrow" && (
+                    <Arrow
+                      points={[shapeStart.x, shapeStart.y, shapeCurrent.x, shapeCurrent.y]}
+                      stroke={strokeColor}
+                      fill={strokeColor}
+                      strokeWidth={strokeWidth}
+                      pointerLength={Math.round(14 * scaleFactor)}
+                      pointerWidth={Math.round(14 * scaleFactor)}
+                    />
+                  )}
+                  {activeShapeType === "rectangle" && (
+                    <Rect
+                      x={Math.min(shapeStart.x, shapeCurrent.x)}
+                      y={Math.min(shapeStart.y, shapeCurrent.y)}
+                      width={Math.abs(shapeCurrent.x - shapeStart.x)}
+                      height={Math.abs(shapeCurrent.y - shapeStart.y)}
+                      stroke={strokeColor}
+                      strokeWidth={strokeWidth}
+                      dash={[6, 4]}
+                    />
+                  )}
+                  {activeShapeType === "square" && (() => {
+                    const dx = shapeCurrent.x - shapeStart.x;
+                    const dy = shapeCurrent.y - shapeStart.y;
+                    const side = Math.max(Math.abs(dx), Math.abs(dy));
+                    const sx = dx >= 0 ? shapeStart.x : shapeStart.x - side;
+                    const sy = dy >= 0 ? shapeStart.y : shapeStart.y - side;
+                    return (
+                      <Rect
+                        x={sx}
+                        y={sy}
+                        width={side}
+                        height={side}
+                        stroke={strokeColor}
+                        strokeWidth={strokeWidth}
+                        dash={[6, 4]}
+                      />
+                    );
+                  })()}
+                  {(activeShapeType === "circle" || activeShapeType === "ellipse") && (() => {
+                    const dx = shapeCurrent.x - shapeStart.x;
+                    const dy = shapeCurrent.y - shapeStart.y;
+                    const rx = activeShapeType === "circle" ? Math.round(Math.hypot(dx, dy) / 2) : Math.round(Math.abs(dx) / 2);
+                    const ry = activeShapeType === "circle" ? rx : Math.round(Math.abs(dy) / 2);
+                    const cx = Math.round((shapeStart.x + shapeCurrent.x) / 2);
+                    const cy = Math.round((shapeStart.y + shapeCurrent.y) / 2);
+                    return (
+                      <Ellipse
+                        x={cx}
+                        y={cy}
+                        radiusX={rx}
+                        radiusY={ry}
+                        stroke={strokeColor}
+                        strokeWidth={strokeWidth}
+                        dash={[6, 4]}
+                      />
+                    );
+                  })()}
+                  {activeShapeType === "rhombus" && (() => {
+                    const dx = shapeCurrent.x - shapeStart.x;
+                    const dy = shapeCurrent.y - shapeStart.y;
+                    const rx = Math.round(Math.abs(dx) / 2);
+                    const ry = Math.round(Math.abs(dy) / 2);
+                    const cx = Math.round((shapeStart.x + shapeCurrent.x) / 2);
+                    const cy = Math.round((shapeStart.y + shapeCurrent.y) / 2);
+                    const pts = [cx, cy - ry, cx + rx, cy, cx, cy + ry, cx - rx, cy];
+                    return (
+                      <Line
+                        points={pts}
+                        closed
+                        stroke={strokeColor}
+                        strokeWidth={strokeWidth}
+                        dash={[6, 4]}
+                      />
+                    );
+                  })()}
+                </>
+              )}
+            </Layer>
           </Stage>
 
           {/* Floating Legend / Device Summary in Study Mode */}
@@ -2179,6 +3336,7 @@ export default function SecurityCanvasEditor({
                 border: "1px solid rgba(255, 255, 255, 0.15)",
                 boxShadow: "0 8px 32px rgba(0, 0, 0, 0.4)",
                 maxWidth: { xs: "90%", sm: "auto" },
+                display: { xs: "none", md: "block" },
               }}
             >
               <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 0.8 }}>
@@ -2225,7 +3383,7 @@ export default function SecurityCanvasEditor({
                     }}
                   />
                   <Typography variant="caption" sx={{ fontWeight: 600, color: "#fff", fontSize: "0.75rem" }}>
-                    A Implementar: <strong>{canvasStats.planned}</strong>
+                    A Instalar: <strong>{canvasStats.planned}</strong>
                   </Typography>
                 </Stack>
                 <Stack direction="row" spacing={0.8} alignItems="center">
@@ -2239,7 +3397,7 @@ export default function SecurityCanvasEditor({
                     }}
                   />
                   <Typography variant="caption" sx={{ fontWeight: 600, color: "#fff", fontSize: "0.75rem" }}>
-                    Dañada: <strong>{canvasStats.damaged}</strong>
+                    Dañado: <strong>{canvasStats.damaged}</strong>
                   </Typography>
                 </Stack>
               </Stack>
@@ -2306,12 +3464,36 @@ function getDeviceDefaultName(type: CanvasDevice["type"]): string {
       return "Cámara Domo";
     case "camera_ptz":
       return "Cámara PTZ (360°)";
+    case "cam_analytics":
+      return "Cámara Video Analítica";
+    case "cam_thermal":
+      return "Cámara Térmica";
+    case "dvr_nvr":
+      return "Grabador DVR / NVR";
     case "sensor_motion":
       return "Sensor de Movimiento";
+    case "alarm_intrusion":
+      return "Alarma de Intrusión";
+    case "alarm_emergency":
+      return "Alarma de Emergencias / Pánico";
     case "gatehouse":
       return "Portería Principal";
     case "vehicle_barrier":
       return "Talanquera Vehicular";
+    case "facial_panel":
+      return "Panel Reconocimiento Facial";
+    case "led_post_light":
+      return "Luminaria LED en Poste";
+    case "led_floodlight":
+      return "Reflector Perimetral LED";
+    case "electric_cabinet":
+      return "Gabinete Eléctrico";
+    case "ups_backup":
+      return "UPS / Respaldo Baterías";
+    case "network_switch":
+      return "Switch de Red / PoE";
+    case "power_generator":
+      return "Generador Eléctrico";
     default:
       return "Dispositivo";
   }
@@ -2322,9 +3504,9 @@ export function getDeviceStatusColor(status?: DeviceStatus): string {
     case "EXISTING":
       return "#10B981"; // Verde (Existente)
     case "DAMAGED":
-      return "#EF4444"; // Rojo (Dañada)
+      return "#EF4444"; // Rojo (Dañado)
     case "PLANNED":
-      return "#3B82F6"; // Azul (A implementar)
+      return "#3B82F6"; // Azul (A instalar)
     default:
       return "#10B981";
   }
@@ -2335,9 +3517,9 @@ export function getDeviceStatusLabel(status?: DeviceStatus): string {
     case "EXISTING":
       return "Existente";
     case "DAMAGED":
-      return "Dañada";
+      return "Dañado";
     case "PLANNED":
-      return "A Implementar";
+      return "A Instalar";
     default:
       return "Existente";
   }
@@ -2348,12 +3530,25 @@ function getDeviceColor(type: CanvasDevice["type"]): string {
     case "camera_bullet":
     case "camera_dome":
     case "camera_ptz":
+    case "cam_analytics":
+    case "cam_thermal":
+    case "dvr_nvr":
       return "#1976D2";
     case "sensor_motion":
+    case "alarm_intrusion":
+    case "alarm_emergency":
       return "#ED6C02";
     case "gatehouse":
-      return "#2E7D32";
     case "vehicle_barrier":
+    case "facial_panel":
+      return "#2E7D32";
+    case "led_post_light":
+    case "led_floodlight":
+      return "#F59E0B";
+    case "electric_cabinet":
+    case "ups_backup":
+    case "network_switch":
+    case "power_generator":
       return "#9C27B0";
     default:
       return "#757575";
@@ -2368,12 +3563,36 @@ function getDeviceSvgPath(type: CanvasDevice["type"]): string {
       return "M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm0-12.5a4.5 4.5 0 1 0 0 9 4.5 4.5 0 0 0 0-9z";
     case "camera_ptz":
       return "M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46A7.93 7.93 0 0 0 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74A7.93 7.93 0 0 0 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z";
+    case "cam_analytics":
+      return "M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z";
+    case "cam_thermal":
+      return "M15 13V5c0-1.66-1.34-3-3-3S9 3.34 9 5v8c-1.21.91-2 2.37-2 4 0 2.76 2.24 5 5 5s5-2.24 5-5c0-1.63-.79-3.09-2-4zm-4-8c0-.55.45-1 1-1s1 .45 1 1h-1v1h1v2h-1v1h1v1h-2V5z";
+    case "dvr_nvr":
+      return "M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zM7 15c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm12-2h-6v-2h6v2z";
     case "sensor_motion":
       return "M12 15c1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3 1.34 3 3 3zm0-8c3.87 0 7 3.13 7 7h2c0-4.97-4.03-9-9-9s-9 4.03-9 9h2c0-3.87 3.13-7 7-7z";
+    case "alarm_intrusion":
+      return "M12 22c1.1 0 2-.9 2-2h-4c0 1.1.89 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z";
+    case "alarm_emergency":
+      return "M12 2L1 21h22L12 2zm1 14h-2v-2h2v2zm0-4h-2v-4h2v4z";
     case "gatehouse":
       return "M19 4H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2zm-7 2h2v4h-2V6zm-5 0h3v4H7V6zm12 14H5V12h14v8z";
     case "vehicle_barrier":
       return "M18.92 6.01C18.72 5.42 18.16 5 17.5 5h-11c-.66 0-1.21.42-1.42 1.01L3 12v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99zM6.5 16c-.83 0-1.5-.67-1.5-1.5S5.67 13 6.5 13s1.5.67 1.5 1.5S7.33 16 6.5 16zm11 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zM5 11l1.5-4.5h11L19 11H5z";
+    case "facial_panel":
+      return "M12 2a5 5 0 0 1 5 5v1a5 5 0 0 1-10 0V7a5 5 0 0 1 5-5zm-7 18a7 7 0 0 1 14 0H5z";
+    case "led_post_light":
+      return "M12 2C8.13 2 5 5.13 5 9c0 2.38 1.19 4.47 3 5.74V17c0 .55.45 1 1 1h6c.55 0 1-.45 1-1v-2.26c1.81-1.27 3-3.36 3-5.74 0-3.87-3.13-7-7-7zm-2 17h4v1h-4v-1zm1 2h2v1h-2v-1z";
+    case "led_floodlight":
+      return "M7 2v11h3v9l7-12h-4l4-8z";
+    case "electric_cabinet":
+      return "M18 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-5 13.5l1.5-3.5H11V8l-2 5h2v4z";
+    case "ups_backup":
+      return "M15.67 4H14V2h-4v2H8.33C7.6 4 7 4.6 7 5.33v15.33C7 21.4 7.6 22 8.33 22h7.33c.74 0 1.34-.6 1.34-1.33V5.33C17 4.6 16.4 4 15.67 4zM11 20v-5.5H9L13 7v5.5h2L11 20z";
+    case "network_switch":
+      return "M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zM6 10h3v4H6v-4zm5 0h3v4h-3v-4zm5 0h3v4h-3v-4z";
+    case "power_generator":
+      return "M19 8H5c-1.66 0-3 1.34-3 3v6h4v4h12v-4h4v-6c0-1.66-1.34-3-3-3zm-7 11H8v-2h4v2zm5 0h-3v-2h3v2zm3-5H4v-3c0-.55.45-1 1-1h14c.55 0 1 .45 1 1v3zM12 2l-2 4h4l-2-4z";
     default:
       return "M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z";
   }
@@ -2387,12 +3606,36 @@ function getDeviceIconLetter(type: CanvasDevice["type"]): string {
       return "D";
     case "camera_ptz":
       return "P";
+    case "cam_analytics":
+      return "IA";
+    case "cam_thermal":
+      return "T";
+    case "dvr_nvr":
+      return "DVR";
     case "sensor_motion":
       return "S";
+    case "alarm_intrusion":
+      return "AI";
+    case "alarm_emergency":
+      return "SOS";
     case "gatehouse":
       return "G";
     case "vehicle_barrier":
       return "V";
+    case "facial_panel":
+      return "RF";
+    case "led_post_light":
+      return "LED";
+    case "led_floodlight":
+      return "REF";
+    case "electric_cabinet":
+      return "GE";
+    case "ups_backup":
+      return "UPS";
+    case "network_switch":
+      return "SW";
+    case "power_generator":
+      return "GEN";
     default:
       return "•";
   }
