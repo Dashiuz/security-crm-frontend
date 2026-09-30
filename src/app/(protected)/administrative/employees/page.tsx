@@ -226,7 +226,7 @@ export default function EmployeesPage() {
           setDetailAvatarUrl(mediaList[0].presignedUrl || null);
         }
       }
-    } catch {}
+    } catch { }
   };
 
   const handleRetireConfirm = async () => {
@@ -296,10 +296,10 @@ export default function EmployeesPage() {
             entityId,
             category: "avatar",
           });
-          showSuccess("Fotografía del empleado sincronizada en AWS S3");
+          showSuccess("Fotografía del empleado sincronizada en la nube");
         } catch (uploadErr) {
           console.error("S3 upload error:", uploadErr);
-          showError("Empleado guardado, pero ocurrió un problema al subir la foto a S3.");
+          showError("Empleado guardado, pero ocurrió un problema al subir la foto a la nube.");
         }
       }
 
@@ -337,10 +337,10 @@ export default function EmployeesPage() {
       renderCell: (params) => {
         const initials = params.row.fullName
           ? params.row.fullName
-              .split(" ")
-              .map((n: string) => n[0])
-              .slice(0, 2)
-              .join("")
+            .split(" ")
+            .map((n: string) => n[0])
+            .slice(0, 2)
+            .join("")
           : "EM";
         const avatarSrc = params.row.avatarUrl || (params.row.mediaAttachments?.[0]?.url || undefined);
         return (
@@ -467,10 +467,10 @@ Haz clic en el icono de baja para retirar al empleado o en la persona con signo 
               >
                 {detailEmployee.fullName
                   ? detailEmployee.fullName
-                      .split(" ")
-                      .map((n: string) => n[0])
-                      .slice(0, 2)
-                      .join("")
+                    .split(" ")
+                    .map((n: string) => n[0])
+                    .slice(0, 2)
+                    .join("")
                   : "EM"}
               </Avatar>
               <Typography variant="h6" sx={{ fontWeight: 700 }}>
@@ -485,42 +485,42 @@ Haz clic en el icono de baja para retirar al empleado o en la persona con signo 
         fields={
           detailEmployee
             ? [
-                { label: "Nombre Completo", value: detailEmployee.fullName },
-                {
-                  label: "Documento",
-                  value: `${detailEmployee.documentType || "CC"}: ${detailEmployee.document}`,
-                },
-                { label: "Email", value: detailEmployee.email || "Sin registrar" },
-                { label: "Teléfono", value: detailEmployee.phone || "Sin registrar" },
-                { label: "Dirección", value: detailEmployee.address || "Sin registrar" },
-                { label: "Cliente / Conjunto", value: detailEmployee.clientName || "Sin asignar" },
-                { label: "Departamento", value: detailEmployee.departmentName || "N/A" },
-                { label: "Cargo / Posición", value: detailEmployee.positionName || "N/A" },
-                { label: "Fecha Nacimiento", value: detailEmployee.birthdate || "N/A" },
-                { label: "Fecha Ingreso", value: detailEmployee.entryDate || "N/A" },
-                {
-                  label: "Estado",
-                  value: (
-                    <Chip
-                      label={
-                        detailEmployee.isRetired
-                          ? "Dado de Baja"
-                          : detailEmployee.isActive
-                            ? "Activo"
-                            : "Inactivo"
-                      }
-                      color={
-                        detailEmployee.isRetired
-                          ? "error"
-                          : detailEmployee.isActive
-                            ? "success"
-                            : "default"
-                      }
-                      size="small"
-                    />
-                  ),
-                },
-              ]
+              { label: "Nombre Completo", value: detailEmployee.fullName },
+              {
+                label: "Documento",
+                value: `${detailEmployee.documentType || "CC"}: ${detailEmployee.document}`,
+              },
+              { label: "Email", value: detailEmployee.email || "Sin registrar" },
+              { label: "Teléfono", value: detailEmployee.phone || "Sin registrar" },
+              { label: "Dirección", value: detailEmployee.address || "Sin registrar" },
+              { label: "Cliente / Conjunto", value: detailEmployee.clientName || "Sin asignar" },
+              { label: "Departamento", value: detailEmployee.departmentName || "N/A" },
+              { label: "Cargo / Posición", value: detailEmployee.positionName || "N/A" },
+              { label: "Fecha Nacimiento", value: detailEmployee.birthdate || "N/A" },
+              { label: "Fecha Ingreso", value: detailEmployee.entryDate || "N/A" },
+              {
+                label: "Estado",
+                value: (
+                  <Chip
+                    label={
+                      detailEmployee.isRetired
+                        ? "Dado de Baja"
+                        : detailEmployee.isActive
+                          ? "Activo"
+                          : "Inactivo"
+                    }
+                    color={
+                      detailEmployee.isRetired
+                        ? "error"
+                        : detailEmployee.isActive
+                          ? "success"
+                          : "default"
+                    }
+                    size="small"
+                  />
+                ),
+              },
+            ]
             : []
         }
       />
