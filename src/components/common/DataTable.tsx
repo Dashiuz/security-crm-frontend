@@ -57,12 +57,15 @@ interface DataTableProps {
   deleteDialogMessage?: string;
   actionsColumnWidth?: number;
   refreshTrigger?: number;
+  onRefresh?: () => void;
   checkboxSelection?: boolean;
   onRowSelectionModelChange?: (newSelection: any) => void;
   getRowId?: (row: any) => GridRowId;
   infoDescription?: string;
   infoInstructions?: string;
   rows?: any[];
+  loading?: boolean;
+  hideHeader?: boolean;
   hideCreateButton?: boolean;
   hideStatusFilter?: boolean;
   extraHeaderActions?: React.ReactNode;
@@ -85,18 +88,22 @@ export default function DataTable({
   deleteDialogMessage,
   actionsColumnWidth,
   refreshTrigger,
+  onRefresh,
   checkboxSelection = false,
   onRowSelectionModelChange,
   getRowId,
   infoDescription,
   infoInstructions,
   rows: externalRows,
+  loading: externalLoading,
+  hideHeader = false,
   hideCreateButton = false,
   hideStatusFilter = false,
   extraHeaderActions,
 }: DataTableProps) {
   const [internalRows, setInternalRows] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [internalLoading, setInternalLoading] = useState(true);
+  const loading = externalLoading !== undefined ? externalLoading : internalLoading;
   const [isDeleting, setIsDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<"ALL" | "ACTIVE" | "INACTIVE">("ALL");
@@ -108,26 +115,33 @@ export default function DataTable({
 
   const activeRows = externalRows !== undefined ? externalRows : internalRows;
 
-  const fetchData = useCallback(async () => {
-    if (externalRows !== undefined || !endpoint) {
-      setLoading(false);
-      return;
-    }
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await HttpClient.get<any[]>(endpoint);
-      setInternalRows(data);
-    } catch (err) {
-      const apiError = err as ApiError;
-      setError(apiError.message || "Error al cargar los datos");
-    } finally {
-      setLoading(false);
-    }
-  }, [endpoint, externalRows]);
+  const fetchData = useCallback(
+    async (isSilent = false) => {
+      if (externalRows !== undefined || !endpoint) {
+        setInternalLoading(false);
+        return;
+      }
+      if (!isSilent) {
+        setInternalLoading(true);
+      }
+      setError(null);
+      try {
+        const data = await HttpClient.get<any>(endpoint);
+        setInternalRows(Array.isArray(data) ? data : data?.data || []);
+      } catch (err) {
+        const apiError = err as ApiError;
+        setError(apiError.message || "Error al cargar los datos");
+      } finally {
+        setInternalLoading(false);
+      }
+    },
+    [endpoint, externalRows],
+  );
 
   useEffect(() => {
-    fetchData();
+    // Si ya tenemos filas cargadas, refrescar de forma silenciosa para evitar parpadeos
+    const isSilent = internalRows.length > 0;
+    fetchData(isSilent);
   }, [fetchData, refreshTrigger]);
 
   const filteredRows = useMemo(() => {
@@ -245,7 +259,8 @@ export default function DataTable({
 
   return (
     <Box>
-      <Stack
+      {!hideHeader && (
+        <Stack
         direction={{ xs: "column", lg: "row" }}
         justifyContent="space-between"
         alignItems={{ xs: "flex-start", lg: "flex-end" }}
@@ -369,7 +384,10 @@ export default function DataTable({
             <Button
               variant="outlined"
               startIcon={<RefreshIcon />}
-              onClick={fetchData}
+              onClick={() => {
+                fetchData();
+                onRefresh?.();
+              }}
               disabled={loading}
               sx={{
                 flex: { xs: 1, sm: "initial" },
@@ -417,6 +435,7 @@ export default function DataTable({
           </Stack>
         </Stack>
       </Stack>
+    )}
 
       {error && (
         <Alert severity="error" sx={{ mb: 3 }}>

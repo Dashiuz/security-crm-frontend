@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Box, Toolbar, Container } from "@mui/material";
 import Navbar from "@/components/layout/Navbar";
 import Sidebar from "@/components/layout/Sidebar";
+import { SseProvider } from "@/providers/SseProvider";
 
 export default function ProtectedLayout({
   children,
@@ -17,10 +18,11 @@ export default function ProtectedLayout({
   };
 
   return (
-    <Box sx={{ display: "flex", minHeight: "100vh", bgcolor: "background.default" }}>
-      <Navbar onMenuClick={handleDrawerToggle} />
-      <Sidebar open={mobileOpen} onClose={handleDrawerToggle} />
-      <Box
+    <SseProvider>
+      <Box sx={{ display: "flex", minHeight: "100vh", bgcolor: "background.default" }}>
+        <Navbar onMenuClick={handleDrawerToggle} />
+        <Sidebar open={mobileOpen} onClose={handleDrawerToggle} />
+        <Box
         component="main"
         sx={{
           flexGrow: 1,
@@ -44,5 +46,6 @@ export default function ProtectedLayout({
         </Container>
       </Box>
     </Box>
+  </SseProvider>
   );
 }

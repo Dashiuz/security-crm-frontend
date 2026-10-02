@@ -40,6 +40,7 @@ import {
   FormatListBulleted as ListIcon,
   UploadFile as UploadIcon,
   DirectionsWalk as RouteIcon,
+  Feedback as FeedbackIcon,
 } from "@mui/icons-material";
 import { useRouter, usePathname } from "next/navigation";
 import { useState, useMemo, useEffect } from "react";
@@ -247,6 +248,13 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
             permission: ["role:manage", "role:read"],
           },
           {
+            text: "Gestión de PQRS",
+            icon: <FeedbackIcon />,
+            path: "/administrative/pqrs",
+            feature: "pqrs",
+            permission: ["pqrs:manage", "pqrs:read", "pqrs:create"],
+          },
+          {
             text: "Dotaciones",
             icon: <UniformIcon />,
             disabled: true,
@@ -268,6 +276,14 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
             feature: "resident",
             permission: ["resident:manage", "resident:read"],
           },
+          {
+            id: "pqrs-conjunto",
+            text: "Solicitudes PQRS",
+            icon: <FeedbackIcon />,
+            path: "/administrative/pqrs",
+            feature: "pqrs",
+            permission: ["pqrs:manage", "pqrs:read", "pqrs:create"],
+          },
         ]
         : []),
     ],
@@ -288,7 +304,8 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
       pathname.startsWith("/administrative/users") ||
       pathname.startsWith("/administrative/departments") ||
       pathname.startsWith("/administrative/positions") ||
-      pathname.startsWith("/administrative/roles"),
+      pathname.startsWith("/administrative/roles") ||
+      pathname.startsWith("/administrative/pqrs"),
   });
 
   useEffect(() => {
