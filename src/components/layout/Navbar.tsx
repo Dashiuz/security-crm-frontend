@@ -26,6 +26,7 @@ import { useAuth } from "@/components/AuthContext";
 import { AuthService } from "@/lib/api/auth";
 import { useState } from "react";
 import { useTenant } from "@/providers/TenantProvider";
+import NotificationBell from "./NotificationBell";
 
 interface NavbarProps {
   onMenuClick: () => void;
@@ -171,6 +172,9 @@ export default function Navbar({ onMenuClick }: NavbarProps) {
 
           return (
             <Box sx={{ display: "flex", alignItems: "center" }}>
+              {/* Notification Bell */}
+              <NotificationBell />
+
               {/* Clickable Profile Button (Name + Avatar) */}
               <Box
                 onClick={handleMenu}

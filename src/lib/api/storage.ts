@@ -9,6 +9,7 @@ export enum MediaTypeCategory {
   CLIENT = "CLIENT",
   INVENTORY = "INVENTORY",
   DOCUMENT = "DOCUMENT",
+  PQRS = "PQRS",
 }
 
 export interface UploadMediaParams {
