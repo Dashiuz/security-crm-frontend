@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback } from "react";
+import React, { createContext, useContext, useState, useCallback, useMemo } from "react";
 import { Snackbar, Alert, AlertColor } from "@mui/material";
 
 interface NotificationContextType {
@@ -66,16 +66,19 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({
     setOpen(false);
   };
 
+  const contextValue = useMemo(
+    () => ({
+      showNotification,
+      showSuccess,
+      showError,
+      showInfo,
+      showWarning,
+    }),
+    [showNotification, showSuccess, showError, showInfo, showWarning],
+  );
+
   return (
-    <NotificationContext.Provider
-      value={{
-        showNotification,
-        showSuccess,
-        showError,
-        showInfo,
-        showWarning,
-      }}
-    >
+    <NotificationContext.Provider value={contextValue}>
       {children}
       <Snackbar
         open={open}
