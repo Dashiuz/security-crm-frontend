@@ -418,7 +418,8 @@ export default function MinutaGeneralPage({ isInternal = false }: MinutaGeneralP
     {
       field: "noveltySource",
       headerName: isInternal ? "Cliente / Origen" : "Fuente / Origen",
-      width: 190,
+      flex: 0.8,
+      minWidth: 160,
       renderCell: (params) => {
         if (isInternal) {
           if (params.row.clientId && params.row.clientName) {

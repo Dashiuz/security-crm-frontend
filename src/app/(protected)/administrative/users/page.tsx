@@ -5,7 +5,7 @@ import { useNotification } from "@/providers/NotificationProvider";
 import { useTenant } from "@/providers/TenantProvider";
 import DataTable from "@/components/common/DataTable";
 import FormDialog, { FormField } from "@/components/common/FormDialog";
-import DetailDialog from "@/components/common/DetailDialog";
+import ResponsiveDetailWrapper from "@/components/common/ResponsiveDetailWrapper";
 import PromptConfirmDialog from "@/components/common/PromptConfirmDialog";
 import ClientAutocomplete, { ClientOption } from "@/components/common/ClientAutocomplete";
 import {
@@ -23,6 +23,9 @@ import {
   Divider,
   Alert,
   Chip,
+  Grid,
+  Paper,
+  Avatar,
 } from "@mui/material";
 import { GridColDef } from "@mui/x-data-grid";
 import { z } from "zod";
@@ -418,18 +421,20 @@ function StandardUserCreateDialog({
 // --- Main Page ---
 
 const columns: GridColDef[] = [
-  { field: "fullName", headerName: "Nombre Completo", width: 200 },
-  { field: "document", headerName: "Documento", width: 110 },
+  { field: "fullName", headerName: "Nombre Completo", flex: 1.5, minWidth: 200 },
+  { field: "document", headerName: "Documento", width: 120 },
   {
     field: "clientName",
     headerName: "Cliente / Conjunto",
-    width: 180,
+    flex: 1,
+    minWidth: 160,
     valueGetter: (value: any) => value || "Sin asignar",
   },
   {
     field: "roles",
     headerName: "Rol",
-    width: 140,
+    flex: 1,
+    minWidth: 140,
     valueGetter: (value: any) =>
       value?.map((r: any) => r.name).join(", ") || "Sin Rol",
   },
@@ -541,39 +546,88 @@ Haz clic en el icono de borrado para inhabilitar la cuenta confirmando con la c�
         }
       />
 
-      <DetailDialog
+      <ResponsiveDetailWrapper
         open={Boolean(detailUser)}
         onClose={() => setDetailUser(null)}
         title="Detalles del Usuario"
-        fields={
-          detailUser
-            ? [
-                { label: "Nombre Completo", value: detailUser.fullName },
-                { label: "Documento", value: detailUser.document },
-                { label: "Cliente / Conjunto", value: detailUser.clientName || "Sin asignar (se gestiona desde Empleado)" },
-                { label: "Departamento", value: detailUser.department || "N/A" },
-                { label: "Cargo / Posición", value: detailUser.position || "N/A" },
-                {
-                  label: "Roles Asignados",
-                  value:
-                    detailUser.roles && detailUser.roles.length > 0
-                      ? detailUser.roles.map((r: any) => r.name).join(", ")
-                      : "Sin Rol",
-                },
-                {
-                  label: "Estado",
-                  value: (
+        actions={
+          <Box display="flex" justifyContent="flex-end">
+            <Button onClick={() => setDetailUser(null)} variant="outlined">
+              Cerrar
+            </Button>
+          </Box>
+        }
+      >
+        {detailUser && (
+          <Box>
+            <Box sx={{ bgcolor: 'background.default', p: 3, borderRadius: 2, mb: 3 }}>
+              <Stack direction="row" spacing={2} alignItems="center">
+                <Avatar sx={{ width: 64, height: 64, bgcolor: "primary.main", fontSize: "1.5rem", fontWeight: 700 }}>
+                  {detailUser.fullName
+                    ? detailUser.fullName.split(" ").map((n: string) => n[0]).slice(0, 2).join("")
+                    : "US"}
+                </Avatar>
+                <Box>
+                  <Typography variant="h5" sx={{ fontWeight: 600 }}>
+                    {detailUser.fullName}
+                  </Typography>
+                  <Stack direction="row" spacing={1} sx={{ mt: 1, flexWrap: "wrap", gap: 1 }}>
+                    <Chip size="small" label={detailUser.position || "Sin Cargo"} variant="outlined" sx={{ ml: "0 !important" }} />
+                    <Chip size="small" label={detailUser.department || "Sin Departamento"} variant="outlined" />
                     <Chip
+                      size="small"
                       label={detailUser.isActive ? "Activo" : "Inactivo"}
                       color={detailUser.isActive ? "success" : "default"}
-                      size="small"
                     />
-                  ),
-                },
-              ]
-            : []
-        }
-      />
+                  </Stack>
+                </Box>
+              </Stack>
+            </Box>
+
+            <Grid container spacing={3}>
+              <Grid size={{ xs: 12, md: 6 }}>
+                <Paper elevation={0} sx={{ bgcolor: 'background.default', borderRadius: 2, p: 3, height: '100%' }}>
+                  <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 2, fontWeight: 600, textTransform: 'uppercase', fontSize: '0.75rem' }}>
+                    Información Operativa
+                  </Typography>
+                  <Stack spacing={2}>
+                    <Box>
+                      <Typography variant="caption" sx={{ fontWeight: 600 }}>Documento</Typography>
+                      <Typography variant="body2">{detailUser.document}</Typography>
+                    </Box>
+                    <Box>
+                      <Typography variant="caption" sx={{ fontWeight: 600 }}>Cliente / Conjunto</Typography>
+                      <Typography variant="body2">{detailUser.clientName || "Sin asignar (se gestiona desde Empleado)"}</Typography>
+                    </Box>
+                  </Stack>
+                </Paper>
+              </Grid>
+
+              <Grid size={{ xs: 12, md: 6 }}>
+                <Paper elevation={0} sx={{ bgcolor: 'background.default', borderRadius: 2, p: 3, height: '100%' }}>
+                  <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 2, fontWeight: 600, textTransform: 'uppercase', fontSize: '0.75rem' }}>
+                    Accesos
+                  </Typography>
+                  <Stack spacing={2}>
+                    <Box>
+                      <Typography variant="caption" sx={{ fontWeight: 600 }}>Roles Asignados</Typography>
+                      <Box sx={{ mt: 1, display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                        {detailUser.roles && detailUser.roles.length > 0 ? (
+                          detailUser.roles.map((r: any) => (
+                            <Chip key={r.id || r.name} label={r.name} size="small" variant="outlined" />
+                          ))
+                        ) : (
+                          <Typography variant="body2">Sin Rol</Typography>
+                        )}
+                      </Box>
+                    </Box>
+                  </Stack>
+                </Paper>
+              </Grid>
+            </Grid>
+          </Box>
+        )}
+      </ResponsiveDetailWrapper>
 
       <PromptConfirmDialog
         open={Boolean(deleteUserData)}

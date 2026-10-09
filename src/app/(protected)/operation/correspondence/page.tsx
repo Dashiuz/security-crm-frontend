@@ -573,7 +573,8 @@ export default function CorrespondencePage({ isInternal = false }: Correspondenc
         {
           field: "recipientEmployeeName",
           headerName: "Empleado Destinatario",
-          width: 200,
+          flex: 1,
+          minWidth: 160,
           renderCell: (params: any) => {
             const emp =
               params.row.recipientEmployeeName ||
@@ -621,7 +622,8 @@ export default function CorrespondencePage({ isInternal = false }: Correspondenc
         {
           field: "recipientResidentName",
           headerName: "Destinatario",
-          width: 170,
+          flex: 1,
+          minWidth: 160,
           renderCell: (params: any) => {
             const res =
               params.row.recipientResidentName ||

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import {
   Box,
   Paper,
@@ -20,7 +20,13 @@ import {
   DialogActions,
   ToggleButton,
   ToggleButtonGroup,
+  TablePagination,
+  Skeleton,
+  Divider,
+  useTheme,
+  useMediaQuery,
 } from "@mui/material";
+import UniversalMobileCard from "./UniversalMobileCard";
 import {
   DataGrid,
   GridColDef,
@@ -40,7 +46,7 @@ import {
 import { HttpClient, ApiError } from "@/lib/api/client";
 import Link from "next/link";
 
-interface DataTableProps {
+export interface DataTableProps {
   title: string;
   endpoint?: string;
   columns: GridColDef[];
@@ -69,6 +75,7 @@ interface DataTableProps {
   hideCreateButton?: boolean;
   hideStatusFilter?: boolean;
   extraHeaderActions?: React.ReactNode;
+  renderMobile?: (rows: any[]) => React.ReactNode;
 }
 
 export default function DataTable({
@@ -100,7 +107,16 @@ export default function DataTable({
   hideCreateButton = false,
   hideStatusFilter = false,
   extraHeaderActions,
+  renderMobile,
 }: DataTableProps) {
+  const theme = useTheme();
+  const isMobileMatch = useMediaQuery(theme.breakpoints.down("md"));
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+  const isMobile = mounted ? isMobileMatch : false;
+
   const [internalRows, setInternalRows] = useState<any[]>([]);
   const [internalLoading, setInternalLoading] = useState(true);
   const loading = externalLoading !== undefined ? externalLoading : internalLoading;
@@ -144,6 +160,13 @@ export default function DataTable({
     fetchData(isSilent);
   }, [fetchData, refreshTrigger]);
 
+  const [mobilePage, setMobilePage] = useState(0);
+  const [mobileRowsPerPage, setMobileRowsPerPage] = useState(10);
+
+  useEffect(() => {
+    setMobilePage(0);
+  }, [statusFilter, endpoint, externalRows, refreshTrigger]);
+
   const filteredRows = useMemo(() => {
     if (hideStatusFilter) return activeRows;
     if (statusFilter === "ACTIVE") {
@@ -154,6 +177,11 @@ export default function DataTable({
     }
     return activeRows;
   }, [activeRows, statusFilter, hideStatusFilter]);
+
+  const paginatedMobileRows = useMemo(() => {
+    const start = mobilePage * mobileRowsPerPage;
+    return filteredRows.slice(start, start + mobileRowsPerPage);
+  }, [filteredRows, mobilePage, mobileRowsPerPage]);
 
   const handleDeleteClick = (id: GridRowId, row: any) => {
     setSelectedIdToDelete(id);
@@ -198,7 +226,7 @@ export default function DataTable({
     field: "actions",
     type: "actions",
     headerName: "Acciones",
-    width: actionsColumnWidth || (customActions ? 160 : 130),
+    width: actionsColumnWidth || 70,
     sortable: false,
     filterable: false,
     disableColumnMenu: true,
@@ -208,7 +236,17 @@ export default function DataTable({
       const actions: React.ReactElement<GridActionsCellItemProps>[] = [];
 
       if (customActions) {
-        actions.push(...customActions(params.row));
+        const rawActions = customActions(params.row) || [];
+        rawActions.forEach((item, index) => {
+          if (React.isValidElement(item)) {
+            actions.push(
+              React.cloneElement(item as React.ReactElement<GridActionsCellItemProps>, {
+                key: item.key || `custom-action-${index}`,
+                showInMenu: true,
+              })
+            );
+          }
+        });
       }
 
       if (onView) {
@@ -217,9 +255,8 @@ export default function DataTable({
             key="view"
             icon={<VisibilityIcon color="info" />}
             label="Ver Detalle"
-            title="Ver Detalle"
             onClick={() => onView(params.row)}
-            showInMenu={false}
+            showInMenu={true}
           />
         );
       }
@@ -230,9 +267,8 @@ export default function DataTable({
             key="edit"
             icon={<EditIcon color="primary" />}
             label="Editar"
-            title="Editar"
             onClick={() => onEdit(params.id.toString(), params.row)}
-            showInMenu={false}
+            showInMenu={true}
           />
         );
       }
@@ -244,9 +280,8 @@ export default function DataTable({
             key="delete"
             icon={deleteIcon || <RemoveCircleIcon color="error" />}
             label={deleteActionLabel || "Inhabilitar"}
-            title={deleteActionLabel || "Inhabilitar"}
             onClick={() => handleDeleteClick(params.id, params.row)}
-            showInMenu={false}
+            showInMenu={true}
           />
         );
       }
@@ -255,7 +290,9 @@ export default function DataTable({
     },
   };
 
-  const finalColumns = [...columns, actionsColumn];
+  const hasActionsColumn = columns.some((col) => col.field === "actions");
+  const hasAnyActions = Boolean(customActions || onView || onEdit || onDelete);
+  const finalColumns = hasActionsColumn || !hasAnyActions ? columns : [...columns, actionsColumn];
 
   return (
     <Box>
@@ -443,100 +480,218 @@ export default function DataTable({
         </Alert>
       )}
 
-      <Paper
-        elevation={0}
-        sx={{
-          height: { xs: 460, sm: 520, md: 580 },
-          width: "100%",
-          p: { xs: 0.5, sm: 1.5, md: 2 },
-          position: "relative",
-          borderRadius: 2,
-          border: "1px solid",
-          borderColor: "divider",
-          overflowX: "auto",
-        }}
-      >
-        {loading && (
-          <Box
-            sx={{
-              position: "absolute",
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              zIndex: 1,
-              bgcolor: "rgba(255,255,255,0.7)",
-            }}
-          >
-            <CircularProgress />
-          </Box>
-        )}
-        <DataGrid
-          rows={filteredRows}
-          columns={finalColumns}
-          getRowId={getRowId}
-          columnBufferPx={2000}
-          initialState={{
-            pagination: {
-              paginationModel: { page: 0, pageSize: 10 },
-            },
-          }}
-          pageSizeOptions={[10, 25, 50]}
-          checkboxSelection={checkboxSelection}
-          onRowSelectionModelChange={onRowSelectionModelChange}
-          disableRowSelectionOnClick
-          localeText={{
-            noRowsLabel: "No hay datos disponibles",
-            columnMenuSortAsc: "Orden ascendente",
-            columnMenuSortDesc: "Orden descendente",
-            columnMenuFilter: "Filtrar",
-            columnMenuHideColumn: "Ocultar columna",
-            columnMenuShowColumns: "Mostrar columnas",
-          }}
+      {renderMobile && isMobile ? (
+        <Box sx={{ width: "100%", position: "relative" }}>
+          {loading && (
+            <Box
+              sx={{
+                display: "flex",
+                justifyContent: "center",
+                alignItems: "center",
+                py: 4,
+              }}
+            >
+              <CircularProgress />
+            </Box>
+          )}
+          {renderMobile(filteredRows)}
+        </Box>
+      ) : isMobile ? (
+        <Box sx={{ width: "100%", display: "flex", flexDirection: "column", gap: 1.5 }}>
+          {loading && filteredRows.length === 0 ? (
+            Array.from(new Array(4)).map((_, idx) => (
+              <Paper key={idx} variant="outlined" sx={{ p: 2, borderRadius: 2 }}>
+                <Stack spacing={1}>
+                  <Stack direction="row" justifyContent="space-between">
+                    <Skeleton width={110} height={24} />
+                    <Skeleton width={70} height={24} />
+                  </Stack>
+                  <Skeleton width="85%" height={22} />
+                  <Skeleton width="55%" height={16} />
+                  <Stack direction="row" spacing={1}>
+                    <Skeleton width={60} height={22} />
+                    <Skeleton width={80} height={22} />
+                  </Stack>
+                  <Divider sx={{ my: 0.5 }} />
+                  <Stack direction="row" justifyContent="space-between">
+                    <Skeleton width={100} height={18} />
+                    <Skeleton width={70} height={18} />
+                  </Stack>
+                </Stack>
+              </Paper>
+            ))
+          ) : filteredRows.length === 0 ? (
+            <Paper
+              variant="outlined"
+              sx={{
+                p: 4,
+                textAlign: "center",
+                borderRadius: 2,
+                bgcolor: "background.paper",
+              }}
+            >
+              <Typography variant="subtitle1" fontWeight={700}>
+                No hay datos disponibles
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                No se encontraron registros para mostrar.
+              </Typography>
+            </Paper>
+          ) : (
+            <>
+              {paginatedMobileRows.map((row, index) => {
+                const rowId = getRowId ? getRowId(row) : (row.id || index);
+                return (
+                  <UniversalMobileCard
+                    key={String(rowId)}
+                    row={row}
+                    columns={columns}
+                    onView={onView}
+                    onEdit={onEdit}
+                    onDelete={onDelete}
+                    customActions={customActions}
+                    deleteIcon={deleteIcon}
+                    deleteActionLabel={deleteActionLabel}
+                    onDeleteClick={handleDeleteClick}
+                  />
+                );
+              })}
+
+              {filteredRows.length > 5 && (
+                <TablePagination
+                  component="div"
+                  count={filteredRows.length}
+                  page={mobilePage}
+                  onPageChange={(_, newPage) => setMobilePage(newPage)}
+                  rowsPerPage={mobileRowsPerPage}
+                  onRowsPerPageChange={(e) => {
+                    setMobileRowsPerPage(parseInt(e.target.value, 10));
+                    setMobilePage(0);
+                  }}
+                  rowsPerPageOptions={[5, 10, 25, 50]}
+                  labelRowsPerPage="Filas:"
+                  labelDisplayedRows={({ from, to, count }) =>
+                    `${from}–${to} de ${count !== -1 ? count : `más de ${to}`}`
+                  }
+                  sx={{
+                    border: "1px solid",
+                    borderColor: "divider",
+                    bgcolor: "background.paper",
+                    borderRadius: 2,
+                    mt: 0.5,
+                    "& .MuiTablePagination-toolbar": {
+                      px: 1,
+                      minHeight: 48,
+                    },
+                    "& .MuiTablePagination-displayedRows": {
+                      fontSize: "0.8rem",
+                      fontWeight: 600,
+                    },
+                    "& .MuiTablePagination-selectLabel": {
+                      fontSize: "0.8rem",
+                    },
+                  }}
+                />
+              )}
+            </>
+          )}
+        </Box>
+      ) : (
+        <Paper
+          elevation={0}
           sx={{
-            border: "none",
-            "& .MuiDataGrid-cell": {
-              display: "flex",
-              alignItems: "center",
-            },
-            // Columna de Acciones Fija / Sticky a la derecha
-            "& .MuiDataGrid-columnHeader[data-field='actions']": {
-              position: "sticky",
-              right: 0,
-              zIndex: 5,
-              backgroundColor: (theme) =>
-                theme.palette.mode === "dark" ? "#1e1e1e" : "#f8f9fa",
-              borderLeft: "1px solid",
-              borderColor: "divider",
-              boxShadow: "-3px 0 6px rgba(0, 0, 0, 0.06)",
-            },
-            "& .MuiDataGrid-cell[data-field='actions']": {
-              position: "sticky",
-              right: 0,
-              zIndex: 3,
-              backgroundColor: "background.paper",
-              borderLeft: "1px solid",
-              borderColor: "divider",
-              boxShadow: "-3px 0 6px rgba(0, 0, 0, 0.06)",
-            },
-            "& .MuiDataGrid-row:hover .MuiDataGrid-cell[data-field='actions']": {
-              backgroundColor: (theme) =>
-                theme.palette.mode === "dark" ? "#2a2a2a" : "#f4f6f8",
-            },
-            "& .MuiDataGrid-row.Mui-selected .MuiDataGrid-cell[data-field='actions']": {
-              backgroundColor: (theme) =>
-                theme.palette.mode === "dark" ? "#1e3a5f" : "#e3f2fd",
-            },
-            "& .MuiDataGrid-row.Mui-selected:hover .MuiDataGrid-cell[data-field='actions']": {
-              backgroundColor: (theme) =>
-                theme.palette.mode === "dark" ? "#1e3a5f" : "#d0e7fc",
-            },
+            height: { xs: 460, sm: 520, md: 580 },
+            width: "100%",
+            p: { xs: 0.5, sm: 1.5, md: 2 },
+            position: "relative",
+            borderRadius: 2,
+            border: "1px solid",
+            borderColor: "divider",
+            overflowX: "auto",
           }}
-        />
-      </Paper>
+        >
+          {loading && (
+            <Box
+              sx={{
+                position: "absolute",
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                zIndex: 1,
+                bgcolor: "rgba(255,255,255,0.7)",
+              }}
+            >
+              <CircularProgress />
+            </Box>
+          )}
+          <DataGrid
+            rows={filteredRows}
+            columns={finalColumns}
+            getRowId={getRowId}
+            columnBufferPx={2000}
+            initialState={{
+              pagination: {
+                paginationModel: { page: 0, pageSize: 10 },
+              },
+            }}
+            pageSizeOptions={[10, 25, 50]}
+            checkboxSelection={checkboxSelection}
+            onRowSelectionModelChange={onRowSelectionModelChange}
+            disableRowSelectionOnClick
+            localeText={{
+              noRowsLabel: "No hay datos disponibles",
+              columnMenuSortAsc: "Orden ascendente",
+              columnMenuSortDesc: "Orden descendente",
+              columnMenuFilter: "Filtrar",
+              columnMenuHideColumn: "Ocultar columna",
+              columnMenuShowColumns: "Mostrar columnas",
+            }}
+            sx={{
+              border: "none",
+              "& .MuiDataGrid-cell": {
+                display: "flex",
+                alignItems: "center",
+              },
+              // Columna de Acciones Fija / Sticky a la derecha
+              "& .MuiDataGrid-columnHeader[data-field='actions']": {
+                position: "sticky",
+                right: 0,
+                zIndex: 5,
+                backgroundColor: (theme) =>
+                  theme.palette.mode === "dark" ? "#1e1e1e" : "#f8f9fa",
+                borderLeft: "1px solid",
+                borderColor: "divider",
+                boxShadow: "-3px 0 6px rgba(0, 0, 0, 0.06)",
+              },
+              "& .MuiDataGrid-cell[data-field='actions']": {
+                position: "sticky",
+                right: 0,
+                zIndex: 3,
+                backgroundColor: "background.paper",
+                borderLeft: "1px solid",
+                borderColor: "divider",
+                boxShadow: "-3px 0 6px rgba(0, 0, 0, 0.06)",
+              },
+              "& .MuiDataGrid-row:hover .MuiDataGrid-cell[data-field='actions']": {
+                backgroundColor: (theme) =>
+                  theme.palette.mode === "dark" ? "#2a2a2a" : "#f4f6f8",
+              },
+              "& .MuiDataGrid-row.Mui-selected .MuiDataGrid-cell[data-field='actions']": {
+                backgroundColor: (theme) =>
+                  theme.palette.mode === "dark" ? "#1e3a5f" : "#e3f2fd",
+              },
+              "& .MuiDataGrid-row.Mui-selected:hover .MuiDataGrid-cell[data-field='actions']": {
+                backgroundColor: (theme) =>
+                  theme.palette.mode === "dark" ? "#1e3a5f" : "#d0e7fc",
+              },
+            }}
+          />
+        </Paper>
+      )}
 
       {/* Confirmation Dialog for Delete */}
       <Dialog
