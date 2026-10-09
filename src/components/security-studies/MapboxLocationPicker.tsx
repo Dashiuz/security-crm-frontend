@@ -161,6 +161,38 @@ export default function MapboxLocationPicker({
     dragStartRef.current = null;
   };
 
+  // Touch drag handlers on the map preview for mobile devices
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (e.touches.length === 1) {
+      setIsDragging(true);
+      dragStartRef.current = {
+        x: e.touches[0].clientX,
+        y: e.touches[0].clientY,
+        lat,
+        lng,
+      };
+    }
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!isDragging || !dragStartRef.current || e.touches.length !== 1) return;
+
+    const dx = e.touches[0].clientX - dragStartRef.current.x;
+    const dy = e.touches[0].clientY - dragStartRef.current.y;
+
+    const scale = 512 * Math.pow(2, zoom);
+    const deltaLng = -(dx / scale) * 360;
+    const deltaLat = (dy / scale) * 360 * Math.cos((dragStartRef.current.lat * Math.PI) / 180);
+
+    setLng(Number((dragStartRef.current.lng + deltaLng).toFixed(6)));
+    setLat(Number((dragStartRef.current.lat + deltaLat).toFixed(6)));
+  };
+
+  const handleTouchEnd = () => {
+    setIsDragging(false);
+    dragStartRef.current = null;
+  };
+
   const handleGenerateBase = async () => {
     setGenerating(true);
     try {
@@ -363,15 +395,20 @@ export default function MapboxLocationPicker({
                 onMouseMove={handleMouseMove}
                 onMouseUp={handleMouseUp}
                 onMouseLeave={handleMouseUp}
+                onTouchStart={handleTouchStart}
+                onTouchMove={handleTouchMove}
+                onTouchEnd={handleTouchEnd}
+                onTouchCancel={handleTouchEnd}
                 sx={{
                   position: "relative",
-                  borderRadius: 2,
+                  borderRadius: 2.5,
                   overflow: "hidden",
                   border: "2px solid",
                   borderColor: isDragging ? "secondary.main" : "primary.main",
                   bgcolor: "black",
                   cursor: isDragging ? "grabbing" : "grab",
                   userSelect: "none",
+                  touchAction: "none",
                 }}
               >
                 <CardMedia
@@ -380,7 +417,7 @@ export default function MapboxLocationPicker({
                   alt="Vista Satelital Mapbox"
                   sx={{
                     width: "100%",
-                    height: 280,
+                    height: { xs: 250, sm: 320, md: 380 },
                     objectFit: "cover",
                     pointerEvents: "none",
                   }}
@@ -546,16 +583,18 @@ export default function MapboxLocationPicker({
           <Box
             sx={{
               mt: 4,
-              pt: 2,
+              pt: 2.5,
               borderTop: "1px solid",
               borderColor: "divider",
               display: "flex",
+              flexDirection: { xs: "column-reverse", sm: "row" },
               justifyContent: "space-between",
-              alignItems: "center",
+              alignItems: { xs: "stretch", sm: "center" },
+              gap: 2,
             }}
           >
             {onCancel && (
-              <Button onClick={onCancel} disabled={generating}>
+              <Button onClick={onCancel} disabled={generating} sx={{ py: 1 }}>
                 Cancelar
               </Button>
             )}
@@ -573,16 +612,19 @@ export default function MapboxLocationPicker({
               onClick={handleGenerateBase}
               disabled={generating}
               sx={{
-                ml: "auto",
+                ml: { xs: 0, sm: "auto" },
+                width: { xs: "100%", sm: "auto" },
                 fontWeight: 700,
-                px: 4,
-                borderRadius: 2,
+                px: { xs: 2, sm: 4 },
+                py: { xs: 1.5, sm: 1.2 },
+                borderRadius: 2.5,
                 boxShadow: 3,
+                fontSize: { xs: "0.85rem", sm: "0.95rem" },
               }}
             >
               {generating
                 ? "Capturando en Full HD y Almacenando en la nube..."
-                : "Capturar e Inicializar Canva (1920x1080)"}
+                : "Capturar e Inicializar Canva"}
             </Button>
           </Box>
         </Box>

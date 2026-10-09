@@ -31,11 +31,11 @@ import {
 
 const columns: GridColDef[] = [
   { field: "internalCode", headerName: "Código", width: 110 },
-  { field: "name", headerName: "Nombre / Conjunto", width: 250 },
+  { field: "name", headerName: "Nombre / Conjunto", flex: 1.5, minWidth: 200 },
   { field: "nit", headerName: "NIT", width: 130 },
   { field: "sector", headerName: "Sector", width: 130 },
   { field: "phone", headerName: "Teléfono", width: 130 },
-  { field: "email", headerName: "Correo", width: 190 },
+  { field: "email", headerName: "Correo", flex: 1, minWidth: 160 },
   { field: "city", headerName: "Ciudad", width: 110 },
   {
     field: "createdBy",
@@ -146,8 +146,7 @@ export default function ProspectsPage() {
         key={`convert-${row.id}`}
         icon={<ConvertIcon color="primary" />}
         label="Cerrar Contrato (Convertir a Cliente)"
-        title="Cerrar Contrato"
-        showInMenu={false}
+        showInMenu={true}
         onClick={() => handleOpenConvert(row)}
       />,
     ];

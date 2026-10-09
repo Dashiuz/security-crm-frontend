@@ -355,7 +355,11 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
     if (item.subItems && !hasSubItems) return null;
 
     const menuKey = item.id || item.text;
-    const isActive = item.path ? pathname === item.path : false;
+    const isActive = item.path
+      ? item.path === "/dashboard"
+        ? pathname === "/dashboard"
+        : pathname.startsWith(item.path)
+      : false;
     const isSubmenuOpen = openSubmenus[menuKey] || false;
 
     return (
@@ -377,22 +381,40 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
               pl: level === 0 ? 2 : level === 1 ? 3.5 : 5,
               borderRadius: 2,
               mx: 1,
+              py: 1,
+              borderLeft: isActive
+                ? (theme) => `3px solid ${theme.palette.primary.main}`
+                : "3px solid transparent",
+              transition: "all 0.18s ease-in-out",
               "&.Mui-selected": {
-                bgcolor: "primary.light",
-                color: "primary.contrastText",
+                bgcolor: (theme) =>
+                  theme.palette.mode === "dark"
+                    ? "rgba(33, 150, 243, 0.15)"
+                    : "rgba(25, 118, 210, 0.08)",
+                color: "primary.main",
                 "& .MuiListItemIcon-root": {
-                  color: "primary.contrastText",
+                  color: "primary.main",
                 },
                 "&:hover": {
-                  bgcolor: "primary.main",
+                  bgcolor: (theme) =>
+                    theme.palette.mode === "dark"
+                      ? "rgba(33, 150, 243, 0.22)"
+                      : "rgba(25, 118, 210, 0.12)",
                 },
+              },
+              "&:hover": {
+                bgcolor: (theme) =>
+                  theme.palette.mode === "dark"
+                    ? "rgba(255, 255, 255, 0.05)"
+                    : "rgba(0, 0, 0, 0.03)",
               },
             }}
           >
             <ListItemIcon
               sx={{
                 minWidth: level === 2 ? 34 : 40,
-                color: isActive ? "inherit" : "text.secondary",
+                color: isActive ? "primary.main" : "text.secondary",
+                transition: "color 0.18s ease-in-out",
               }}
             >
               {item.icon}
@@ -400,8 +422,9 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
             <ListItemText
               primary={item.text}
               primaryTypographyProps={{
-                fontWeight: isActive || (hasSubItems && isSubmenuOpen) ? 600 : 400,
+                fontWeight: isActive ? 700 : hasSubItems && isSubmenuOpen ? 600 : 500,
                 fontSize: level === 0 ? "0.9rem" : level === 1 ? "0.85rem" : "0.8rem",
+                color: isActive ? "primary.main" : "inherit",
               }}
             />
             {hasSubItems ? (
@@ -461,42 +484,26 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
   );
 
   return (
-    <Box
-      component="nav"
-      sx={{ width: { lg: drawerWidth }, flexShrink: { lg: 0 } }}
-      aria-label="mailbox folders"
+    <Drawer
+      variant="temporary"
+      open={open}
+      onClose={onClose}
+      ModalProps={{
+        keepMounted: true,
+      }}
+      sx={{
+        "& .MuiDrawer-paper": {
+          boxSizing: "border-box",
+          width: drawerWidth,
+          borderRight: "1px solid",
+          borderColor: "divider",
+          bgcolor: (theme) =>
+            theme.palette.mode === "dark" ? "#161b22" : "#ffffff",
+          boxShadow: (theme) => theme.shadows[8],
+        },
+      }}
     >
-      {/* Mobile drawer (phones portrait & landscape, tablets) */}
-      <Drawer
-        variant="temporary"
-        open={open}
-        onClose={onClose}
-        ModalProps={{
-          keepMounted: true,
-        }}
-        sx={{
-          display: { xs: "block", lg: "none" },
-          "& .MuiDrawer-paper": { boxSizing: "border-box", width: drawerWidth },
-        }}
-      >
-        {drawerContent}
-      </Drawer>
-
-      {/* Desktop drawer (large screens and desktops) */}
-      <Drawer
-        variant="permanent"
-        sx={{
-          display: { xs: "none", lg: "block" },
-          "& .MuiDrawer-paper": {
-            boxSizing: "border-box",
-            width: drawerWidth,
-            borderRight: "1px solid #e0e0e0",
-          },
-        }}
-        open
-      >
-        {drawerContent}
-      </Drawer>
-    </Box>
+      {drawerContent}
+    </Drawer>
   );
 }

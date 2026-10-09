@@ -545,7 +545,8 @@ export default function ParkingPage({ isInternal = false }: ParkingPageProps) {
         {
           field: "employeeName",
           headerName: "Empleado / Responsable",
-          width: 200,
+          flex: 1,
+          minWidth: 160,
           renderCell: (params: any) => {
             const emp = params.row.employeeName || params.row.employee?.fullName;
             if (!emp) {
@@ -586,7 +587,8 @@ export default function ParkingPage({ isInternal = false }: ParkingPageProps) {
         {
           field: "residentName",
           headerName: "Residente / Conductor",
-          width: 180,
+          flex: 1,
+          minWidth: 160,
           renderCell: (params: any) => {
             const res =
               params.row.residentName ||

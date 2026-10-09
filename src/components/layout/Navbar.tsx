@@ -70,7 +70,7 @@ export default function Navbar({ onMenuClick }: NavbarProps) {
           aria-label="open drawer"
           edge="start"
           onClick={onMenuClick}
-          sx={{ mr: 2, display: { lg: "none" } }}
+          sx={{ mr: 2 }}
         >
           <MenuIcon />
         </IconButton>

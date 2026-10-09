@@ -8,11 +8,11 @@ import { GridColDef } from "@mui/x-data-grid";
 import { z } from "zod";
 import { HttpClient } from "@/lib/api/client";
 
-import DetailDialog from "@/components/common/DetailDialog";
+import ResponsiveDetailWrapper from "@/components/common/ResponsiveDetailWrapper";
 import PromptConfirmDialog from "@/components/common/PromptConfirmDialog";
 import CsvImportDialog from "@/components/common/CsvImportDialog";
 import { formatDateTime } from "@/lib/formatters";
-import { Chip, Button } from "@mui/material";
+import { Chip, Button, Box, Stack, Avatar, Typography, Paper, Grid } from "@mui/material";
 import { CloudUpload as CloudUploadIcon } from "@mui/icons-material";
 
 const schema = z.object({
@@ -178,35 +178,63 @@ Haz clic en el icono de ojo para consultar el creador y fecha de registro.
 Para inhabilitar un departamento, confirma ingresando su nombre exacto.`}
       />
 
-      <DetailDialog
+      <ResponsiveDetailWrapper
         open={Boolean(detailDept)}
         onClose={() => setDetailDept(null)}
         title="Detalles del Departamento"
-        fields={
-          detailDept
-            ? [
-                { label: "Nombre", value: detailDept.name },
-                {
-                  label: "Estado",
-                  value: (
+        actions={
+          <Box display="flex" justifyContent="flex-end">
+            <Button onClick={() => setDetailDept(null)} variant="outlined">
+              Cerrar
+            </Button>
+          </Box>
+        }
+      >
+        {detailDept && (
+          <Box>
+            <Box sx={{ bgcolor: 'background.default', p: 3, borderRadius: 2, mb: 3 }}>
+              <Stack direction="row" spacing={2} alignItems="center">
+                <Avatar sx={{ width: 64, height: 64, bgcolor: "primary.main", fontSize: "1.5rem", fontWeight: 700 }}>
+                  {detailDept.name.substring(0, 2).toUpperCase()}
+                </Avatar>
+                <Box>
+                  <Typography variant="h5" sx={{ fontWeight: 600 }}>
+                    {detailDept.name}
+                  </Typography>
+                  <Stack direction="row" spacing={1} sx={{ mt: 1, flexWrap: "wrap", gap: 1 }}>
                     <Chip
+                      size="small"
                       label={detailDept.isActive ? "Activo" : "Inactivo"}
                       color={detailDept.isActive ? "success" : "default"}
-                      size="small"
+                      sx={{ ml: "0 !important" }}
                     />
-                  ),
-                },
-                { label: "Creado Por", value: detailDept.createdBy || "Sistema" },
-                {
-                  label: "Creado En",
-                  value: detailDept.createdAt
-                    ? formatDateTime(detailDept.createdAt)
-                    : "N/A",
-                },
-              ]
-            : []
-        }
-      />
+                  </Stack>
+                </Box>
+              </Stack>
+            </Box>
+
+            <Grid container spacing={3}>
+              <Grid size={{ xs: 12 }}>
+                <Paper elevation={0} sx={{ bgcolor: 'background.default', borderRadius: 2, p: 3, height: '100%' }}>
+                  <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 2, fontWeight: 600, textTransform: 'uppercase', fontSize: '0.75rem' }}>
+                    Información de Registro
+                  </Typography>
+                  <Stack spacing={2}>
+                    <Box>
+                      <Typography variant="caption" sx={{ fontWeight: 600 }}>Creado Por</Typography>
+                      <Typography variant="body2">{detailDept.createdBy || "Sistema"}</Typography>
+                    </Box>
+                    <Box>
+                      <Typography variant="caption" sx={{ fontWeight: 600 }}>Fecha de Creación</Typography>
+                      <Typography variant="body2">{detailDept.createdAt ? formatDateTime(detailDept.createdAt) : "N/A"}</Typography>
+                    </Box>
+                  </Stack>
+                </Paper>
+              </Grid>
+            </Grid>
+          </Box>
+        )}
+      </ResponsiveDetailWrapper>
 
       <PromptConfirmDialog
         open={Boolean(deleteDept)}
