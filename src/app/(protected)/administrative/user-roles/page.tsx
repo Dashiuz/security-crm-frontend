@@ -19,10 +19,10 @@ type UserRolesForm = {
 
 const columns: GridColDef[] = [
   { field: "id", headerName: "ID", width: 90 },
-  { field: "fullName", headerName: "Usuario", width: 250 },
+  { field: "fullName", headerName: "Usuario", flex: 1.5, minWidth: 200 },
   { field: "document", headerName: "Documento", width: 130 },
-  { field: "department", headerName: "Departamento", width: 150 },
-  { field: "position", headerName: "Cargo", width: 150 },
+  { field: "department", headerName: "Departamento", flex: 1, minWidth: 150 },
+  { field: "position", headerName: "Cargo", flex: 1, minWidth: 150 },
 ];
 
 export default function UserRolesPage() {

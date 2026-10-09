@@ -428,14 +428,25 @@ export default function ClientSecurityStudiesPage({ params }: PageProps) {
 
         <Stack direction="row" spacing={1.5} alignItems="center">
           {hasCanva && client?.geofence && (
-            <Chip
-              icon={<CheckCircleIcon />}
-              label="Geofencing Activo (SSOT)"
-              color="success"
-              variant="outlined"
-              size="small"
-              sx={{ fontWeight: 600 }}
-            />
+            <>
+              <Chip
+                icon={<CheckCircleIcon />}
+                label="Geofencing Activo (SSOT)"
+                color="success"
+                variant="outlined"
+                size="small"
+                sx={{ fontWeight: 600 }}
+              />
+              <Button
+                variant="outlined"
+                size="small"
+                startIcon={<MapIcon />}
+                onClick={() => setLocationPickerOpen(true)}
+                sx={{ fontWeight: 600, textTransform: "none", borderRadius: 2 }}
+              >
+                Reconfigurar Geocerca
+              </Button>
+            </>
           )}
 
           {hasCanva ? (
@@ -460,58 +471,57 @@ export default function ClientSecurityStudiesPage({ params }: PageProps) {
         </Stack>
       </Stack>
 
-      {/* Geofence Missing Prerequisite Alert (Only if hasCanva and geofence is not configured) */}
-      {hasCanva && !hasGeofence && (
-        <Alert
-          severity="warning"
-          sx={{ mb: 3, alignItems: "center" }}
-          action={
-            <Button
-              color="warning"
-              variant="contained"
-              size="small"
-              startIcon={<MapIcon />}
-              onClick={() => setLocationPickerOpen(true)}
-              sx={{ textTransform: "none", fontWeight: 700 }}
-            >
-              Configurar Geofence
-            </Button>
-          }
-        >
-          <Typography variant="subtitle2" fontWeight={700}>
-            Geofence del Cliente no configurado
-          </Typography>
-          <Typography variant="body2">
-            Para diseñar o crear estudios satelitales en Canva, primero debe establecer el perímetro y la imagen satelital base del cliente.
-          </Typography>
-        </Alert>
-      )}
+      {/* CASE 1: Inline Full-Width Geofence Setup Studio (Zero Modals!) */}
+      {hasCanva && (!hasGeofence || locationPickerOpen) ? (
+        <Box sx={{ width: "100%", display: "flex", flexDirection: "column", gap: 2.5 }}>
+          <Box
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              flexWrap: "wrap",
+              gap: 1.5,
+              pb: 1.5,
+              borderBottom: "1px solid",
+              borderColor: "divider",
+            }}
+          >
+            <Box>
+              <Typography variant="h5" fontWeight={700}>
+                {hasGeofence
+                  ? "Reconfigurar Geocerca y Fotografía Satelital"
+                  : "Configuración Inicial de Geocerca Satelital"}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Paso 1 de 2: Encuadre la infraestructura del conjunto en Mapbox. Al capturar, accederá directamente al editor CAD para trazar el perímetro.
+              </Typography>
+            </Box>
+            {hasGeofence && (
+              <Button
+                variant="outlined"
+                size="small"
+                onClick={() => setLocationPickerOpen(false)}
+                sx={{ textTransform: "none", fontWeight: 600, borderRadius: 2 }}
+              >
+                Volver a Estudios
+              </Button>
+            )}
+          </Box>
 
-      {/* Mapbox Location Picker Dialog */}
-      {locationPickerOpen && (
-        <Dialog
-          open={locationPickerOpen}
-          onClose={() => setLocationPickerOpen(false)}
-          maxWidth="lg"
-          fullWidth
-        >
-          <DialogTitle sx={{ fontWeight: 700 }}>
-            Configurar Ubicación e Imagen Satelital del Cliente
-          </DialogTitle>
-          <DialogContent>
-            <MapboxLocationPicker
-              clientId={clientId}
-              clientName={client?.name || ""}
-              initialAddress={client?.address || ""}
-              onBaseGenerated={handleBaseGenerated}
-              onCancel={() => setLocationPickerOpen(false)}
-            />
-          </DialogContent>
-        </Dialog>
-      )}
+          <MapboxLocationPicker
+            clientId={clientId}
+            clientName={client?.name || ""}
+            initialAddress={client?.address || ""}
+            onBaseGenerated={handleBaseGenerated}
+            onCancel={hasGeofence ? () => setLocationPickerOpen(false) : undefined}
+          />
+        </Box>
+      ) : null}
 
-      {/* CASE A: No studies exist */}
-      {studies.length === 0 ? (
+      {/* CASE 2: Studies Content (When Geofence is configured) */}
+      {!hasCanva || (hasGeofence && !locationPickerOpen) ? (
+        <>
+          {studies.length === 0 ? (
         <Paper
           elevation={2}
           sx={{
@@ -840,6 +850,8 @@ export default function ClientSecurityStudiesPage({ params }: PageProps) {
           })}
         </Stack>
       )}
+    </>
+  ) : null}
 
       {/* Dialog to Create a New Study */}
       <Dialog

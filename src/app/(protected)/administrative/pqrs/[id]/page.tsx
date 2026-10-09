@@ -33,6 +33,9 @@ import {
   Tab,
   Menu,
   MenuItem,
+  Accordion,
+  AccordionSummary,
+  AccordionDetails,
 } from "@mui/material";
 import {
   ArrowBack as ArrowBackIcon,
@@ -58,6 +61,7 @@ import {
   FactCheck as ProgressIcon,
   VolumeUpRounded,
   VolumeOffRounded,
+  ExpandMore as ExpandMoreIcon,
 } from "@mui/icons-material";
 import Link from "next/link";
 import { useAuth } from "@/components/AuthContext";
@@ -353,13 +357,112 @@ export default function PqrsDetailPage() {
       ? -1
       : WORKFLOW_STEPS.indexOf(ticket.status);
 
+  const originalDescriptionContent = (
+    <Box sx={{ p: { xs: 1.5, md: 1.5 }, pb: descExpanded ? 1.5 : 1, maxWidth: "100%", overflowX: "hidden" }}>
+      <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mb: 0.5, maxWidth: "100%" }}>
+        <Avatar sx={{ bgcolor: "primary.main", width: 28, height: 28, flexShrink: 0 }}>
+          <DomainIcon sx={{ fontSize: 16 }} />
+        </Avatar>
+        <Box sx={{ flex: 1, minWidth: 0, maxWidth: "100%" }}>
+          <Typography variant="subtitle2" fontWeight={700} sx={{ wordBreak: "break-word" }}>
+            {ticket.subject}
+          </Typography>
+          <Typography
+            variant="caption"
+            color="text.secondary"
+            display="block"
+            sx={{ wordBreak: "break-word", whiteSpace: "normal" }}
+          >
+            Radicado por <strong>{ticket.createdBy?.fullName || "Administrador"}</strong>
+            {ticket.client ? ` • ${ticket.client.name}` : ""} • {formatDateTime(ticket.createdAt)}
+          </Typography>
+        </Box>
+      </Stack>
+
+      <Typography
+        variant="body2"
+        sx={{
+          color: "text.primary",
+          whiteSpace: "pre-wrap",
+          lineHeight: 1.5,
+          fontSize: "0.85rem",
+          ...(!descExpanded && {
+            display: "-webkit-box",
+            WebkitLineClamp: 3,
+            WebkitBoxOrient: "vertical",
+            overflow: "hidden",
+          }),
+        }}
+      >
+        {ticket.description}
+      </Typography>
+
+      {ticket.description && ticket.description.length > 150 && (
+        <Button
+          size="small"
+          variant="text"
+          onClick={() => setDescExpanded(!descExpanded)}
+          sx={{
+            p: 0,
+            minWidth: "auto",
+            textTransform: "none",
+            fontSize: "0.75rem",
+            fontWeight: 600,
+            mt: 0.25,
+          }}
+        >
+          {descExpanded ? "Ver menos" : "Ver más"}
+        </Button>
+      )}
+
+      {/* Initial Ticket Attachments */}
+      {ticket.attachments && ticket.attachments.length > 0 && (
+        <Stack direction="row" spacing={1} sx={{ mt: 1, flexWrap: "wrap", gap: 0.75 }}>
+          {ticket.attachments.map((att: any) => {
+            const isImage =
+              att.mimeType?.startsWith("image/") ||
+              /\.(jpg|jpeg|png|webp|gif)$/i.test(att.fileName || "");
+            const isPdf =
+              att.mimeType?.includes("pdf") ||
+              /\.pdf$/i.test(att.fileName || "");
+
+            return (
+              <Chip
+                key={att.id}
+                icon={
+                  isImage ? (
+                    <ImageIcon sx={{ fontSize: 14 }} />
+                  ) : isPdf ? (
+                    <PdfIcon sx={{ fontSize: 14 }} />
+                  ) : (
+                    <FileIcon sx={{ fontSize: 14 }} />
+                  )
+                }
+                label={`${att.fileName} (${(att.sizeBytes / 1024).toFixed(0)} KB)`}
+                component="a"
+                href={att.presignedUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                clickable
+                size="small"
+                variant="outlined"
+                color="primary"
+                sx={{ height: 24, fontSize: "0.75rem" }}
+              />
+            );
+          })}
+        </Stack>
+      )}
+    </Box>
+  );
+
   return (
     <Box
       sx={{
         maxWidth: "100%",
         boxSizing: "border-box",
         overflowX: "hidden",
-        height: { xs: "auto", md: "calc(100vh - 130px)" },
+        height: { xs: "100dvh", md: "calc(100vh - 64px)" },
         mt: { md: -1 },
         mb: { md: -3 },
         display: "flex",
@@ -635,7 +738,8 @@ export default function PqrsDetailPage() {
         <Grid
           size={{ xs: 12, md: 8 }}
           sx={{
-            height: { xs: "calc(100vh - 220px)", md: "100%" },
+            flex: 1,
+            height: "100%",
             display: { xs: mobileTab === 0 ? "flex" : "none", md: "flex" },
             flexDirection: "column",
             minHeight: 0,
@@ -646,9 +750,23 @@ export default function PqrsDetailPage() {
           }}
         >
           {/* Original Ticket Description Card (Compact & Collapsible) */}
+          <Box sx={{ display: { xs: "block", md: "none" }, flexShrink: 0, mb: 1, maxWidth: "100%" }}>
+            <Accordion variant="outlined" sx={{ borderRadius: 2, "&:before": { display: "none" } }}>
+              <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ minHeight: 40, "& .MuiAccordionSummary-content": { my: 1 } }}>
+                <Typography variant="subtitle2" fontWeight={600}>
+                  Ver petición original
+                </Typography>
+              </AccordionSummary>
+              <AccordionDetails sx={{ p: 0, borderTop: "1px solid", borderColor: "divider" }}>
+                {originalDescriptionContent}
+              </AccordionDetails>
+            </Accordion>
+          </Box>
+
           <Card
             elevation={0}
             sx={{
+              display: { xs: "none", md: "block" },
               border: "1px solid",
               borderColor: "divider",
               borderRadius: 2,
@@ -658,102 +776,7 @@ export default function PqrsDetailPage() {
               overflowX: "hidden",
             }}
           >
-            <Box sx={{ p: 1.5, pb: descExpanded ? 1.5 : 1, maxWidth: "100%", overflowX: "hidden" }}>
-              <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mb: 0.5, maxWidth: "100%" }}>
-                <Avatar sx={{ bgcolor: "primary.main", width: 28, height: 28, flexShrink: 0 }}>
-                  <DomainIcon sx={{ fontSize: 16 }} />
-                </Avatar>
-                <Box sx={{ flex: 1, minWidth: 0, maxWidth: "100%" }}>
-                  <Typography variant="subtitle2" fontWeight={700} sx={{ wordBreak: "break-word" }}>
-                    {ticket.subject}
-                  </Typography>
-                  <Typography
-                    variant="caption"
-                    color="text.secondary"
-                    display="block"
-                    sx={{ wordBreak: "break-word", whiteSpace: "normal" }}
-                  >
-                    Radicado por <strong>{ticket.createdBy?.fullName || "Administrador"}</strong>
-                    {ticket.client ? ` • ${ticket.client.name}` : ""} • {formatDateTime(ticket.createdAt)}
-                  </Typography>
-                </Box>
-              </Stack>
-
-              <Typography
-                variant="body2"
-                sx={{
-                  color: "text.primary",
-                  whiteSpace: "pre-wrap",
-                  lineHeight: 1.5,
-                  fontSize: "0.85rem",
-                  ...(!descExpanded && {
-                    display: "-webkit-box",
-                    WebkitLineClamp: 3,
-                    WebkitBoxOrient: "vertical",
-                    overflow: "hidden",
-                  }),
-                }}
-              >
-                {ticket.description}
-              </Typography>
-
-              {ticket.description && ticket.description.length > 150 && (
-                <Button
-                  size="small"
-                  variant="text"
-                  onClick={() => setDescExpanded(!descExpanded)}
-                  sx={{
-                    p: 0,
-                    minWidth: "auto",
-                    textTransform: "none",
-                    fontSize: "0.75rem",
-                    fontWeight: 600,
-                    mt: 0.25,
-                  }}
-                >
-                  {descExpanded ? "Ver menos" : "Ver más"}
-                </Button>
-              )}
-
-              {/* Initial Ticket Attachments */}
-              {ticket.attachments && ticket.attachments.length > 0 && (
-                <Stack direction="row" spacing={1} sx={{ mt: 1, flexWrap: "wrap", gap: 0.75 }}>
-                  {ticket.attachments.map((att: any) => {
-                    const isImage =
-                      att.mimeType?.startsWith("image/") ||
-                      /\.(jpg|jpeg|png|webp|gif)$/i.test(att.fileName || "");
-                    const isPdf =
-                      att.mimeType?.includes("pdf") ||
-                      /\.pdf$/i.test(att.fileName || "");
-
-                    return (
-                      <Chip
-                        key={att.id}
-                        icon={
-                          isImage ? (
-                            <ImageIcon sx={{ fontSize: 14 }} />
-                          ) : isPdf ? (
-                            <PdfIcon sx={{ fontSize: 14 }} />
-                          ) : (
-                            <FileIcon sx={{ fontSize: 14 }} />
-                          )
-                        }
-                        label={`${att.fileName} (${(att.sizeBytes / 1024).toFixed(0)} KB)`}
-                        component="a"
-                        href={att.presignedUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        clickable
-                        size="small"
-                        variant="outlined"
-                        color="primary"
-                        sx={{ height: 24, fontSize: "0.75rem" }}
-                      />
-                    );
-                  })}
-                </Stack>
-              )}
-            </Box>
+            {originalDescriptionContent}
           </Card>
 
           {/* Unified Conversation Thread & Composer Card */}
@@ -776,7 +799,7 @@ export default function PqrsDetailPage() {
             {/* Chat Header */}
             <Box
               sx={{
-                px: 2,
+                px: { xs: 1.5, sm: 2 },
                 py: 1.25,
                 borderBottom: "1px solid",
                 borderColor: "divider",

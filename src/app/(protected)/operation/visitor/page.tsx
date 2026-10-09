@@ -571,7 +571,8 @@ export default function VisitorControlPage({ isInternal = false }: VisitorContro
     {
       field: "visitorFullName",
       headerName: "Visitante",
-      width: 190,
+      flex: 1.5,
+      minWidth: 180,
       renderCell: (params) => (
         <Box sx={{ display: "flex", flexDirection: "column", justifyContent: "center", height: "100%" }}>
           <Typography variant="body2" sx={{ fontWeight: 600, lineHeight: 1.15 }}>
@@ -591,7 +592,8 @@ export default function VisitorControlPage({ isInternal = false }: VisitorContro
         {
           field: "employeeName",
           headerName: "Empleado Anfitrión",
-          width: 200,
+          flex: 1,
+          minWidth: 160,
           renderCell: (params: any) => {
             const emp =
               params.row.employeeName ||
@@ -641,7 +643,8 @@ export default function VisitorControlPage({ isInternal = false }: VisitorContro
         {
           field: "residentName",
           headerName: "Residente / Anfitrión",
-          width: 180,
+          flex: 1,
+          minWidth: 160,
           renderCell: (params: any) => {
             const res =
               params.row.residentName ||

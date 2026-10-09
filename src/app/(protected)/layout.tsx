@@ -23,15 +23,15 @@ export default function ProtectedLayout({
         <Navbar onMenuClick={handleDrawerToggle} />
         <Sidebar open={mobileOpen} onClose={handleDrawerToggle} />
         <Box
-        component="main"
-        sx={{
-          flexGrow: 1,
-          p: { xs: 1, sm: 2, md: 3 },
-          width: { xs: "100%", lg: `calc(100% - 260px)` },
-          minHeight: "100vh",
-          overflowX: "hidden",
-        }}
-      >
+          component="main"
+          sx={{
+            flexGrow: 1,
+            p: { xs: 1, sm: 2, md: 3 },
+            width: "100%",
+            minHeight: "100vh",
+            overflowX: "hidden",
+          }}
+        >
         <Toolbar />
         <Container
           maxWidth="xl"

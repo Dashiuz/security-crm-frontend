@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useNotification } from "@/providers/NotificationProvider";
 import DataTable from "@/components/common/DataTable";
 import FormDialog, { FormField } from "@/components/common/FormDialog";
-import DetailDialog from "@/components/common/DetailDialog";
+import ResponsiveDetailWrapper from "@/components/common/ResponsiveDetailWrapper";
 import PromptConfirmDialog from "@/components/common/PromptConfirmDialog";
 import ImageUploadCapture from "@/components/common/ImageUploadCapture";
 import { GridColDef, GridActionsCellItem } from "@mui/x-data-grid";
@@ -15,7 +15,7 @@ import {
   CloudUpload as CloudUploadIcon,
 } from "@mui/icons-material";
 import CsvImportDialog from "@/components/common/CsvImportDialog";
-import { Chip, Box, Avatar, Typography, Stack, Button } from "@mui/material";
+import { Chip, Box, Avatar, Typography, Stack, Button, Paper, Grid } from "@mui/material";
 import { z } from "zod";
 import { HttpClient } from "@/lib/api/client";
 import { StorageApi, MediaTypeCategory } from "@/lib/api/storage";
@@ -258,8 +258,7 @@ export default function EmployeesPage() {
           key={`reactivate-${row.id}`}
           icon={<PersonAddIcon color="success" />}
           label="Reactivar Empleado"
-          title="Reactivar"
-          showInMenu={false}
+          showInMenu={true}
           onClick={() => setReactivateEmployeeData(row)}
         />,
       ];
@@ -269,8 +268,7 @@ export default function EmployeesPage() {
         key={`retire-${row.id}`}
         icon={<PersonOffIcon color="warning" />}
         label="Dar de Baja"
-        title="Dar de Baja"
-        showInMenu={false}
+        showInMenu={true}
         onClick={() => setRetireEmployeeData(row)}
       />,
     ];
@@ -333,7 +331,8 @@ export default function EmployeesPage() {
     {
       field: "fullName",
       headerName: "Empleado",
-      width: 250,
+      flex: 1.5,
+      minWidth: 220,
       renderCell: (params) => {
         const initials = params.row.fullName
           ? params.row.fullName
@@ -378,11 +377,12 @@ export default function EmployeesPage() {
     {
       field: "clientName",
       headerName: "Cliente / Conjunto",
-      width: 200,
+      flex: 1,
+      minWidth: 160,
       valueGetter: (value: any) => value || "Sin asignar",
     },
-    { field: "email", headerName: "Email", width: 170 },
-    { field: "phone", headerName: "Teléfono", width: 110 },
+    { field: "email", headerName: "Email", flex: 1, minWidth: 160 },
+    { field: "phone", headerName: "Teléfono", width: 120 },
     {
       field: "departmentName",
       headerName: "Departamento",
@@ -435,95 +435,115 @@ Haz clic en el icono de ojo para ver los detalles y fotografía en alta resoluci
 Haz clic en el icono de baja para retirar al empleado o en la persona con signo más para reactivarlo.`}
       />
 
-      <DetailDialog
+      <ResponsiveDetailWrapper
         open={Boolean(detailEmployee)}
         onClose={() => setDetailEmployee(null)}
         title="Detalles del Empleado"
-        headerContent={
-          detailEmployee && (
-            <Box
-              sx={{
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                justifyContent: "center",
-                pb: 2,
-                mb: 2,
-                borderBottom: "1px solid",
-                borderColor: "divider",
-              }}
-            >
-              <Avatar
-                src={detailAvatarUrl || detailEmployee?.avatarUrl || undefined}
-                sx={{
-                  width: 90,
-                  height: 90,
-                  bgcolor: "primary.main",
-                  fontSize: "1.8rem",
-                  fontWeight: 700,
-                  boxShadow: "0 4px 14px rgba(0,0,0,0.15)",
-                  mb: 1.5,
-                }}
-              >
-                {detailEmployee.fullName
-                  ? detailEmployee.fullName
-                    .split(" ")
-                    .map((n: string) => n[0])
-                    .slice(0, 2)
-                    .join("")
-                  : "EM"}
-              </Avatar>
-              <Typography variant="h6" sx={{ fontWeight: 700 }}>
-                {detailEmployee.fullName}
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                {detailEmployee.positionName || "Sin Cargo"} • {detailEmployee.departmentName || "Sin Departamento"}
-              </Typography>
+        actions={
+          <Box display="flex" justifyContent="flex-end">
+            <Button onClick={() => setDetailEmployee(null)} variant="outlined">
+              Cerrar
+            </Button>
+          </Box>
+        }
+      >
+        {detailEmployee && (
+          <Box>
+            <Box sx={{ bgcolor: 'background.default', p: 3, borderRadius: 2, mb: 3 }}>
+              <Stack direction="row" spacing={2} alignItems="center">
+                <Avatar
+                  src={detailAvatarUrl || detailEmployee?.avatarUrl || undefined}
+                  sx={{ width: 64, height: 64, bgcolor: "primary.main", fontSize: "1.5rem", fontWeight: 700 }}
+                >
+                  {detailEmployee.fullName
+                    ? detailEmployee.fullName
+                      .split(" ")
+                      .map((n: string) => n[0])
+                      .slice(0, 2)
+                      .join("")
+                    : "EM"}
+                </Avatar>
+                <Box>
+                  <Typography variant="h5" sx={{ fontWeight: 600 }}>
+                    {detailEmployee.fullName}
+                  </Typography>
+                  <Stack direction="row" spacing={1} sx={{ mt: 1, flexWrap: "wrap", gap: 1 }}>
+                    <Chip size="small" label={detailEmployee.positionName || "Sin Cargo"} variant="outlined" sx={{ ml: "0 !important" }} />
+                    <Chip size="small" label={detailEmployee.departmentName || "Sin Departamento"} variant="outlined" />
+                    <Chip
+                      size="small"
+                      label={
+                        detailEmployee.isRetired
+                          ? "Dado de Baja"
+                          : detailEmployee.isActive
+                            ? "Activo"
+                            : "Inactivo"
+                      }
+                      color={
+                        detailEmployee.isRetired
+                          ? "error"
+                          : detailEmployee.isActive
+                            ? "success"
+                            : "default"
+                      }
+                    />
+                  </Stack>
+                </Box>
+              </Stack>
             </Box>
-          )
-        }
-        fields={
-          detailEmployee
-            ? [
-              { label: "Nombre Completo", value: detailEmployee.fullName },
-              {
-                label: "Documento",
-                value: `${detailEmployee.documentType || "CC"}: ${detailEmployee.document}`,
-              },
-              { label: "Email", value: detailEmployee.email || "Sin registrar" },
-              { label: "Teléfono", value: detailEmployee.phone || "Sin registrar" },
-              { label: "Dirección", value: detailEmployee.address || "Sin registrar" },
-              { label: "Cliente / Conjunto", value: detailEmployee.clientName || "Sin asignar" },
-              { label: "Departamento", value: detailEmployee.departmentName || "N/A" },
-              { label: "Cargo / Posición", value: detailEmployee.positionName || "N/A" },
-              { label: "Fecha Nacimiento", value: detailEmployee.birthdate || "N/A" },
-              { label: "Fecha Ingreso", value: detailEmployee.entryDate || "N/A" },
-              {
-                label: "Estado",
-                value: (
-                  <Chip
-                    label={
-                      detailEmployee.isRetired
-                        ? "Dado de Baja"
-                        : detailEmployee.isActive
-                          ? "Activo"
-                          : "Inactivo"
-                    }
-                    color={
-                      detailEmployee.isRetired
-                        ? "error"
-                        : detailEmployee.isActive
-                          ? "success"
-                          : "default"
-                    }
-                    size="small"
-                  />
-                ),
-              },
-            ]
-            : []
-        }
-      />
+
+            <Grid container spacing={3}>
+              <Grid size={{ xs: 12, md: 6 }}>
+                <Paper elevation={0} sx={{ bgcolor: 'background.default', borderRadius: 2, p: 3, height: '100%' }}>
+                  <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 2, fontWeight: 600, textTransform: 'uppercase', fontSize: '0.75rem' }}>
+                    Datos de Contacto
+                  </Typography>
+                  <Stack spacing={2}>
+                    <Box>
+                      <Typography variant="caption" sx={{ fontWeight: 600 }}>Correo Electrónico</Typography>
+                      <Typography variant="body2">{detailEmployee.email || "Sin registrar"}</Typography>
+                    </Box>
+                    <Box>
+                      <Typography variant="caption" sx={{ fontWeight: 600 }}>Teléfono</Typography>
+                      <Typography variant="body2">{detailEmployee.phone || "Sin registrar"}</Typography>
+                    </Box>
+                    <Box>
+                      <Typography variant="caption" sx={{ fontWeight: 600 }}>Dirección</Typography>
+                      <Typography variant="body2">{detailEmployee.address || "Sin registrar"}</Typography>
+                    </Box>
+                    <Box>
+                      <Typography variant="caption" sx={{ fontWeight: 600 }}>Cliente / Conjunto</Typography>
+                      <Typography variant="body2">{detailEmployee.clientName || "Sin asignar"}</Typography>
+                    </Box>
+                  </Stack>
+                </Paper>
+              </Grid>
+
+              <Grid size={{ xs: 12, md: 6 }}>
+                <Paper elevation={0} sx={{ bgcolor: 'background.default', borderRadius: 2, p: 3, height: '100%' }}>
+                  <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 2, fontWeight: 600, textTransform: 'uppercase', fontSize: '0.75rem' }}>
+                    Información Operativa
+                  </Typography>
+                  <Stack spacing={2}>
+                    <Box>
+                      <Typography variant="caption" sx={{ fontWeight: 600 }}>Documento</Typography>
+                      <Typography variant="body2">{detailEmployee.documentType || "CC"}: {detailEmployee.document}</Typography>
+                    </Box>
+                    <Box>
+                      <Typography variant="caption" sx={{ fontWeight: 600 }}>Fecha de Nacimiento</Typography>
+                      <Typography variant="body2">{detailEmployee.birthdate || "N/A"}</Typography>
+                    </Box>
+                    <Box>
+                      <Typography variant="caption" sx={{ fontWeight: 600 }}>Fecha de Ingreso</Typography>
+                      <Typography variant="body2">{detailEmployee.entryDate || "N/A"}</Typography>
+                    </Box>
+                  </Stack>
+                </Paper>
+              </Grid>
+            </Grid>
+          </Box>
+        )}
+      </ResponsiveDetailWrapper>
 
       <PromptConfirmDialog
         open={Boolean(retireEmployeeData)}
