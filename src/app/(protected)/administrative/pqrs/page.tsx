@@ -1321,7 +1321,7 @@ export default function PqrsListPage() {
             Canal B2B formal de radicación y seguimiento de Peticiones, Quejas, Reclamos, Sugerencias y Felicitaciones entre Administradores de Conjuntos y la Empresa de Seguridad.
           </Typography>
           <Typography variant="body2" color="text.secondary">
-            Haz clic en 'Radicar Solicitud' para crear un nuevo ticket con anexos y evidencias. Utiliza el ícono del ojo para ver el historial y responder al cliente en el hilo de mensajes. Los administradores pueden asignar el ticket a funcionarios y avanzar su estado.
+            Haz clic en &apos;Radicar Solicitud&apos; para crear un nuevo ticket con anexos y evidencias. Utiliza el ícono del ojo para ver el historial y responder al cliente en el hilo de mensajes. Los administradores pueden asignar el ticket a funcionarios y avanzar su estado.
           </Typography>
         </DialogContent>
         <DialogActions>
