@@ -4,7 +4,6 @@ import React, {
   createContext,
   useContext,
   useEffect,
-  useState,
   ReactNode,
 } from "react";
 import { Tenant } from "@/lib/api/auth";
@@ -20,17 +19,15 @@ const TenantContext = createContext<TenantContextType | undefined>(undefined);
 
 export function TenantProvider({ children }: { children: ReactNode }) {
   const { session } = useAuth();
-  const [tenant, setTenant] = useState<Tenant | null>(null);
+  const tenant = session?.user?.tenant ?? null;
 
   useEffect(() => {
-    if (session?.user?.tenant) {
-      setTenant(session.user.tenant);
-      document.title = `${session.user.tenant.name} | NOXIA CRM`;
+    if (tenant) {
+      document.title = `${tenant.name} | NOXIA CRM`;
     } else {
-      setTenant(null);
       document.title = "NOXIA CRM";
     }
-  }, [session]);
+  }, [tenant]);
 
   const isFeatureEnabled = (featureKey: string) => {
     if (!tenant) return false;

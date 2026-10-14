@@ -53,6 +53,8 @@ import { useTenant } from "@/providers/TenantProvider";
 import { HttpClient } from "@/lib/api/client";
 import { StorageApi, MediaTypeCategory } from "@/lib/api/storage";
 import { formatDate, formatTime, formatDateTime, formatTimeToHHmm } from "@/lib/formatters";
+import ResponsiveFormDrawer from "@/components/common/ResponsiveFormDrawer";
+import dayjs from "dayjs";
 
 interface VisitorControlPageProps {
   isInternal?: boolean;
@@ -152,15 +154,16 @@ export default function VisitorControlPage({ isInternal = false }: VisitorContro
       );
       return;
     }
-    const now = new Date();
-    const currentTime = now.toTimeString().split(" ")[0].substring(0, 5);
+    const now = dayjs();
+    const currentDate = now.format("YYYY-MM-DD");
+    const currentTime = now.format("HH:mm");
     setEvidenceFile(null);
     setExistingMediaUrl(null);
     setSelectedUnit(null);
     setSelectedResident(null);
     setSelectedEmployee(null);
     setFormData({
-      date: now.toISOString().split("T")[0],
+      date: currentDate,
       time: currentTime + ":00",
       entryTime: currentTime + ":00",
       exitTime: "",
@@ -228,7 +231,7 @@ export default function VisitorControlPage({ isInternal = false }: VisitorContro
       }
 
       setFormData({
-        date: data.date ? new Date(data.date).toISOString().split("T")[0] : "",
+        date: data.date ? (typeof data.date === "string" ? data.date.split("T")[0] : dayjs(data.date).format("YYYY-MM-DD")) : "",
         time: data.time ? formatTimeToHHmm(data.time) : "",
         entryTime: data.entryTime ? formatTimeToHHmm(data.entryTime) : (data.time ? formatTimeToHHmm(data.time) : ""),
         exitTime: data.exitTime ? formatTimeToHHmm(data.exitTime) : "",
@@ -355,10 +358,10 @@ export default function VisitorControlPage({ isInternal = false }: VisitorContro
 
     setSubmitting(true);
     try {
-      const now = new Date();
+      const now = dayjs();
       const timeVal = formData.time.length === 5 ? `${formData.time}:00` : formData.time;
       const entryTimeVal = formData.entryTime.length === 5 ? `${formData.entryTime}:00` : formData.entryTime;
-      const dateVal = formData.date || now.toISOString().split("T")[0];
+      const dateVal = formData.date || now.format("YYYY-MM-DD");
 
       const payload: any = {
         date: dateVal,
@@ -437,8 +440,8 @@ export default function VisitorControlPage({ isInternal = false }: VisitorContro
   };
 
   const handleProceedToExitModal = () => {
-    const now = new Date();
-    setExitTime(formatTimeToHHmm(now));
+    const now = dayjs();
+    setExitTime(now.format("HH:mm"));
     setExitObservations("");
     setExitEvidenceFile(null);
     setExitConfirmOpen(false);
@@ -1024,39 +1027,27 @@ export default function VisitorControlPage({ isInternal = false }: VisitorContro
       />
 
       {/* Modal de Registro / Edición de Visitante */}
-      <Dialog
+      <ResponsiveFormDrawer
         open={dialogOpen}
         onClose={() => !submitting && setDialogOpen(false)}
-        maxWidth="md"
-        fullWidth
-        PaperProps={{ sx: { borderRadius: { xs: 2, sm: 2.5 }, m: { xs: 1.5, sm: 3 } } }}
+        title={
+          isEditing
+            ? isInternal
+              ? "Actualizar Visitante Interno"
+              : "Actualizar Registro de Visitante"
+            : isInternal
+              ? `Nuevo Ingreso - ${tenant?.name || "Empresa"}`
+              : activeClientName
+                ? `Nuevo Registro para ${activeClientName}`
+                : "Nuevo Ingreso de Visitante"
+        }
+        subtitle={isInternal ? "Uso Interno Operativo" : undefined}
+        isSubmitting={submitting}
+        submitButtonText={isEditing ? "Actualizar Registro" : "Registrar Ingreso"}
+        formId="visitor-form"
       >
-        <form onSubmit={handleSubmit}>
-          <DialogTitle sx={{ pb: 1, fontWeight: 700, fontSize: { xs: "1.1rem", sm: "1.25rem" }, display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
-            <PersonIcon color="primary" />
-            <Box component="span">
-              {isEditing
-                ? isInternal
-                  ? "Actualizar Visitante Interno"
-                  : "Actualizar Registro de Visitante"
-                : isInternal
-                  ? `Nuevo Ingreso - ${tenant?.name || "Empresa"}`
-                  : activeClientName
-                    ? `Nuevo Registro para ${activeClientName}`
-                    : "Nuevo Ingreso de Visitante"}
-            </Box>
-            {isInternal && (
-              <Chip
-                size="small"
-                label="Uso Interno"
-                color="secondary"
-                variant="outlined"
-                sx={{ fontWeight: 600, ml: "auto" }}
-              />
-            )}
-          </DialogTitle>
-          <DialogContent dividers sx={{ pt: 2, px: { xs: 2, sm: 3 } }}>
-            <Grid container spacing={2}>
+        <Box component="form" id="visitor-form" onSubmit={handleSubmit}>
+          <Grid container spacing={2}>
               {/* Sección 1: Destino / Anfitrión */}
               <Grid size={12}>
                 <Typography
@@ -1316,17 +1307,8 @@ export default function VisitorControlPage({ isInternal = false }: VisitorContro
                 />
               </Grid>
             </Grid>
-          </DialogContent>
-          <DialogActions sx={{ px: { xs: 2, sm: 3 }, py: 2, flexDirection: { xs: "column-reverse", sm: "row" }, gap: { xs: 1, sm: 0 } }}>
-            <Button onClick={() => setDialogOpen(false)} color="inherit" disabled={submitting} sx={{ width: { xs: "100%", sm: "auto" } }}>
-              Cancelar
-            </Button>
-            <Button type="submit" variant="contained" disabled={submitting} sx={{ fontWeight: 600, width: { xs: "100%", sm: "auto" } }}>
-              {submitting ? "Guardando..." : isEditing ? "Actualizar Registro" : "Registrar Ingreso"}
-            </Button>
-          </DialogActions>
-        </form>
-      </Dialog>
+        </Box>
+      </ResponsiveFormDrawer>
 
       {/* Paso 1 Salida: Diálogo de Confirmación */}
       <Dialog
@@ -1376,18 +1358,25 @@ export default function VisitorControlPage({ isInternal = false }: VisitorContro
         </DialogActions>
       </Dialog>
 
-      {/* Paso 2 Salida: Modal de Salida con Fotografía y Observaciones */}
-      <Dialog
+      {/* Paso 2 Salida: Drawer de Salida con Fotografía y Observaciones */}
+      <ResponsiveFormDrawer
         open={exitModalOpen}
         onClose={() => !exitSubmitting && setExitModalOpen(false)}
-        maxWidth="sm"
-        fullWidth
-        PaperProps={{ sx: { borderRadius: 2.5 } }}
+        title="Registro de Salida de Visitante"
+        subtitle={selectedExitVisitor ? `Visitante: ${selectedExitVisitor.visitorFullName}` : undefined}
+        isSubmitting={exitSubmitting}
+        submitButtonText="Registrar Salida"
+        submitButtonColor="warning"
+        formId="visitor-exit-form"
       >
-        <DialogTitle sx={{ fontWeight: 700, display: "flex", alignItems: "center", gap: 1 }}>
-          <LogoutIcon color="warning" /> Registro de Salida de Visitante
-        </DialogTitle>
-        <DialogContent dividers sx={{ pt: 2 }}>
+        <Box
+          component="form"
+          id="visitor-exit-form"
+          onSubmit={(e) => {
+            e.preventDefault();
+            handleConfirmExit();
+          }}
+        >
           {selectedExitVisitor && (
             <Paper variant="outlined" sx={{ p: 1.5, mb: 2, borderRadius: 1.5, bgcolor: "background.default" }}>
               <Grid container spacing={1}>
@@ -1448,23 +1437,8 @@ export default function VisitorControlPage({ isInternal = false }: VisitorContro
               helperText="Toma una foto en vivo al visitante al salir o selecciona una imagen (opcional)."
             />
           </Stack>
-        </DialogContent>
-        <DialogActions sx={{ px: 3, py: 2 }}>
-          <Button onClick={() => setExitModalOpen(false)} color="inherit" disabled={exitSubmitting}>
-            Cancelar
-          </Button>
-          <Button
-            variant="contained"
-            color="warning"
-            disabled={exitSubmitting}
-            onClick={handleConfirmExit}
-            startIcon={exitSubmitting ? <CircularProgress size={16} color="inherit" /> : <LogoutIcon />}
-            sx={{ fontWeight: 600 }}
-          >
-            {exitSubmitting ? "Registrando..." : "Registrar Salida"}
-          </Button>
-        </DialogActions>
-      </Dialog>
+        </Box>
+      </ResponsiveFormDrawer>
 
       {/* Modal Visor de Evidencia */}
       <Dialog

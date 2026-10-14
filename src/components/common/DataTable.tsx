@@ -642,6 +642,22 @@ export default function DataTable({
             checkboxSelection={checkboxSelection}
             onRowSelectionModelChange={onRowSelectionModelChange}
             disableRowSelectionOnClick
+            onRowClick={(params, event) => {
+              const target = event.target as HTMLElement | null;
+              if (
+                target?.closest("button") ||
+                target?.closest(".MuiCheckbox-root") ||
+                target?.closest("a") ||
+                target?.closest(".MuiIconButton-root") ||
+                target?.closest("[data-field='actions']") ||
+                target?.closest(".MuiDataGrid-cell--withRenderer")?.getAttribute("data-field") === "actions"
+              ) {
+                return;
+              }
+              if (onView) {
+                onView(params.row);
+              }
+            }}
             localeText={{
               noRowsLabel: "No hay datos disponibles",
               columnMenuSortAsc: "Orden ascendente",
@@ -652,6 +668,10 @@ export default function DataTable({
             }}
             sx={{
               border: "none",
+              "& .MuiDataGrid-row": {
+                cursor: onView ? "pointer" : "default",
+                transition: "background-color 0.15s ease",
+              },
               "& .MuiDataGrid-cell": {
                 display: "flex",
                 alignItems: "center",

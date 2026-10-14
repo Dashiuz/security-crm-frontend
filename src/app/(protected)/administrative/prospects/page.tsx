@@ -27,7 +27,9 @@ import {
   MenuItem,
   Typography,
   CircularProgress,
+  Box,
 } from "@mui/material";
+import ResponsiveFormDrawer from "@/components/common/ResponsiveFormDrawer";
 
 const columns: GridColDef[] = [
   { field: "internalCode", headerName: "Código", width: 110 },
@@ -184,17 +186,24 @@ export default function ProspectsPage() {
         confirmColor="error"
       />
 
-      {/* Convert to Client Dialog */}
-      <Dialog
+      {/* Convert to Client Drawer */}
+      <ResponsiveFormDrawer
         open={Boolean(convertProspect)}
         onClose={() => !converting && setConvertProspect(null)}
-        maxWidth="md"
-        fullWidth
+        title={convertProspect ? `Cerrar Contrato: ${convertProspect.name}` : "Cerrar Contrato y Formalizar Cliente"}
+        subtitle="Formalización del cliente en la plataforma operativa"
+        isSubmitting={converting}
+        submitButtonText="Confirmar y Cerrar Contrato"
+        formId="convert-prospect-form"
       >
-        <DialogTitle sx={{ fontWeight: 600 }}>
-          Cerrar Contrato y Formalizar Cliente: {convertProspect?.name}
-        </DialogTitle>
-        <DialogContent dividers>
+        <Box
+          component="form"
+          id="convert-prospect-form"
+          onSubmit={(e) => {
+            e.preventDefault();
+            handleConfirmConvert();
+          }}
+        >
           <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
             Al formalizar este prospecto, se convertirá en un <strong>Cliente Activo</strong> dentro de la plataforma y estará disponible para asignación operativa de guardias y residentes.
           </Typography>
@@ -203,11 +212,13 @@ export default function ProspectsPage() {
             <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
+                size="small"
                 label="Número de Contrato *"
                 value={convertForm.contractNumber}
                 onChange={(e) =>
                   setConvertForm({ ...convertForm, contractNumber: e.target.value })
                 }
+                required
               />
             </Grid>
 
@@ -215,6 +226,7 @@ export default function ProspectsPage() {
               <TextField
                 select
                 fullWidth
+                size="small"
                 label="Tipo de Contrato"
                 value={convertForm.renewedContract ? "RENEWED" : "NEW"}
                 onChange={(e) =>
@@ -232,40 +244,44 @@ export default function ProspectsPage() {
             <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
+                size="small"
                 type="date"
-                  InputProps={{
-                    endAdornment: (
-                      <InputAdornment position="end">
-                        <CalendarMonthIcon sx={{ color: "action.active", pointerEvents: "none" }} />
-                      </InputAdornment>
-                    ),
-                  }}
+                InputProps={{
+                  endAdornment: (
+                    <InputAdornment position="end">
+                      <CalendarMonthIcon sx={{ color: "action.active", pointerEvents: "none" }} />
+                    </InputAdornment>
+                  ),
+                }}
                 label="Fecha Inicial del Contrato *"
                 InputLabelProps={{ shrink: true }}
                 value={convertForm.contractDate}
                 onChange={(e) =>
                   setConvertForm({ ...convertForm, contractDate: e.target.value })
                 }
+                required
               />
             </Grid>
 
             <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
+                size="small"
                 type="date"
-                  InputProps={{
-                    endAdornment: (
-                      <InputAdornment position="end">
-                        <CalendarMonthIcon sx={{ color: "action.active", pointerEvents: "none" }} />
-                      </InputAdornment>
-                    ),
-                  }}
+                InputProps={{
+                  endAdornment: (
+                    <InputAdornment position="end">
+                      <CalendarMonthIcon sx={{ color: "action.active", pointerEvents: "none" }} />
+                    </InputAdornment>
+                  ),
+                }}
                 label="Fecha Final del Contrato *"
                 InputLabelProps={{ shrink: true }}
                 value={convertForm.lastContractDate}
                 onChange={(e) =>
                   setConvertForm({ ...convertForm, lastContractDate: e.target.value })
                 }
+                required
               />
             </Grid>
 
@@ -297,6 +313,7 @@ export default function ProspectsPage() {
               <TextField
                 select
                 fullWidth
+                size="small"
                 label="Tipo de Administración"
                 value={convertForm.administrationType}
                 onChange={(e) =>
@@ -311,23 +328,8 @@ export default function ProspectsPage() {
               </TextField>
             </Grid>
           </Grid>
-        </DialogContent>
-        <DialogActions sx={{ px: 3, py: 2 }}>
-          <Button onClick={() => setConvertProspect(null)} color="inherit" disabled={converting}>
-            Cancelar
-          </Button>
-          <Button
-            variant="contained"
-            color="primary"
-            onClick={handleConfirmConvert}
-            disabled={converting}
-            startIcon={converting ? <CircularProgress size={20} color="inherit" /> : <HandshakeIcon />}
-            sx={{ borderRadius: 2 }}
-          >
-            {converting ? "Formalizando..." : "Confirmar y Cerrar Contrato"}
-          </Button>
-        </DialogActions>
-      </Dialog>
+        </Box>
+      </ResponsiveFormDrawer>
     </>
   );
 }

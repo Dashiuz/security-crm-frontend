@@ -45,62 +45,87 @@ export default function ResponsiveDetailWrapper({
 
   if (isMobile) {
     return (
-      <Dialog
-        fullScreen
+      <Drawer
+        anchor="bottom"
         open={open}
         onClose={onClose}
-        TransitionComponent={Transition}
+        sx={{
+          zIndex: (theme) => theme.zIndex.drawer + 50,
+          "& .MuiDrawer-paper": {
+            zIndex: (theme) => theme.zIndex.drawer + 50,
+          },
+        }}
         PaperProps={{
-          sx: { bgcolor: "background.paper" },
+          sx: {
+            maxHeight: "92vh",
+            borderTopLeftRadius: 20,
+            borderTopRightRadius: 20,
+            display: "flex",
+            flexDirection: "column",
+            bgcolor: "background.paper",
+            boxShadow: "0 -8px 32px rgba(0,0,0,0.18)",
+          },
         }}
       >
-        <AppBar
-          position="sticky"
-          elevation={1}
+        {/* Mobile Drag Indicator Handle */}
+        <Box sx={{ width: "100%", display: "flex", justifyContent: "center", pt: 1.5, pb: 0.5 }}>
+          <Box
+            sx={{
+              width: 40,
+              height: 5,
+              borderRadius: 3,
+              bgcolor: "divider",
+            }}
+          />
+        </Box>
+
+        {/* Mobile Header */}
+        <Box
           sx={{
-            bgcolor: "background.paper",
-            color: "text.primary",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            px: 2.5,
+            py: 1.5,
             borderBottom: "1px solid",
             borderColor: "divider",
           }}
         >
-          <Toolbar sx={{ px: 2 }}>
-            <IconButton edge="start" color="inherit" onClick={onClose} aria-label="close" sx={{ mr: 1 }}>
-              <ArrowBackIcon />
-            </IconButton>
-            <Typography variant="h6" component="div" sx={{ fontWeight: 600, flex: 1 }}>
-              {title}
-            </Typography>
-          </Toolbar>
-        </AppBar>
+          <Typography variant="h6" sx={{ fontWeight: 700, fontSize: "1.1rem" }}>
+            {title}
+          </Typography>
+          <IconButton onClick={onClose} edge="end" size="small">
+            <CloseIcon />
+          </IconButton>
+        </Box>
+
+        {/* Mobile Scrollable Body */}
         <Box
           sx={{
-            p: 3,
+            p: 2.5,
             flex: 1,
             overflowY: "auto",
-            pb: actions ? 10 : 3, // padding bottom if actions exist to prevent overlap
+            WebkitOverflowScrolling: "touch",
           }}
         >
           {children}
         </Box>
+
+        {/* Mobile Actions */}
         {actions && (
           <Box
             sx={{
-              position: "fixed",
-              bottom: 0,
-              left: 0,
-              right: 0,
               p: 2,
               bgcolor: "background.paper",
               borderTop: "1px solid",
               borderColor: "divider",
-              zIndex: 1100,
+              pb: "calc(16px + env(safe-area-inset-bottom, 0px))",
             }}
           >
             {actions}
           </Box>
         )}
-      </Dialog>
+      </Drawer>
     );
   }
 
@@ -109,11 +134,19 @@ export default function ResponsiveDetailWrapper({
       anchor="right"
       open={open}
       onClose={onClose}
+      sx={{
+        zIndex: (theme) => theme.zIndex.drawer + 50,
+        "& .MuiDrawer-paper": {
+          zIndex: (theme) => theme.zIndex.drawer + 50,
+        },
+      }}
       PaperProps={{
         sx: {
-          width: { md: "40%", lg: "30%" },
+          width: { md: 540, lg: 600, xl: 640 },
           display: "flex",
           flexDirection: "column",
+          bgcolor: "background.paper",
+          boxShadow: "-8px 0 32px rgba(0,0,0,0.12)",
         },
       }}
     >
@@ -128,7 +161,7 @@ export default function ResponsiveDetailWrapper({
           borderColor: "divider",
         }}
       >
-        <Typography variant="h6" sx={{ fontWeight: 600 }}>
+        <Typography variant="h6" sx={{ fontWeight: 700 }}>
           {title}
         </Typography>
         <IconButton onClick={onClose} edge="end" size="small">
@@ -143,7 +176,7 @@ export default function ResponsiveDetailWrapper({
       {actions && (
         <Box
           sx={{
-            p: 2,
+            p: 2.5,
             bgcolor: "background.default",
             borderTop: "1px solid",
             borderColor: "divider",
