@@ -45,18 +45,25 @@ import {
   WarningAmber as WarningIcon,
   Delete as DeleteIcon,
 } from "@mui/icons-material";
+import ResponsiveFormDrawer from "@/components/common/ResponsiveFormDrawer";
+import dayjs from "dayjs";
 import { HttpClient } from "@/lib/api/client";
 import { StorageApi, MediaTypeCategory } from "@/lib/api/storage";
-import { formatDate, formatTime, formatDateTime, formatTimeToHHmm } from "@/lib/formatters";
+import { formatDate, formatTime, formatDateTime, formatTimeToHHmm, getPriorityInfo } from "@/lib/formatters";
 
 const GUARD_POST_OPTIONS = [
-  "Recepción",
-  "Vehicular",
-  "Recorredor",
-  "Líder",
-  "Supervisor de Puesto",
-  "Operador Medios Tecnológicos",
-  "Básico",
+  "Recepción / Portería Principal",
+  "Acceso Vehicular",
+  "Acceso Peatonal",
+  "Parqueadero Residentes",
+  "Parqueadero Visitantes",
+  "Áreas Comunes / Club House",
+  "Piscina / Zonas Húmedas",
+  "Zona Infantil / Juegos",
+  "Torre / Bloque Residencial",
+  "Ronda Perimetral",
+  "Cuarto Técnico / Basuras",
+  "Otro",
 ];
 
 interface MinutaGeneralPageProps {
@@ -143,16 +150,16 @@ export default function MinutaGeneralPage({ isInternal = false }: MinutaGeneralP
     setIsClientLinked(false);
     setSelectedClientForRecord(null);
     setSelectedResident(null);
-    const now = new Date();
+    const today = dayjs();
     setFormData({
-      date: now.toISOString().split("T")[0],
-      time: formatTimeToHHmm(now),
-      occurredAt: now.toISOString(),
+      date: today.format("YYYY-MM-DD"),
+      time: today.format("HH:mm"),
+      occurredAt: today.toISOString(),
       annotation: "",
       category: "GENERAL",
       priority: 3,
       isConfidential: false,
-      guardPost: "Recepción",
+      guardPost: "Recepción / Portería Principal",
       isResidentLinked: false,
       noveltySource: "",
     });
@@ -288,14 +295,15 @@ export default function MinutaGeneralPage({ isInternal = false }: MinutaGeneralP
 
     setSubmitting(true);
     try {
-      const now = new Date();
       const timeVal = formData.time.length === 5 ? `${formData.time}:00` : formData.time;
-      const dateVal = formData.date || now.toISOString().split("T")[0];
+      const dateVal = formData.date || dayjs().format("YYYY-MM-DD");
+      const localMoment = dayjs(`${dateVal} ${timeVal}`);
+      const occurredAtVal = localMoment.isValid() ? localMoment.toISOString() : new Date().toISOString();
 
       const payload: any = {
         date: dateVal,
         time: timeVal,
-        occurredAt: `${dateVal}T${timeVal}Z`,
+        occurredAt: occurredAtVal,
         annotation: formData.annotation.trim(),
         category: formData.category,
         priority: Number(formData.priority) || 3,
@@ -402,8 +410,8 @@ export default function MinutaGeneralPage({ isInternal = false }: MinutaGeneralP
     },
     {
       field: "guardPost",
-      headerName: "Puesto / Ubicación",
-      width: 150,
+      headerName: "Ubicación",
+      width: 170,
       renderCell: (params) => (
         <Chip
           size="small"
@@ -412,6 +420,19 @@ export default function MinutaGeneralPage({ isInternal = false }: MinutaGeneralP
           variant="outlined"
           color="primary"
           sx={{ fontWeight: 600, fontSize: "0.75rem" }}
+        />
+      ),
+    },
+    {
+      field: "creatorPosition",
+      headerName: "Cargo",
+      width: 150,
+      renderCell: (params) => (
+        <Chip
+          size="small"
+          label={params.value || params.row.creatorPosition || "Guarda"}
+          variant="outlined"
+          sx={{ fontWeight: 600, fontSize: "0.72rem", borderColor: "divider" }}
         />
       ),
     },
@@ -478,16 +499,18 @@ export default function MinutaGeneralPage({ isInternal = false }: MinutaGeneralP
     {
       field: "priority",
       headerName: "Prioridad",
-      width: 95,
-      renderCell: (params) => (
-        <Chip
-          size="small"
-          label={`Nivel ${params.value || 3}`}
-          color={
-            params.value >= 4 ? "error" : params.value === 3 ? "warning" : "default"
-          }
-        />
-      ),
+      width: 110,
+      renderCell: (params) => {
+        const info = getPriorityInfo(params.value);
+        return (
+          <Chip
+            size="small"
+            label={info.label}
+            color={info.color}
+            sx={{ fontWeight: 700, fontSize: "0.75rem" }}
+          />
+        );
+      },
     },
     {
       field: "evidence",
@@ -660,7 +683,7 @@ export default function MinutaGeneralPage({ isInternal = false }: MinutaGeneralP
               { label: "ID Registro", value: detailRecord.id },
               { label: "Fecha", value: formatDate(detailRecord.date) },
               { label: "Hora", value: formatTime(detailRecord.time) },
-              { label: "Puesto / Ubicación", value: detailRecord.guardPost || "Recepción" },
+              { label: "Ubicación", value: detailRecord.guardPost || "Recepción" },
               ...(isInternal
                 ? [
                   {
@@ -695,25 +718,24 @@ export default function MinutaGeneralPage({ isInternal = false }: MinutaGeneralP
               { label: "Categoría", value: detailRecord.category || "GENERAL" },
               {
                 label: "Prioridad",
-                value: (
-                  <Chip
-                    size="small"
-                    label={`Nivel ${detailRecord.priority || 3}`}
-                    color={
-                      detailRecord.priority >= 4
-                        ? "error"
-                        : detailRecord.priority === 3
-                          ? "warning"
-                          : "default"
-                    }
-                  />
-                ),
+                value: (() => {
+                  const info = getPriorityInfo(detailRecord.priority);
+                  return (
+                    <Chip
+                      size="small"
+                      label={info.label}
+                      color={info.color}
+                      sx={{ fontWeight: 700 }}
+                    />
+                  );
+                })(),
               },
               {
                 label: "Confidencial",
                 value: detailRecord.isConfidential ? "Sí" : "No",
               },
               { label: "Registrado Por", value: detailRecord.createdBy || "Sistema" },
+              { label: "Cargo Registrador", value: detailRecord.creatorPosition || "Guarda" },
               {
                 label: "Fecha Registro",
                 value: formatDateTime(detailRecord.createdAt || detailRecord.occurredAt),
@@ -724,317 +746,313 @@ export default function MinutaGeneralPage({ isInternal = false }: MinutaGeneralP
         }
       />
 
-      {/* Modal de Creación / Edición de Minuta */}
-      <Dialog
+      {/* Drawer de Creación / Edición de Minuta */}
+      <ResponsiveFormDrawer
         open={dialogOpen}
         onClose={() => setDialogOpen(false)}
-        maxWidth="md"
-        fullWidth
-        PaperProps={{
-          sx: { borderRadius: { xs: 2, sm: 2.5 }, m: { xs: 1.5, sm: 3 } },
-        }}
-      >
-        <DialogTitle sx={{ pb: 1, fontWeight: 700, display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
-          <SecurityIcon color="primary" />
-          <Box component="span">
-            {selectedId
-              ? isInternal
-                ? "Editar Minuta General Interna"
-                : "Editar Minuta General"
-              : isInternal
-                ? `Nuevo Registro - ${tenant?.name || "Empresa"}`
-                : activeClientName
-                  ? `Nuevo Registro para ${activeClientName}`
-                  : "Nuevo Registro de Minuta General"}
-          </Box>
-          {isInternal && (
+        title={
+          selectedId
+            ? isInternal
+              ? "Editar Minuta General Interna"
+              : "Editar Minuta General"
+            : isInternal
+              ? `Nuevo Registro - ${tenant?.name || "Empresa"}`
+              : activeClientName
+                ? `Nuevo Registro para ${activeClientName}`
+                : "Nuevo Registro de Minuta General"
+        }
+        headerIcon={<SecurityIcon color="primary" />}
+        headerBadge={
+          isInternal ? (
             <Chip
               size="small"
               label="Uso Interno"
               color="secondary"
               variant="outlined"
-              sx={{ fontWeight: 600, ml: "auto" }}
+              sx={{ fontWeight: 600 }}
             />
-          )}
-        </DialogTitle>
-        <form onSubmit={handleSubmit}>
-          <DialogContent dividers sx={{ p: { xs: 2, sm: 3 } }}>
-            <Grid container spacing={2}>
-              {/* Fecha y Hora */}
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <TextField
-                  fullWidth
-                  size="small"
-                  required
-                  type="date"
-                  label="Fecha del Suceso"
-                  value={formData.date}
-                  onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                  InputLabelProps={{ shrink: true }}
-                />
-              </Grid>
-
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <TextField
-                  fullWidth
-                  size="small"
-                  required
-                  type="time"
-                  label="Hora del Suceso"
-                  value={formData.time}
-                  onChange={(e) => setFormData({ ...formData, time: e.target.value })}
-                  InputLabelProps={{ shrink: true }}
-                />
-              </Grid>
-
-              {/* Puesto / Ubicación */}
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <FormControl fullWidth size="small" required>
-                  <InputLabel id="guard-post-label">Puesto / Ubicación</InputLabel>
-                  <Select
-                    labelId="guard-post-label"
-                    label="Puesto / Ubicación"
-                    value={formData.guardPost}
-                    onChange={(e) => setFormData({ ...formData, guardPost: e.target.value })}
-                  >
-                    {GUARD_POST_OPTIONS.map((post) => (
-                      <MenuItem key={post} value={post}>
-                        {post}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-              </Grid>
-
-              {/* Categoría y Prioridad */}
-              <Grid size={{ xs: 6, sm: 3 }}>
-                <FormControl fullWidth size="small">
-                  <InputLabel id="category-label">Categoría</InputLabel>
-                  <Select
-                    labelId="category-label"
-                    label="Categoría"
-                    value={formData.category}
-                    onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                  >
-                    <MenuItem value="GENERAL">General</MenuItem>
-                    <MenuItem value="SEGURIDAD">Seguridad</MenuItem>
-                    <MenuItem value="MANTENIMIENTO">Mantenimiento</MenuItem>
-                    <MenuItem value="CONVIVENCIA">Convivencia</MenuItem>
-                    <MenuItem value="EMERGENCIA">Emergencia</MenuItem>
-                  </Select>
-                </FormControl>
-              </Grid>
-
-              <Grid size={{ xs: 6, sm: 3 }}>
-                <FormControl fullWidth size="small">
-                  <InputLabel id="priority-label">Prioridad</InputLabel>
-                  <Select
-                    labelId="priority-label"
-                    label="Prioridad"
-                    value={formData.priority}
-                    onChange={(e) => setFormData({ ...formData, priority: Number(e.target.value) })}
-                  >
-                    <MenuItem value={1}>1 - Muy Baja</MenuItem>
-                    <MenuItem value={2}>2 - Baja</MenuItem>
-                    <MenuItem value={3}>3 - Normal</MenuItem>
-                    <MenuItem value={4}>4 - Alta</MenuItem>
-                    <MenuItem value={5}>5 - Crítica / Urgente</MenuItem>
-                  </Select>
-                </FormControl>
-              </Grid>
-
-              {/* Sección Origen / Vinculación */}
-              {isInternal ? (
-                <>
-                  <Grid size={12}>
-                    <Divider sx={{ my: 1 }} />
-                    <Stack
-                      direction={{ xs: "column", sm: "row" }}
-                      alignItems={{ xs: "flex-start", sm: "center" }}
-                      justifyContent="space-between"
-                      spacing={1}
-                    >
-                      <Typography variant="subtitle2" sx={{ fontWeight: 700, color: "text.primary" }}>
-                        Vinculación Opcional con Cliente
-                      </Typography>
-                      <FormControlLabel
-                        control={
-                          <Switch
-                            checked={isClientLinked}
-                            onChange={(e) => {
-                              const checked = e.target.checked;
-                              setIsClientLinked(checked);
-                              if (!checked) {
-                                setSelectedClientForRecord(null);
-                              }
-                            }}
-                            color="primary"
-                          />
-                        }
-                        label={
-                          <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                            ¿Vinculada a un cliente?
-                          </Typography>
-                        }
-                      />
-                    </Stack>
-                  </Grid>
-
-                  {isClientLinked && (
-                    <Grid size={12}>
-                      <ClientAutocomplete
-                        value={selectedClientForRecord}
-                        onChange={(client) => setSelectedClientForRecord(client)}
-                        label="Seleccionar Cliente Vinculado"
-                        placeholder="Buscar cliente por nombre o NIT..."
-                        required
-                      />
-                    </Grid>
-                  )}
-
-                  <Grid size={12}>
-                    <TextField
-                      fullWidth
-                      size="small"
-                      label="Fuente / Origen de la Novedad Interna"
-                      placeholder="Ej: Ronda de supervisión, Notificación de RRHH, Operador de CCTV, etc."
-                      value={formData.noveltySource}
-                      onChange={(e) => setFormData({ ...formData, noveltySource: e.target.value })}
-                    />
-                  </Grid>
-                </>
-              ) : (
-                <>
-                  <Grid size={12}>
-                    <Divider sx={{ my: 1 }} />
-                    <Stack
-                      direction={{ xs: "column", sm: "row" }}
-                      alignItems={{ xs: "flex-start", sm: "center" }}
-                      justifyContent="space-between"
-                      spacing={1}
-                    >
-                      <Typography variant="subtitle2" sx={{ fontWeight: 700, color: "text.primary" }}>
-                        Fuente / Origen de la Novedad
-                      </Typography>
-                      <FormControlLabel
-                        control={
-                          <Switch
-                            checked={formData.isResidentLinked}
-                            onChange={(e) => {
-                              const checked = e.target.checked;
-                              setFormData({ ...formData, isResidentLinked: checked });
-                              if (!checked) {
-                                setSelectedUnit(null);
-                                setSelectedResident(null);
-                              }
-                            }}
-                            color="primary"
-                          />
-                        }
-                        label={
-                          <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                            ¿Vinculada a un Residente?
-                          </Typography>
-                        }
-                      />
-                    </Stack>
-                  </Grid>
-
-                  {formData.isResidentLinked ? (
-                    <>
-                      <Grid size={{ xs: 12, sm: 6 }}>
-                        <UnitAutocomplete
-                          clientId={activeClientId}
-                          value={selectedUnit}
-                          onChange={(unit) => {
-                            setSelectedUnit(unit);
-                            if (unit && unit.residents && unit.residents.length > 0) {
-                              if (unit.residents.length === 1) {
-                                setSelectedResident(unit.residents[0] as any);
-                              }
-                            }
-                          }}
-                          label="Buscar Apartamento / Unidad"
-                          placeholder="Escribe ej: Torre 1 Apto 1001..."
-                          required
-                        />
-                      </Grid>
-
-                      <Grid size={{ xs: 12, sm: 6 }}>
-                        <ResidentAutocomplete
-                          clientId={activeClientId}
-                          unitId={selectedUnit?.id}
-                          preloadedResidents={selectedUnit?.residents as any}
-                          value={selectedResident}
-                          onChange={(resident) => {
-                            setSelectedResident(resident);
-                            if (resident?.unit && !selectedUnit) {
-                              setSelectedUnit(resident.unit as any);
-                            }
-                          }}
-                          label="Residente Causante / Vinculado"
-                          placeholder="Buscar por nombre o cédula..."
-                        />
-                      </Grid>
-                    </>
-                  ) : (
-                    <Grid size={12}>
-                      <TextField
-                        fullWidth
-                        size="small"
-                        label="Nombre / Detalle de la Fuente u Origen"
-                        placeholder="Ej: Peatón externo, Técnico de internet, Guarda de turno, etc."
-                        value={formData.noveltySource}
-                        onChange={(e) => setFormData({ ...formData, noveltySource: e.target.value })}
-                      />
-                    </Grid>
-                  )}
-                </>
-              )}
-
-              {/* Anotación Principal */}
-              <Grid size={12}>
-                <TextField
-                  fullWidth
-                  required
-                  multiline
-                  rows={3}
-                  label="Anotación / Descripción Detallada de la Novedad"
-                  placeholder="Escribe de manera clara todos los detalles relevantes del suceso..."
-                  value={formData.annotation}
-                  onChange={(e) => setFormData({ ...formData, annotation: e.target.value })}
-                />
-              </Grid>
-
-              {/* Evidencia Fotográfica */}
-              <Grid size={12}>
-                <ImageUploadCapture
-                  label="Evidencia Fotográfica (Opcional)"
-                  variant="evidence"
-                  value={evidenceFile}
-                  previewUrl={existingMediaUrl}
-                  onChange={setEvidenceFile}
-                  helperText="Toma una foto en vivo con la cámara o selecciona un archivo para respaldar la novedad."
-                />
-              </Grid>
-            </Grid>
-          </DialogContent>
-
-          <DialogActions sx={{ px: 3, py: 2 }}>
-            <Button onClick={() => setDialogOpen(false)} disabled={submitting}>
+          ) : undefined
+        }
+        actions={
+          <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 1.5, width: "100%", flexDirection: { xs: "column-reverse", sm: "row" } }}>
+            <Button onClick={() => setDialogOpen(false)} disabled={submitting} color="inherit" sx={{ width: { xs: "100%", sm: "auto" } }}>
               Cancelar
             </Button>
             <Button
               type="submit"
+              form="minuta-general-form"
               variant="contained"
               disabled={submitting}
               startIcon={submitting && <CircularProgress size={18} color="inherit" />}
+              sx={{ fontWeight: 600, width: { xs: "100%", sm: "auto" } }}
             >
               {submitting ? "Guardando..." : selectedId ? "Guardar Cambios" : "Registrar Minuta"}
             </Button>
-          </DialogActions>
-        </form>
-      </Dialog>
+          </Box>
+        }
+      >
+        <Box component="form" id="minuta-general-form" onSubmit={handleSubmit}>
+          <Grid container spacing={2}>
+            {/* Fecha y Hora */}
+            <Grid size={{ xs: 12, sm: 6 }}>
+              <TextField
+                fullWidth
+                size="small"
+                required
+                type="date"
+                label="Fecha del Suceso"
+                value={formData.date}
+                onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                InputLabelProps={{ shrink: true }}
+              />
+            </Grid>
+
+            <Grid size={{ xs: 12, sm: 6 }}>
+              <TextField
+                fullWidth
+                size="small"
+                required
+                type="time"
+                label="Hora del Suceso"
+                value={formData.time}
+                onChange={(e) => setFormData({ ...formData, time: e.target.value })}
+                InputLabelProps={{ shrink: true }}
+              />
+            </Grid>
+
+            {/*Ubicación */}
+            <Grid size={{ xs: 12, sm: 6 }}>
+              <FormControl fullWidth size="small" required>
+                <InputLabel id="guard-post-label">Ubicación</InputLabel>
+                <Select
+                  labelId="guard-post-label"
+                  label="Ubicación"
+                  value={formData.guardPost}
+                  onChange={(e) => setFormData({ ...formData, guardPost: e.target.value })}
+                >
+                  {GUARD_POST_OPTIONS.map((post) => (
+                    <MenuItem key={post} value={post}>
+                      {post}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Grid>
+
+            {/* Categoría y Prioridad */}
+            <Grid size={{ xs: 6, sm: 3 }}>
+              <FormControl fullWidth size="small">
+                <InputLabel id="category-label">Categoría</InputLabel>
+                <Select
+                  labelId="category-label"
+                  label="Categoría"
+                  value={formData.category}
+                  onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                >
+                  <MenuItem value="GENERAL">General</MenuItem>
+                  <MenuItem value="SEGURIDAD">Seguridad</MenuItem>
+                  <MenuItem value="MANTENIMIENTO">Mantenimiento</MenuItem>
+                  <MenuItem value="CONVIVENCIA">Convivencia</MenuItem>
+                  <MenuItem value="EMERGENCIA">Emergencia</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+
+            <Grid size={{ xs: 6, sm: 3 }}>
+              <FormControl fullWidth size="small">
+                <InputLabel id="priority-label">Prioridad</InputLabel>
+                <Select
+                  labelId="priority-label"
+                  label="Prioridad"
+                  value={formData.priority}
+                  onChange={(e) => setFormData({ ...formData, priority: Number(e.target.value) })}
+                >
+                  <MenuItem value={1}>Muy baja</MenuItem>
+                  <MenuItem value={2}>Baja</MenuItem>
+                  <MenuItem value={3}>Normal</MenuItem>
+                  <MenuItem value={4}>Alta</MenuItem>
+                  <MenuItem value={5}>Crítica</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+
+            {/* Sección Origen / Vinculación */}
+            {isInternal ? (
+              <>
+                <Grid size={12}>
+                  <Divider sx={{ my: 1 }} />
+                  <Stack
+                    direction={{ xs: "column", sm: "row" }}
+                    alignItems={{ xs: "flex-start", sm: "center" }}
+                    justifyContent="space-between"
+                    spacing={1}
+                  >
+                    <Typography variant="subtitle2" sx={{ fontWeight: 700, color: "text.primary" }}>
+                      Vinculación Opcional con Cliente
+                    </Typography>
+                    <FormControlLabel
+                      control={
+                        <Switch
+                          checked={isClientLinked}
+                          onChange={(e) => {
+                            const checked = e.target.checked;
+                            setIsClientLinked(checked);
+                            if (!checked) {
+                              setSelectedClientForRecord(null);
+                            }
+                          }}
+                          color="primary"
+                        />
+                      }
+                      label={
+                        <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                          ¿Vinculada a un cliente?
+                        </Typography>
+                      }
+                    />
+                  </Stack>
+                </Grid>
+
+                {isClientLinked && (
+                  <Grid size={12}>
+                    <ClientAutocomplete
+                      value={selectedClientForRecord}
+                      onChange={(client) => setSelectedClientForRecord(client)}
+                      label="Seleccionar Cliente Vinculado"
+                      placeholder="Buscar cliente por nombre o NIT..."
+                      required
+                    />
+                  </Grid>
+                )}
+
+                <Grid size={12}>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    label="Fuente / Origen de la Novedad Interna"
+                    placeholder="Ej: Ronda de supervisión, Notificación de RRHH, Operador de CCTV, etc."
+                    value={formData.noveltySource}
+                    onChange={(e) => setFormData({ ...formData, noveltySource: e.target.value })}
+                  />
+                </Grid>
+              </>
+            ) : (
+              <>
+                <Grid size={12}>
+                  <Divider sx={{ my: 1 }} />
+                  <Stack
+                    direction={{ xs: "column", sm: "row" }}
+                    alignItems={{ xs: "flex-start", sm: "center" }}
+                    justifyContent="space-between"
+                    spacing={1}
+                  >
+                    <Typography variant="subtitle2" sx={{ fontWeight: 700, color: "text.primary" }}>
+                      Fuente / Origen de la Novedad
+                    </Typography>
+                    <FormControlLabel
+                      control={
+                        <Switch
+                          checked={formData.isResidentLinked}
+                          onChange={(e) => {
+                            const checked = e.target.checked;
+                            setFormData({ ...formData, isResidentLinked: checked });
+                            if (!checked) {
+                              setSelectedUnit(null);
+                              setSelectedResident(null);
+                            }
+                          }}
+                          color="primary"
+                        />
+                      }
+                      label={
+                        <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                          ¿Vinculada a un Residente?
+                        </Typography>
+                      }
+                    />
+                  </Stack>
+                </Grid>
+
+                {formData.isResidentLinked ? (
+                  <>
+                    <Grid size={{ xs: 12, sm: 6 }}>
+                      <UnitAutocomplete
+                        clientId={activeClientId}
+                        value={selectedUnit}
+                        onChange={(unit) => {
+                          setSelectedUnit(unit);
+                          if (unit && unit.residents && unit.residents.length > 0) {
+                            if (unit.residents.length === 1) {
+                              setSelectedResident(unit.residents[0] as any);
+                            }
+                          }
+                        }}
+                        label="Buscar Apartamento / Unidad"
+                        placeholder="Escribe ej: Torre 1 Apto 1001..."
+                        required
+                      />
+                    </Grid>
+
+                    <Grid size={{ xs: 12, sm: 6 }}>
+                      <ResidentAutocomplete
+                        clientId={activeClientId}
+                        unitId={selectedUnit?.id}
+                        preloadedResidents={selectedUnit?.residents as any}
+                        value={selectedResident}
+                        onChange={(resident) => {
+                          setSelectedResident(resident);
+                          if (resident?.unit && !selectedUnit) {
+                            setSelectedUnit(resident.unit as any);
+                          }
+                        }}
+                        label="Residente Causante / Vinculado"
+                        placeholder="Buscar por nombre o cédula..."
+                      />
+                    </Grid>
+                  </>
+                ) : (
+                  <Grid size={12}>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      label="Nombre / Detalle de la Fuente u Origen"
+                      placeholder="Ej: Peatón externo, Técnico de internet, Guarda de turno, etc."
+                      value={formData.noveltySource}
+                      onChange={(e) => setFormData({ ...formData, noveltySource: e.target.value })}
+                    />
+                  </Grid>
+                )}
+              </>
+            )}
+
+            {/* Anotación Principal */}
+            <Grid size={12}>
+              <TextField
+                fullWidth
+                required
+                multiline
+                rows={3}
+                label="Anotación / Descripción Detallada de la Novedad"
+                placeholder="Escribe de manera clara todos los detalles relevantes del suceso..."
+                value={formData.annotation}
+                onChange={(e) => setFormData({ ...formData, annotation: e.target.value })}
+              />
+            </Grid>
+
+            {/* Evidencia Fotográfica */}
+            <Grid size={12}>
+              <ImageUploadCapture
+                label="Evidencia Fotográfica (Opcional)"
+                variant="evidence"
+                value={evidenceFile}
+                previewUrl={existingMediaUrl}
+                onChange={setEvidenceFile}
+                helperText="Toma una foto en vivo con la cámara o selecciona un archivo para respaldar la novedad."
+              />
+            </Grid>
+          </Grid>
+        </Box>
+      </ResponsiveFormDrawer>
 
       {/* Modal Visor de Evidencia */}
       <Dialog

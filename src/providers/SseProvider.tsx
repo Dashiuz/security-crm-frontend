@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useRef } from "react";
+import React, { createContext, useContext, useEffect, useRef, useState } from "react";
 import { useAuth } from "@/components/AuthContext";
 import { useNotification } from "./NotificationProvider";
 import { tokenStore } from "@/lib/api/token-store";
@@ -23,6 +23,7 @@ export const SseProvider: React.FC<{ children: React.ReactNode }> = ({
 }) => {
   const { session } = useAuth();
   const { showInfo } = useNotification();
+  const [isConnected, setIsConnected] = useState<boolean>(false);
   const eventSourceRef = useRef<EventSource | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -47,6 +48,10 @@ export const SseProvider: React.FC<{ children: React.ReactNode }> = ({
       try {
         const es = new EventSource(sseUrl);
         eventSourceRef.current = es;
+
+        es.onopen = () => {
+          setIsConnected(true);
+        };
 
         es.onmessage = (event) => {
           try {
@@ -108,6 +113,7 @@ export const SseProvider: React.FC<{ children: React.ReactNode }> = ({
         es.onerror = () => {
           es.close();
           eventSourceRef.current = null;
+          setIsConnected(false);
           // Reintentar reconexión en 8 segundos
           if (reconnectTimeoutRef.current) {
             clearTimeout(reconnectTimeoutRef.current);
@@ -126,6 +132,7 @@ export const SseProvider: React.FC<{ children: React.ReactNode }> = ({
     connectSse();
 
     return () => {
+      setIsConnected(false);
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);
       }
@@ -137,7 +144,7 @@ export const SseProvider: React.FC<{ children: React.ReactNode }> = ({
   }, [session, showInfo]);
 
   return (
-    <SseContext.Provider value={{ isConnected: Boolean(eventSourceRef.current) }}>
+    <SseContext.Provider value={{ isConnected }}>
       {children}
     </SseContext.Provider>
   );

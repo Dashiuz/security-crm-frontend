@@ -212,9 +212,6 @@ export function useNotificationSound() {
   const [isMuted, setIsMuted] = useState<boolean>(() => soundManager.getMutedState());
 
   useEffect(() => {
-    // Sincronizar en el montaje por si cambió en SSR o cliente
-    setIsMuted(soundManager.getMutedState());
-
     const handleMuteChange = (e: Event) => {
       const customEvent = e as CustomEvent<{ isMuted: boolean }>;
       if (customEvent.detail?.isMuted !== undefined) {

@@ -101,6 +101,30 @@ export default function CreateClientPage() {
   });
   const [locationErrors, setLocationErrors] = useState<Record<string, string>>({});
 
+  // Paste Sanitization Helpers (Point J)
+  const handleNumericPaste = (setter: (val: number) => void) => (e: React.ClipboardEvent<HTMLInputElement>) => {
+    e.preventDefault();
+    const pasted = e.clipboardData.getData("text");
+    const cleaned = pasted.replace(/\D/g, "");
+    if (cleaned) {
+      setter(Number(cleaned));
+    }
+  };
+
+  const handlePhonePaste = (setter: (val: string) => void) => (e: React.ClipboardEvent<HTMLInputElement>) => {
+    e.preventDefault();
+    const pasted = e.clipboardData.getData("text");
+    const cleaned = pasted.replace(/\D/g, "");
+    setter(cleaned);
+  };
+
+  const handleNitPaste = (setter: (val: string) => void) => (e: React.ClipboardEvent<HTMLInputElement>) => {
+    e.preventDefault();
+    const pasted = e.clipboardData.getData("text");
+    const cleaned = pasted.replace(/[^0-9\-]/g, "").trim();
+    setter(cleaned);
+  };
+
   // Step 2: Structural Data
   const [structureType, setStructureType] = useState<string>("BUILDING_CLUSTER");
   const [floorsAmount, setFloorsAmount] = useState<number>(5);
@@ -521,6 +545,10 @@ export default function CreateClientPage() {
                     value={locationForm.nit}
                     error={Boolean(locationErrors.nit)}
                     helperText={locationErrors.nit}
+                    onPaste={handleNitPaste((val) => {
+                      setLocationForm((prev) => ({ ...prev, nit: val }));
+                      if (locationErrors.nit) setLocationErrors((prev) => ({ ...prev, nit: "" }));
+                    })}
                     onChange={(e) => {
                       setLocationForm({ ...locationForm, nit: e.target.value });
                       if (locationErrors.nit) setLocationErrors({ ...locationErrors, nit: "" });
@@ -549,6 +577,10 @@ export default function CreateClientPage() {
                     value={locationForm.phone}
                     error={Boolean(locationErrors.phone)}
                     helperText={locationErrors.phone}
+                    onPaste={handlePhonePaste((val) => {
+                      setLocationForm((prev) => ({ ...prev, phone: val }));
+                      if (locationErrors.phone) setLocationErrors((prev) => ({ ...prev, phone: "" }));
+                    })}
                     onChange={(e) => {
                       const numVal = e.target.value.replace(/\D/g, "");
                       setLocationForm({ ...locationForm, phone: numVal });
@@ -621,6 +653,9 @@ export default function CreateClientPage() {
                     fullWidth
                     label="Teléfono del Cuadrante"
                     value={locationForm.quadrantPhone}
+                    onPaste={handlePhonePaste((val) =>
+                      setLocationForm((prev) => ({ ...prev, quadrantPhone: val }))
+                    )}
                     onChange={(e) =>
                       setLocationForm({
                         ...locationForm,
@@ -679,9 +714,10 @@ export default function CreateClientPage() {
                     <TextField
                       fullWidth
                       type="number"
-                  inputProps={{ min: 0 }}
+                      inputProps={{ min: 0 }}
                       label="Cantidad de Locales Comerciales *"
                       value={commercialStoresAmount}
+                      onPaste={handleNumericPaste(setCommercialStoresAmount)}
                       onChange={(e) => setCommercialStoresAmount(Number(e.target.value))}
                     />
                   </Grid>
@@ -715,9 +751,10 @@ export default function CreateClientPage() {
                               fullWidth
                               size="small"
                               type="number"
-                  inputProps={{ min: 0 }}
+                              inputProps={{ min: 0 }}
                               label="Pisos"
                               value={tower.floorsAmount}
+                              onPaste={handleNumericPaste((val) => handleTowerChange(idx, "floorsAmount", val))}
                               onChange={(e) => handleTowerChange(idx, "floorsAmount", Number(e.target.value))}
                             />
                           </Grid>
@@ -726,9 +763,10 @@ export default function CreateClientPage() {
                               fullWidth
                               size="small"
                               type="number"
-                  inputProps={{ min: 0 }}
+                              inputProps={{ min: 0 }}
                               label="Aptos / Piso"
                               value={tower.apartmentsPerFloor}
+                              onPaste={handleNumericPaste((val) => handleTowerChange(idx, "apartmentsPerFloor", val))}
                               onChange={(e) => handleTowerChange(idx, "apartmentsPerFloor", Number(e.target.value))}
                             />
                           </Grid>
@@ -737,9 +775,10 @@ export default function CreateClientPage() {
                               fullWidth
                               size="small"
                               type="number"
-                  inputProps={{ min: 0 }}
+                              inputProps={{ min: 0 }}
                               label="Ascensores"
                               value={tower.elevators}
+                              onPaste={handleNumericPaste((val) => handleTowerChange(idx, "elevators", val))}
                               onChange={(e) => handleTowerChange(idx, "elevators", Number(e.target.value))}
                             />
                           </Grid>
@@ -771,9 +810,10 @@ export default function CreateClientPage() {
                             fullWidth
                             size="small"
                             type="number"
-                  inputProps={{ min: 0 }}
+                            inputProps={{ min: 0 }}
                             label="Pisos"
                             value={floorsAmount}
+                            onPaste={handleNumericPaste(setFloorsAmount)}
                             onChange={(e) => setFloorsAmount(Number(e.target.value))}
                           />
                         </Grid>
@@ -782,9 +822,10 @@ export default function CreateClientPage() {
                             fullWidth
                             size="small"
                             type="number"
-                  inputProps={{ min: 0 }}
+                            inputProps={{ min: 0 }}
                             label="Aptos / Piso"
                             value={apartmentsPerFloor}
+                            onPaste={handleNumericPaste(setApartmentsPerFloor)}
                             onChange={(e) => setApartmentsPerFloor(Number(e.target.value))}
                           />
                         </Grid>
@@ -793,9 +834,10 @@ export default function CreateClientPage() {
                             fullWidth
                             size="small"
                             type="number"
-                  inputProps={{ min: 0 }}
+                            inputProps={{ min: 0 }}
                             label="Ascensores"
                             value={singleElevators}
+                            onPaste={handleNumericPaste(setSingleElevators)}
                             onChange={(e) => setSingleElevators(Number(e.target.value))}
                           />
                         </Grid>
@@ -819,9 +861,10 @@ export default function CreateClientPage() {
                             fullWidth
                             size="small"
                             type="number"
-                  inputProps={{ min: 0 }}
+                            inputProps={{ min: 0 }}
                             label="Cantidad Total de Casas"
                             value={unitsAmount}
+                            onPaste={handleNumericPaste(setUnitsAmount)}
                             onChange={(e) => setUnitsAmount(Number(e.target.value))}
                           />
                         </Grid>
@@ -857,6 +900,7 @@ export default function CreateClientPage() {
                             inputProps={{ min: 1 }}
                             label="Cantidad Total de Locales / Comercios *"
                             value={unitsAmount}
+                            onPaste={handleNumericPaste(setUnitsAmount)}
                             onChange={(e) => setUnitsAmount(Number(e.target.value))}
                           />
                         </Grid>
@@ -1478,6 +1522,12 @@ export default function CreateClientPage() {
                         fullWidth
                         label="Teléfono del Administrador"
                         value={individualAdminData.administratorPhone}
+                        onPaste={handlePhonePaste((val) =>
+                          setIndividualAdminData((prev) => ({
+                            ...prev,
+                            administratorPhone: val,
+                          }))
+                        )}
                         onChange={(e) =>
                           setIndividualAdminData({
                             ...individualAdminData,
@@ -1504,6 +1554,9 @@ export default function CreateClientPage() {
                         fullWidth
                         label="NIT de la Empresa"
                         value={adminCompanyData.nit}
+                        onPaste={handleNitPaste((val) =>
+                          setAdminCompanyData((prev) => ({ ...prev, nit: val }))
+                        )}
                         onChange={(e) =>
                           setAdminCompanyData({ ...adminCompanyData, nit: e.target.value })
                         }
@@ -1524,6 +1577,12 @@ export default function CreateClientPage() {
                         fullWidth
                         label="Teléfono de la Empresa"
                         value={adminCompanyData.phone}
+                        onPaste={handlePhonePaste((val) =>
+                          setAdminCompanyData((prev) => ({
+                            ...prev,
+                            phone: val,
+                          }))
+                        )}
                         onChange={(e) =>
                           setAdminCompanyData({
                             ...adminCompanyData,
@@ -1577,6 +1636,15 @@ export default function CreateClientPage() {
                         fullWidth
                         label="Teléfono"
                         value={adminCompanyData.legalRepresentative.phone}
+                        onPaste={handlePhonePaste((val) =>
+                          setAdminCompanyData((prev) => ({
+                            ...prev,
+                            legalRepresentative: {
+                              ...prev.legalRepresentative,
+                              phone: val,
+                            },
+                          }))
+                        )}
                         onChange={(e) =>
                           setAdminCompanyData({
                             ...adminCompanyData,
@@ -1627,6 +1695,9 @@ export default function CreateClientPage() {
                                 size="small"
                                 label="Teléfono"
                                 value={contact.phone}
+                                onPaste={handlePhonePaste((val) =>
+                                  handleAdminContactChange(idx, "phone", val)
+                                )}
                                 onChange={(e) =>
                                   handleAdminContactChange(
                                     idx,
@@ -1699,6 +1770,9 @@ export default function CreateClientPage() {
                           size="small"
                           label="Teléfono"
                           value={councilPresident.phone}
+                          onPaste={handlePhonePaste((val) =>
+                            setCouncilPresident((prev) => ({ ...prev, phone: val }))
+                          )}
                           onChange={(e) =>
                             setCouncilPresident({
                               ...councilPresident,
@@ -1751,6 +1825,9 @@ export default function CreateClientPage() {
                           size="small"
                           label="Teléfono"
                           value={councilTreasurer.phone}
+                          onPaste={handlePhonePaste((val) =>
+                            setCouncilTreasurer((prev) => ({ ...prev, phone: val }))
+                          )}
                           onChange={(e) =>
                             setCouncilTreasurer({
                               ...councilTreasurer,
@@ -1810,6 +1887,9 @@ export default function CreateClientPage() {
                             size="small"
                             label="Teléfono"
                             value={member.phone}
+                            onPaste={handlePhonePaste((val) =>
+                              handleCouncilMemberChange(idx, "phone", val)
+                            )}
                             onChange={(e) =>
                               handleCouncilMemberChange(
                                 idx,

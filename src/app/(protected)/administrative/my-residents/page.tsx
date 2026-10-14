@@ -24,6 +24,9 @@ import CsvImportDialog from "@/components/common/CsvImportDialog";
 import { useAuth } from "@/components/AuthContext";
 import { CloudUpload as CloudUploadIcon, PersonAdd as PersonAddIcon } from "@mui/icons-material";
 import dayjs from "dayjs";
+import ResponsiveFormDrawer from "@/components/common/ResponsiveFormDrawer";
+import DetailDialog from "@/components/common/DetailDialog";
+import { formatDate } from "@/lib/formatters";
 
 export default function MyResidentsPage() {
   const { session } = useAuth();
@@ -33,11 +36,13 @@ export default function MyResidentsPage() {
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [units, setUnits] = useState<any[]>([]);
 
-  // Dialog states
+  // Dialog & Drawer states
   const [openModal, setOpenModal] = useState(false);
   const [selectedResident, setSelectedResident] = useState<any>(null);
+  const [detailResident, setDetailResident] = useState<any>(null);
   const [deleteResident, setDeleteResident] = useState<any>(null);
   const [csvImportOpen, setCsvImportOpen] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   // Filters State
   const [residents, setResidents] = useState<any[]>([]);
@@ -205,6 +210,7 @@ export default function MyResidentsPage() {
   };
 
   const handleSave = async () => {
+    setSubmitting(true);
     try {
       const payload = { ...form, clientId };
       if (selectedResident) {
@@ -218,6 +224,8 @@ export default function MyResidentsPage() {
       setRefreshTrigger((prev) => prev + 1);
     } catch (err: any) {
       showError(err.message || "Error al guardar residente");
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -325,8 +333,87 @@ export default function MyResidentsPage() {
         ]}
         hideCreateButton
         hideStatusFilter
+        onView={(row) => setDetailResident(row)}
         onEdit={handleOpenEdit}
         onDelete={(id, row) => setDeleteResident(row || residents.find((r) => r.id === id))}
+      />
+
+      {/* Drawer de Detalle Scannable para Residente */}
+      <DetailDialog
+        open={Boolean(detailResident)}
+        onClose={() => setDetailResident(null)}
+        title="Detalle del Residente"
+        subtitle={detailResident ? `${detailResident.firstName} ${detailResident.lastName}` : ""}
+        fields={
+          detailResident
+            ? [
+                { label: "ID", value: detailResident.id },
+                {
+                  label: "Nombre Completo",
+                  value: `${detailResident.firstName} ${detailResident.lastName}`,
+                },
+                {
+                  label: "Documento",
+                  value: `${detailResident.idType || "CC"}: ${detailResident.document || "N/A"}`,
+                },
+                {
+                  label: "Tipo de Residente",
+                  value: (
+                    <Chip
+                      size="small"
+                      label={
+                        detailResident.residentType === "OWNER"
+                          ? "Propietario"
+                          : detailResident.residentType === "TENANT"
+                            ? "Inquilino"
+                            : detailResident.residentType === "FAMILY_MEMBER"
+                              ? "Familiar"
+                              : "Otro"
+                      }
+                      color={
+                        detailResident.residentType === "OWNER"
+                          ? "primary"
+                          : detailResident.residentType === "TENANT"
+                            ? "info"
+                            : "default"
+                      }
+                    />
+                  ),
+                },
+                {
+                  label: "Unidad / Vivienda",
+                  value: detailResident.unit?.unitName || "N/A",
+                },
+                {
+                  label: "Torre / Edificio",
+                  value: detailResident.unit?.tower?.towerName || "N/A",
+                },
+                {
+                  label: "Teléfono / Celular",
+                  value: detailResident.phoneNumber || "N/A",
+                },
+                {
+                  label: "Correo Electrónico",
+                  value: detailResident.email || "N/A",
+                },
+                {
+                  label: "Género",
+                  value:
+                    detailResident.gender === "M"
+                      ? "Masculino"
+                      : detailResident.gender === "F"
+                        ? "Femenino"
+                        : "No especificado",
+                },
+                {
+                  label: "Fecha de Nacimiento",
+                  value: detailResident.birthdate
+                    ? formatDate(detailResident.birthdate)
+                    : "No registrada",
+                },
+              ]
+            : []
+        }
       />
 
       <PromptConfirmDialog
@@ -365,16 +452,33 @@ export default function MyResidentsPage() {
         }}
       />
 
-      <Dialog open={openModal} onClose={() => setOpenModal(false)} fullWidth maxWidth="sm">
-        <DialogTitle>{selectedResident ? "Editar Residente" : "Registrar Nuevo Residente"}</DialogTitle>
-        <DialogContent dividers>
-          <Stack spacing={3} mt={1}>
+      {/* Drawer de Creación / Edición de Residente */}
+      <ResponsiveFormDrawer
+        open={openModal}
+        onClose={() => !submitting && setOpenModal(false)}
+        title={selectedResident ? "Editar Residente" : "Registrar Nuevo Residente"}
+        subtitle={selectedResident ? `${selectedResident.firstName} ${selectedResident.lastName}` : "Residente del conjunto"}
+        isSubmitting={submitting}
+        submitButtonText={selectedResident ? "Actualizar Residente" : "Guardar Residente"}
+        formId="resident-form"
+      >
+        <Box
+          component="form"
+          id="resident-form"
+          onSubmit={(e) => {
+            e.preventDefault();
+            handleSave();
+          }}
+        >
+          <Stack spacing={2.5}>
             <TextField
               select
               fullWidth
+              size="small"
               label="Unidad / Vivienda *"
               value={form.unitId}
               onChange={(e) => setForm({ ...form, unitId: e.target.value })}
+              required
             >
               {units.map((u) => (
                 <MenuItem key={u.id} value={u.id}>{u.unitName}</MenuItem>
@@ -384,9 +488,11 @@ export default function MyResidentsPage() {
             <TextField
               select
               fullWidth
+              size="small"
               label="Tipo de Residente *"
               value={form.residentType}
               onChange={(e) => setForm({ ...form, residentType: e.target.value })}
+              required
             >
               <MenuItem value="OWNER">Propietario</MenuItem>
               <MenuItem value="TENANT">Inquilino</MenuItem>
@@ -397,10 +503,11 @@ export default function MyResidentsPage() {
             <Stack direction="row" spacing={2}>
               <TextField
                 select
+                size="small"
                 label="Tipo Doc."
                 value={form.idType}
                 onChange={(e) => setForm({ ...form, idType: e.target.value })}
-                sx={{ width: 120 }}
+                sx={{ width: 130 }}
               >
                 <MenuItem value="CI">CC / CI</MenuItem>
                 <MenuItem value="CE">CE</MenuItem>
@@ -408,36 +515,45 @@ export default function MyResidentsPage() {
               </TextField>
               <TextField
                 fullWidth
+                size="small"
                 label="Número de Documento *"
                 value={form.document}
                 onChange={(e) => setForm({ ...form, document: e.target.value })}
+                required
               />
             </Stack>
 
-            <Stack direction="row" spacing={2}>
+            <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
               <TextField
                 fullWidth
+                size="small"
                 label="Nombre(s) *"
                 value={form.firstName}
                 onChange={(e) => setForm({ ...form, firstName: e.target.value })}
+                required
               />
               <TextField
                 fullWidth
+                size="small"
                 label="Apellido(s) *"
                 value={form.lastName}
                 onChange={(e) => setForm({ ...form, lastName: e.target.value })}
+                required
               />
             </Stack>
 
-            <Stack direction="row" spacing={2}>
+            <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
               <TextField
                 fullWidth
+                size="small"
                 label="Teléfono / Celular *"
                 value={form.phoneNumber}
                 onChange={(e) => setForm({ ...form, phoneNumber: e.target.value })}
+                required
               />
               <TextField
                 fullWidth
+                size="small"
                 label="Correo Electrónico (Opcional)"
                 type="email"
                 value={form.email}
@@ -447,6 +563,7 @@ export default function MyResidentsPage() {
 
             <TextField
               fullWidth
+              size="small"
               type="date"
               label="Fecha de Nacimiento (Opcional)"
               value={form.birthdate}
@@ -454,14 +571,8 @@ export default function MyResidentsPage() {
               InputLabelProps={{ shrink: true }}
             />
           </Stack>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setOpenModal(false)}>Cancelar</Button>
-          <Button variant="contained" onClick={handleSave}>
-            Guardar
-          </Button>
-        </DialogActions>
-      </Dialog>
+        </Box>
+      </ResponsiveFormDrawer>
     </>
   );
 }
