@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   Box,
   Typography,
@@ -16,6 +16,7 @@ import {
   Divider,
   IconButton,
   Chip,
+  Tooltip,
 } from "@mui/material";
 import {
   EditRounded as EditIcon,
@@ -26,14 +27,22 @@ import {
   GroupsRounded as GroupsIcon,
   AddRounded as AddIcon,
   DeleteRounded as DeleteIcon,
+  CloudUploadOutlined as CloudUploadIcon,
+  InsertDriveFileOutlined as FileIcon,
+  OpenInNew as OpenInNewIcon,
+  CheckCircleRounded as CheckCircleIcon,
+  PersonOutlineRounded as PersonIcon,
 } from "@mui/icons-material";
 import { useClientDetail } from "../ClientContext";
+import { StorageApi, MediaTypeCategory } from "@/lib/api/storage";
+import { useNotification } from "@/providers/NotificationProvider";
 
-interface AdditionalContact {
-  title: string;
+interface DynamicContact {
+  roleName: string;
   name: string;
-  phone: string;
+  document: string;
   email: string;
+  phone: string;
 }
 
 interface CouncilMember {
@@ -43,9 +52,22 @@ interface CouncilMember {
   unit: string;
 }
 
+const CONTRACT_DOC_TYPES = [
+  { key: "financialStatements", label: "Estados Financieros" },
+  { key: "legalRepresentation", label: "Representación Jurídica" },
+  { key: "serviceOrder", label: "Orden de Servicio" },
+  { key: "contractDoc", label: "Documento de Contrato" },
+  { key: "otroSi", label: "Otro Sí" },
+  { key: "basc", label: "Certificación BASC" },
+  { key: "insurancePolicy", label: "Pólizas de Seguro" },
+  { key: "techContract", label: "Contratos de Tecnología" },
+];
+
 export default function ClientLegalPage() {
-  const { client, loading, saving, updateLegal, permissions } = useClientDetail();
+  const { clientId, client, loading, saving, updateLegal, permissions } =
+    useClientDetail();
   const theme = useTheme();
+  const { showError, showSuccess } = useNotification();
 
   const [editingCard, setEditingCard] = useState<string | null>(null);
 
@@ -58,9 +80,29 @@ export default function ClientLegalPage() {
     lastContractDate: "",
     contractEndDate: "",
   });
+  const [contractMediaFiles, setContractMediaFiles] = useState<
+    Record<string, any>
+  >({});
+  const [uploadingDocKey, setUploadingDocKey] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [activeDocKey, setActiveDocKey] = useState<string | null>(null);
+
+  useEffect(() => {
+    const input = fileInputRef.current;
+    if (!input) return;
+    const handleCancel = () => {
+      setActiveDocKey(null);
+      setUploadingDocKey(null);
+    };
+    input.addEventListener("cancel", handleCancel);
+    return () => {
+      input.removeEventListener("cancel", handleCancel);
+    };
+  }, []);
 
   // Administration state
-  const [administrationType, setAdministrationType] = useState<string>("INDIVIDUAL");
+  const [administrationType, setAdministrationType] =
+    useState<string>("INDIVIDUAL");
   const [individualAdmin, setIndividualAdmin] = useState({
     administrator: "",
     identificationNumber: "",
@@ -75,7 +117,7 @@ export default function ClientLegalPage() {
     legalRepName: "",
     legalRepId: "",
     legalRepPhone: "",
-    additionalContacts: [] as AdditionalContact[],
+    additionalContacts: [] as DynamicContact[],
   });
 
   // Council state
@@ -99,7 +141,9 @@ export default function ClientLegalPage() {
         contractNumber: client.contractNumber || "",
         contractStatus: client.contractStatus || "ACTIVE",
         renewedContract: Boolean(client.renewedContract),
-        contractDate: client.contractDate ? client.contractDate.split("T")[0] : "",
+        contractDate: client.contractDate
+          ? client.contractDate.split("T")[0]
+          : "",
         lastContractDate: client.lastContractDate
           ? client.lastContractDate.split("T")[0]
           : "",
@@ -110,16 +154,32 @@ export default function ClientLegalPage() {
           : "",
       });
 
+      if (client.contractMediaFiles) {
+        setContractMediaFiles(client.contractMediaFiles);
+      }
+
       const admType = client.administrationType || "INDIVIDUAL";
       setAdministrationType(admType);
       const admComp = client.administrationCompanyData || {};
 
       setIndividualAdmin({
         administrator: client.administrator || "",
-        identificationNumber: admComp.identificationNumber || "",
+        identificationNumber:
+          admComp.identificationNumber || admComp.representativeDocument || "",
         administratorEmail: client.administratorEmail || "",
         administratorPhone: client.administratorPhone || "",
       });
+
+      const rawAdditional = admComp.additionalContacts || [];
+      const normalizedAdditional: DynamicContact[] = rawAdditional.map(
+        (c: any) => ({
+          roleName: c.roleName || c.title || "Contacto Adicional",
+          name: c.name || "",
+          document: c.document || "",
+          email: c.email || "",
+          phone: c.phone || "",
+        }),
+      );
 
       setEnterpriseAdmin({
         companyName: admComp.companyName || client.administrator || "",
@@ -129,15 +189,69 @@ export default function ClientLegalPage() {
         legalRepName: admComp.legalRepName || "",
         legalRepId: admComp.legalRepId || "",
         legalRepPhone: admComp.legalRepPhone || "",
-        additionalContacts: admComp.additionalContacts || [],
+        additionalContacts: normalizedAdditional,
       });
 
       const cData = client.councilData || {};
-      setCouncilPresident(cData.president || { name: "", phone: "", email: "", unit: "" });
-      setCouncilTreasurer(cData.treasurer || { name: "", phone: "", email: "", unit: "" });
+      setCouncilPresident(
+        cData.president || { name: "", phone: "", email: "", unit: "" },
+      );
+      setCouncilTreasurer(
+        cData.treasurer || { name: "", phone: "", email: "", unit: "" },
+      );
       setCouncilMembers(cData.councilMembers || []);
     }
   }, [client]);
+
+  // Upload handler for contractual documents
+  const triggerDocUpload = (docKey: string) => {
+    setActiveDocKey(docKey);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+      fileInputRef.current.click();
+    }
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !activeDocKey) return;
+
+    try {
+      setUploadingDocKey(activeDocKey);
+      const res = await StorageApi.uploadMedia({
+        file,
+        entityType: MediaTypeCategory.DOCUMENT,
+        entityId: clientId,
+        clientId,
+        subType: `contract_${activeDocKey}`,
+      });
+
+      setContractMediaFiles((prev) => ({
+        ...prev,
+        [activeDocKey]: {
+          mediaId: res.id,
+          fileName: res.fileName,
+          url: res.presignedUrl || res.url,
+          sizeBytes: res.sizeBytes,
+        },
+      }));
+
+      showSuccess(`Documento contractual "${file.name}" cargado exitosamente.`);
+    } catch (err: any) {
+      showError(err.message || "Error al subir documento contractual.");
+    } finally {
+      setUploadingDocKey(null);
+      setActiveDocKey(null);
+    }
+  };
+
+  const handleRemoveDoc = (docKey: string) => {
+    setContractMediaFiles((prev) => {
+      const copy = { ...prev };
+      delete copy[docKey];
+      return copy;
+    });
+  };
 
   const handleSaveContract = async () => {
     const success = await updateLegal({
@@ -147,8 +261,45 @@ export default function ClientLegalPage() {
       contractDate: contractForm.contractDate || null,
       lastContractDate: contractForm.lastContractDate || null,
       contractEndDate: contractForm.contractEndDate || null,
+      contractMediaFiles,
     });
     if (success) setEditingCard(null);
+  };
+
+  // Administration Handlers
+  const handleAddAdditionalContact = () => {
+    setEnterpriseAdmin((prev) => ({
+      ...prev,
+      additionalContacts: [
+        ...prev.additionalContacts,
+        {
+          roleName: "Asistente de Administración",
+          name: "",
+          document: "",
+          email: "",
+          phone: "",
+        },
+      ],
+    }));
+  };
+
+  const handleRemoveAdditionalContact = (idx: number) => {
+    setEnterpriseAdmin((prev) => ({
+      ...prev,
+      additionalContacts: prev.additionalContacts.filter((_, i) => i !== idx),
+    }));
+  };
+
+  const handleAdditionalContactChange = (
+    idx: number,
+    field: keyof DynamicContact,
+    val: string,
+  ) => {
+    setEnterpriseAdmin((prev) => {
+      const copy = [...prev.additionalContacts];
+      copy[idx] = { ...copy[idx], [field]: val };
+      return { ...prev, additionalContacts: copy };
+    });
   };
 
   const handleSaveAdministration = async () => {
@@ -178,6 +329,30 @@ export default function ClientLegalPage() {
     if (success) setEditingCard(null);
   };
 
+  // Council Handlers
+  const handleAddCouncilMember = () => {
+    setCouncilMembers((prev) => [
+      ...prev,
+      { name: "", phone: "", email: "", unit: "" },
+    ]);
+  };
+
+  const handleRemoveCouncilMember = (idx: number) => {
+    setCouncilMembers((prev) => prev.filter((_, i) => i !== idx));
+  };
+
+  const handleCouncilMemberChange = (
+    idx: number,
+    field: keyof CouncilMember,
+    val: string,
+  ) => {
+    setCouncilMembers((prev) => {
+      const copy = [...prev];
+      copy[idx] = { ...copy[idx], [field]: val };
+      return copy;
+    });
+  };
+
   const handleSaveCouncil = async () => {
     const success = await updateLegal({
       councilData: {
@@ -195,7 +370,7 @@ export default function ClientLegalPage() {
     chip?: {
       color?: "success" | "warning" | "error" | "default" | "primary" | "info";
       label?: string;
-    }
+    },
   ) => {
     const isValEmpty =
       value === undefined || value === null || String(value).trim() === "";
@@ -278,17 +453,26 @@ export default function ClientLegalPage() {
 
   return (
     <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
+      {/* Hidden file input for contractual documents upload */}
+      <input
+        type="file"
+        ref={fileInputRef}
+        style={{ display: "none" }}
+        accept="application/pdf,image/*,.doc,.docx,.xls,.xlsx"
+        onChange={handleFileChange}
+      />
+
       {/* Page Title */}
       <Box>
         <Typography variant="h5" fontWeight={700}>
           Legal y Contratos
         </Typography>
         <Typography variant="body2" color="text.secondary">
-          Gestione las cláusulas contractuales, contactos administrativos y el consejo directivo.
+          Gestione las cláusulas contractuales, documentación soporte, contactos administrativos y el consejo directivo.
         </Typography>
       </Box>
 
-      {/* Card 1: Información Contractual */}
+      {/* Card 1: Información Contractual y Documentación Soporte */}
       <Paper
         elevation={0}
         sx={{
@@ -297,15 +481,22 @@ export default function ClientLegalPage() {
           border: `1px solid ${theme.palette.divider}`,
         }}
       >
-        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 2 }}>
+        <Box
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            mb: 2,
+          }}
+        >
           <Box sx={{ display: "flex", alignItems: "center", gap: 1.2 }}>
             <GavelIcon color="primary" />
             <Typography variant="subtitle1" fontWeight={700}>
-              Información Contractual
+              Información Contractual y Documentos
             </Typography>
           </Box>
-          {permissions.canEditLegal && (
-            editingCard === "contract" ? (
+          {permissions.canEditLegal &&
+            (editingCard === "contract" ? (
               <Box sx={{ display: "flex", gap: 1 }}>
                 <Button
                   size="small"
@@ -336,108 +527,307 @@ export default function ClientLegalPage() {
               >
                 Editar
               </Button>
-            )
-          )}
+            ))}
         </Box>
         <Divider sx={{ mb: 2.5 }} />
 
         {editingCard === "contract" ? (
-          <Grid container spacing={2}>
-            <Grid size={{ xs: 12, sm: 4 }}>
-              <TextField
-                fullWidth
-                size="small"
-                label="Número de Contrato"
-                value={contractForm.contractNumber}
-                onChange={(e) =>
-                  setContractForm({ ...contractForm, contractNumber: e.target.value })
-                }
-              />
+          <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
+            <Grid container spacing={2}>
+              <Grid size={{ xs: 12, sm: 4 }}>
+                <TextField
+                  fullWidth
+                  size="small"
+                  label="Número de Contrato"
+                  value={contractForm.contractNumber}
+                  onChange={(e) =>
+                    setContractForm({
+                      ...contractForm,
+                      contractNumber: e.target.value,
+                    })
+                  }
+                />
+              </Grid>
+              <Grid size={{ xs: 12, sm: 4 }}>
+                <TextField
+                  fullWidth
+                  select
+                  size="small"
+                  label="Estado del Contrato"
+                  value={contractForm.contractStatus}
+                  onChange={(e) =>
+                    setContractForm({
+                      ...contractForm,
+                      contractStatus: e.target.value,
+                    })
+                  }
+                >
+                  <MenuItem value="ACTIVE">Activo</MenuItem>
+                  <MenuItem value="INACTIVE">Inactivo</MenuItem>
+                  <MenuItem value="PENDING">Pendiente</MenuItem>
+                  <MenuItem value="TERMINATED">Terminado</MenuItem>
+                </TextField>
+              </Grid>
+              <Grid size={{ xs: 12, sm: 4 }}>
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={contractForm.renewedContract}
+                      onChange={(e) =>
+                        setContractForm({
+                          ...contractForm,
+                          renewedContract: e.target.checked,
+                        })
+                      }
+                    />
+                  }
+                  label="Prórroga Automática"
+                />
+              </Grid>
+              <Grid size={{ xs: 12, sm: 4 }}>
+                <TextField
+                  fullWidth
+                  type="date"
+                  size="small"
+                  label="Fecha Inicio"
+                  slotProps={{ inputLabel: { shrink: true } }}
+                  value={contractForm.contractDate}
+                  onChange={(e) =>
+                    setContractForm({
+                      ...contractForm,
+                      contractDate: e.target.value,
+                    })
+                  }
+                />
+              </Grid>
+              <Grid size={{ xs: 12, sm: 4 }}>
+                <TextField
+                  fullWidth
+                  type="date"
+                  size="small"
+                  label="Fecha de Término"
+                  slotProps={{ inputLabel: { shrink: true } }}
+                  value={contractForm.contractEndDate}
+                  onChange={(e) =>
+                    setContractForm({
+                      ...contractForm,
+                      contractEndDate: e.target.value,
+                    })
+                  }
+                />
+              </Grid>
             </Grid>
-            <Grid size={{ xs: 12, sm: 4 }}>
-              <TextField
-                fullWidth
-                select
-                size="small"
-                label="Estado del Contrato"
-                value={contractForm.contractStatus}
-                onChange={(e) =>
-                  setContractForm({ ...contractForm, contractStatus: e.target.value })
-                }
-              >
-                <MenuItem value="ACTIVE">Activo</MenuItem>
-                <MenuItem value="SUSPENDED">Suspendido</MenuItem>
-                <MenuItem value="TERMINATED">Terminado</MenuItem>
-              </TextField>
-            </Grid>
-            <Grid size={{ xs: 12, sm: 4 }}>
-              <FormControlLabel
-                control={
-                  <Switch
-                    checked={contractForm.renewedContract}
-                    onChange={(e) =>
-                      setContractForm({
-                        ...contractForm,
-                        renewedContract: e.target.checked,
-                      })
-                    }
-                  />
-                }
-                label="Prórroga Automática"
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 4 }}>
-              <TextField
-                fullWidth
-                type="date"
-                size="small"
-                label="Fecha Inicio"
-                InputLabelProps={{ shrink: true }}
-                value={contractForm.contractDate}
-                onChange={(e) =>
-                  setContractForm({ ...contractForm, contractDate: e.target.value })
-                }
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 4 }}>
-              <TextField
-                fullWidth
-                type="date"
-                size="small"
-                label="Fecha Vencimiento"
-                InputLabelProps={{ shrink: true }}
-                value={contractForm.lastContractDate}
-                onChange={(e) =>
-                  setContractForm({ ...contractForm, lastContractDate: e.target.value })
-                }
-              />
-            </Grid>
-          </Grid>
+
+            {/* Soportes Contractuales Reales (8 tipos de documentos) */}
+            <Box>
+              <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 1.5 }}>
+                Archivos y Soportes Contractuales (PDF o Imagen)
+              </Typography>
+              <Grid container spacing={2}>
+                {CONTRACT_DOC_TYPES.map((doc) => {
+                  const uploaded = contractMediaFiles[doc.key];
+                  const isUploading = uploadingDocKey === doc.key;
+
+                  return (
+                    <Grid size={{ xs: 12, sm: 6, md: 3 }} key={doc.key}>
+                      <Paper
+                        variant="outlined"
+                        sx={{
+                          p: 1.8,
+                          borderRadius: 2,
+                          height: "100%",
+                          display: "flex",
+                          flexDirection: "column",
+                          justifyContent: "space-between",
+                          bgcolor: uploaded
+                            ? (theme) =>
+                                theme.palette.mode === "dark"
+                                  ? "rgba(46, 125, 50, 0.08)"
+                                  : "rgba(46, 125, 50, 0.04)"
+                            : "inherit",
+                          border: uploaded
+                            ? "1px solid rgba(46, 125, 50, 0.4)"
+                            : undefined,
+                        }}
+                      >
+                        <Box sx={{ mb: 1.5 }}>
+                          <Typography
+                            variant="caption"
+                            color="text.secondary"
+                            fontWeight={700}
+                            display="block"
+                          >
+                            {doc.label}
+                          </Typography>
+                          {uploaded ? (
+                            <Box
+                              sx={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 0.8,
+                                mt: 0.5,
+                              }}
+                            >
+                              <FileIcon fontSize="small" color="success" />
+                              <Typography
+                                variant="caption"
+                                fontWeight={600}
+                                noWrap
+                                sx={{ maxWidth: 140 }}
+                                title={uploaded.fileName}
+                              >
+                                {uploaded.fileName}
+                              </Typography>
+                            </Box>
+                          ) : (
+                            <Typography
+                              variant="caption"
+                              color="text.disabled"
+                              sx={{ mt: 0.5, display: "block" }}
+                            >
+                              Sin soporte cargado
+                            </Typography>
+                          )}
+                        </Box>
+
+                        <Box
+                          sx={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 0.5,
+                          }}
+                        >
+                          <Button
+                            size="small"
+                            fullWidth
+                            variant={uploaded ? "outlined" : "contained"}
+                            color={uploaded ? "inherit" : "primary"}
+                            startIcon={
+                              uploaded ? <CheckCircleIcon /> : <CloudUploadIcon />
+                            }
+                            onClick={() => triggerDocUpload(doc.key)}
+                            disabled={isUploading}
+                          >
+                            {isUploading
+                              ? "Subiendo..."
+                              : uploaded
+                              ? "Archivo Adjuntado (Cambiar)"
+                              : "Adjuntar Archivo"}
+                          </Button>
+                          {uploaded && (
+                            <>
+                              <Tooltip title="Ver Documento">
+                                <IconButton
+                                  size="small"
+                                  component="a"
+                                  href={uploaded.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                >
+                                  <OpenInNewIcon fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                              <IconButton
+                                size="small"
+                                color="error"
+                                onClick={() => handleRemoveDoc(doc.key)}
+                              >
+                                <DeleteIcon fontSize="small" />
+                              </IconButton>
+                            </>
+                          )}
+                        </Box>
+                      </Paper>
+                    </Grid>
+                  );
+                })}
+              </Grid>
+            </Box>
+          </Box>
         ) : (
-          <Grid container spacing={2}>
-            <Grid size={{ xs: 12, sm: 4 }}>
-              {renderField("Número de Contrato", client?.contractNumber)}
+          <Box sx={{ display: "flex", flexDirection: "column", gap: 2.5 }}>
+            <Grid container spacing={2}>
+              <Grid size={{ xs: 12, sm: 3 }}>
+                {renderField(
+                  "Número de Contrato",
+                  contractForm.contractNumber,
+                )}
+              </Grid>
+              <Grid size={{ xs: 12, sm: 3 }}>
+                {renderField(
+                  "Estado del Contrato",
+                  contractForm.contractStatus === "ACTIVE"
+                    ? "Activo"
+                    : contractForm.contractStatus,
+                  {
+                    color:
+                      contractForm.contractStatus === "ACTIVE"
+                        ? "success"
+                        : "warning",
+                    label:
+                      contractForm.contractStatus === "ACTIVE"
+                        ? "Activo"
+                        : contractForm.contractStatus,
+                  },
+                )}
+              </Grid>
+              <Grid size={{ xs: 12, sm: 3 }}>
+                {renderField(
+                  "Fecha de Inicio",
+                  contractForm.contractDate || "No definida",
+                )}
+              </Grid>
+              <Grid size={{ xs: 12, sm: 3 }}>
+                {renderField(
+                  "Fecha de Término",
+                  contractForm.contractEndDate || "Indefinida",
+                )}
+              </Grid>
             </Grid>
-            <Grid size={{ xs: 12, sm: 4 }}>
-              {renderField("Estado del Contrato", client?.contractStatus)}
-            </Grid>
-            <Grid size={{ xs: 12, sm: 4 }}>
-              {renderField(
-                "Prórroga Automática",
-                client?.renewedContract ? "Habilitada" : "No",
-              )}
-            </Grid>
-            <Grid size={{ xs: 12, sm: 4 }}>
-              {renderField("Fecha Inicio", client?.contractDate?.split("T")[0])}
-            </Grid>
-            <Grid size={{ xs: 12, sm: 4 }}>
-              {renderField("Fecha Vencimiento", client?.lastContractDate?.split("T")[0])}
-            </Grid>
-          </Grid>
+
+            {/* Visualización de Soportes Contractuales */}
+            <Box>
+              <Typography
+                variant="caption"
+                color="text.secondary"
+                fontWeight={700}
+                sx={{ textTransform: "uppercase", display: "block", mb: 1 }}
+              >
+                Soportes Contractuales Registrados
+              </Typography>
+              <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
+                {CONTRACT_DOC_TYPES.filter(
+                  (d) => contractMediaFiles[d.key],
+                ).map((doc) => {
+                  const file = contractMediaFiles[doc.key];
+                  return (
+                    <Chip
+                      key={doc.key}
+                      icon={<FileIcon fontSize="small" />}
+                      label={`${doc.label}: ${file.fileName}`}
+                      variant="outlined"
+                      color="primary"
+                      component="a"
+                      href={file.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      clickable
+                      onDelete={undefined}
+                    />
+                  );
+                })}
+                {Object.keys(contractMediaFiles).length === 0 && (
+                  <Typography variant="body2" color="text.disabled">
+                    No se han adjuntado soportes contractuales aún.
+                  </Typography>
+                )}
+              </Box>
+            </Box>
+          </Box>
         )}
       </Paper>
 
-      {/* Card 2: Administración del Inmueble */}
+      {/* Card 2: Administración y Contactos Adicionales */}
       <Paper
         elevation={0}
         sx={{
@@ -446,15 +836,22 @@ export default function ClientLegalPage() {
           border: `1px solid ${theme.palette.divider}`,
         }}
       >
-        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 2 }}>
+        <Box
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            mb: 2,
+          }}
+        >
           <Box sx={{ display: "flex", alignItems: "center", gap: 1.2 }}>
             <BusinessIcon color="primary" />
             <Typography variant="subtitle1" fontWeight={700}>
-              Administración del Inmueble
+              Administración y Contactos Directos
             </Typography>
           </Box>
-          {permissions.canEditLegal && (
-            editingCard === "admin" ? (
+          {permissions.canEditLegal &&
+            (editingCard === "administration" ? (
               <Box sx={{ display: "flex", gap: 1 }}>
                 <Button
                   size="small"
@@ -481,27 +878,30 @@ export default function ClientLegalPage() {
                 size="small"
                 variant="outlined"
                 startIcon={<EditIcon />}
-                onClick={() => setEditingCard("admin")}
+                onClick={() => setEditingCard("administration")}
               >
                 Editar
               </Button>
-            )
-          )}
+            ))}
         </Box>
         <Divider sx={{ mb: 2.5 }} />
 
-        {editingCard === "admin" ? (
-          <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+        {editingCard === "administration" ? (
+          <Box sx={{ display: "flex", flexDirection: "column", gap: 2.5 }}>
             <TextField
               select
               size="small"
               label="Tipo de Administración"
               value={administrationType}
               onChange={(e) => setAdministrationType(e.target.value)}
-              sx={{ width: 250 }}
+              sx={{ width: 280 }}
             >
-              <MenuItem value="INDIVIDUAL">Persona Natural (Individual)</MenuItem>
-              <MenuItem value="ENTERPRISE">Empresa Inmobiliaria / Gestión</MenuItem>
+              <MenuItem value="INDIVIDUAL">
+                Persona Natural (Individual / Delegado)
+              </MenuItem>
+              <MenuItem value="ENTERPRISE">
+                Empresa Administradora Tercerizada
+              </MenuItem>
             </TextField>
 
             {administrationType === "INDIVIDUAL" ? (
@@ -513,7 +913,10 @@ export default function ClientLegalPage() {
                     label="Nombre del Administrador"
                     value={individualAdmin.administrator}
                     onChange={(e) =>
-                      setIndividualAdmin({ ...individualAdmin, administrator: e.target.value })
+                      setIndividualAdmin({
+                        ...individualAdmin,
+                        administrator: e.target.value,
+                      })
                     }
                   />
                 </Grid>
@@ -561,124 +964,315 @@ export default function ClientLegalPage() {
                 </Grid>
               </Grid>
             ) : (
-              <Grid container spacing={2}>
-                <Grid size={{ xs: 12, sm: 6 }}>
-                  <TextField
-                    fullWidth
-                    size="small"
-                    label="Razón Social Empresa"
-                    value={enterpriseAdmin.companyName}
-                    onChange={(e) =>
-                      setEnterpriseAdmin({ ...enterpriseAdmin, companyName: e.target.value })
-                    }
-                  />
+              <Box sx={{ display: "flex", flexDirection: "column", gap: 2.5 }}>
+                <Grid container spacing={2}>
+                  <Grid size={{ xs: 12, sm: 6 }}>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      label="Razón Social Empresa"
+                      value={enterpriseAdmin.companyName}
+                      onChange={(e) =>
+                        setEnterpriseAdmin({
+                          ...enterpriseAdmin,
+                          companyName: e.target.value,
+                        })
+                      }
+                    />
+                  </Grid>
+                  <Grid size={{ xs: 12, sm: 6 }}>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      label="NIT Empresa"
+                      value={enterpriseAdmin.nit}
+                      onChange={(e) =>
+                        setEnterpriseAdmin({
+                          ...enterpriseAdmin,
+                          nit: e.target.value,
+                        })
+                      }
+                    />
+                  </Grid>
+                  <Grid size={{ xs: 12, sm: 6 }}>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      label="Teléfono Corporativo"
+                      value={enterpriseAdmin.phone}
+                      onChange={(e) =>
+                        setEnterpriseAdmin({
+                          ...enterpriseAdmin,
+                          phone: e.target.value,
+                        })
+                      }
+                    />
+                  </Grid>
+                  <Grid size={{ xs: 12, sm: 6 }}>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      label="Correo Corporativo"
+                      value={enterpriseAdmin.email}
+                      onChange={(e) =>
+                        setEnterpriseAdmin({
+                          ...enterpriseAdmin,
+                          email: e.target.value,
+                        })
+                      }
+                    />
+                  </Grid>
+                  <Grid size={{ xs: 12, sm: 4 }}>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      label="Representante Legal"
+                      value={enterpriseAdmin.legalRepName}
+                      onChange={(e) =>
+                        setEnterpriseAdmin({
+                          ...enterpriseAdmin,
+                          legalRepName: e.target.value,
+                        })
+                      }
+                    />
+                  </Grid>
+                  <Grid size={{ xs: 12, sm: 4 }}>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      label="Cédula Representante"
+                      value={enterpriseAdmin.legalRepId}
+                      onChange={(e) =>
+                        setEnterpriseAdmin({
+                          ...enterpriseAdmin,
+                          legalRepId: e.target.value,
+                        })
+                      }
+                    />
+                  </Grid>
+                  <Grid size={{ xs: 12, sm: 4 }}>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      label="Teléfono Representante"
+                      value={enterpriseAdmin.legalRepPhone}
+                      onChange={(e) =>
+                        setEnterpriseAdmin({
+                          ...enterpriseAdmin,
+                          legalRepPhone: e.target.value,
+                        })
+                      }
+                    />
+                  </Grid>
                 </Grid>
-                <Grid size={{ xs: 12, sm: 6 }}>
-                  <TextField
-                    fullWidth
-                    size="small"
-                    label="NIT Empresa"
-                    value={enterpriseAdmin.nit}
-                    onChange={(e) =>
-                      setEnterpriseAdmin({ ...enterpriseAdmin, nit: e.target.value })
-                    }
-                  />
-                </Grid>
-                <Grid size={{ xs: 12, sm: 6 }}>
-                  <TextField
-                    fullWidth
-                    size="small"
-                    label="Teléfono Corporativo"
-                    value={enterpriseAdmin.phone}
-                    onChange={(e) =>
-                      setEnterpriseAdmin({ ...enterpriseAdmin, phone: e.target.value })
-                    }
-                  />
-                </Grid>
-                <Grid size={{ xs: 12, sm: 6 }}>
-                  <TextField
-                    fullWidth
-                    size="small"
-                    label="Correo Corporativo"
-                    value={enterpriseAdmin.email}
-                    onChange={(e) =>
-                      setEnterpriseAdmin({ ...enterpriseAdmin, email: e.target.value })
-                    }
-                  />
-                </Grid>
-                <Grid size={{ xs: 12, sm: 6 }}>
-                  <TextField
-                    fullWidth
-                    size="small"
-                    label="Representante Legal"
-                    value={enterpriseAdmin.legalRepName}
-                    onChange={(e) =>
-                      setEnterpriseAdmin({
-                        ...enterpriseAdmin,
-                        legalRepName: e.target.value,
-                      })
-                    }
-                  />
-                </Grid>
-                <Grid size={{ xs: 12, sm: 6 }}>
-                  <TextField
-                    fullWidth
-                    size="small"
-                    label="Teléfono Representante"
-                    value={enterpriseAdmin.legalRepPhone}
-                    onChange={(e) =>
-                      setEnterpriseAdmin({
-                        ...enterpriseAdmin,
-                        legalRepPhone: e.target.value,
-                      })
-                    }
-                  />
-                </Grid>
-              </Grid>
+
+                {/* Contactos Adicionales Dinámicos (Punto 6) */}
+                <Box>
+                  <Box
+                    sx={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      mb: 1.5,
+                    }}
+                  >
+                    <Typography variant="subtitle2" fontWeight={700}>
+                      Contactos Adicionales de la Administración (
+                      {enterpriseAdmin.additionalContacts.length})
+                    </Typography>
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      startIcon={<AddIcon />}
+                      onClick={handleAddAdditionalContact}
+                    >
+                      Agregar Contacto
+                    </Button>
+                  </Box>
+
+                  <Grid container spacing={2}>
+                    {enterpriseAdmin.additionalContacts.map((contact, idx) => (
+                      <Grid size={12} key={idx}>
+                        <Paper
+                          variant="outlined"
+                          sx={{
+                            p: 2,
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 1.5,
+                            flexWrap: "wrap",
+                            borderRadius: 2,
+                          }}
+                        >
+                          <TextField
+                            size="small"
+                            label="Cargo / Rol"
+                            value={contact.roleName}
+                            onChange={(e) =>
+                              handleAdditionalContactChange(
+                                idx,
+                                "roleName",
+                                e.target.value,
+                              )
+                            }
+                            sx={{ minWidth: 180, flex: 1 }}
+                            placeholder="Ej: Asistente Operativo"
+                          />
+                          <TextField
+                            size="small"
+                            label="Nombre Completo"
+                            value={contact.name}
+                            onChange={(e) =>
+                              handleAdditionalContactChange(
+                                idx,
+                                "name",
+                                e.target.value,
+                              )
+                            }
+                            sx={{ minWidth: 180, flex: 1 }}
+                          />
+                          <TextField
+                            size="small"
+                            label="Teléfono"
+                            value={contact.phone}
+                            onChange={(e) =>
+                              handleAdditionalContactChange(
+                                idx,
+                                "phone",
+                                e.target.value,
+                              )
+                            }
+                            sx={{ minWidth: 140, flex: 1 }}
+                          />
+                          <TextField
+                            size="small"
+                            label="Correo Electrónico"
+                            value={contact.email}
+                            onChange={(e) =>
+                              handleAdditionalContactChange(
+                                idx,
+                                "email",
+                                e.target.value,
+                              )
+                            }
+                            sx={{ minWidth: 180, flex: 1 }}
+                          />
+                          <IconButton
+                            size="small"
+                            color="error"
+                            onClick={() => handleRemoveAdditionalContact(idx)}
+                          >
+                            <DeleteIcon fontSize="small" />
+                          </IconButton>
+                        </Paper>
+                      </Grid>
+                    ))}
+                  </Grid>
+                </Box>
+              </Box>
             )}
           </Box>
         ) : (
-          <Grid container spacing={2}>
-            <Grid size={{ xs: 12, sm: 4 }}>
-              {renderField(
-                "Tipo de Administración",
-                administrationType === "INDIVIDUAL" ? "Persona Natural" : "Empresa / Inmobiliaria",
-              )}
-            </Grid>
-            <Grid size={{ xs: 12, sm: 4 }}>
-              {renderField(
-                "Administrador / Razón Social",
-                administrationType === "INDIVIDUAL"
-                  ? individualAdmin.administrator
-                  : enterpriseAdmin.companyName,
-              )}
-            </Grid>
-            <Grid size={{ xs: 12, sm: 4 }}>
-              {renderField(
-                "Teléfono de Contacto",
-                administrationType === "INDIVIDUAL"
-                  ? individualAdmin.administratorPhone
-                  : enterpriseAdmin.phone,
-              )}
-            </Grid>
-            <Grid size={{ xs: 12, sm: 4 }}>
-              {renderField(
-                "Correo Electrónico",
-                administrationType === "INDIVIDUAL"
-                  ? individualAdmin.administratorEmail
-                  : enterpriseAdmin.email,
-              )}
-            </Grid>
-            {administrationType === "ENTERPRISE" && (
+          <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+            <Grid container spacing={2}>
               <Grid size={{ xs: 12, sm: 4 }}>
-                {renderField("Representante Legal", enterpriseAdmin.legalRepName)}
+                {renderField(
+                  "Tipo de Administración",
+                  administrationType === "INDIVIDUAL"
+                    ? "Persona Natural"
+                    : "Empresa Administradora",
+                )}
               </Grid>
-            )}
-          </Grid>
+              <Grid size={{ xs: 12, sm: 4 }}>
+                {renderField(
+                  "Administrador / Razón Social",
+                  administrationType === "INDIVIDUAL"
+                    ? individualAdmin.administrator
+                    : enterpriseAdmin.companyName,
+                )}
+              </Grid>
+              <Grid size={{ xs: 12, sm: 4 }}>
+                {renderField(
+                  "Teléfono de Contacto",
+                  administrationType === "INDIVIDUAL"
+                    ? individualAdmin.administratorPhone
+                    : enterpriseAdmin.phone,
+                )}
+              </Grid>
+              <Grid size={{ xs: 12, sm: 4 }}>
+                {renderField(
+                  "Correo Electrónico",
+                  administrationType === "INDIVIDUAL"
+                    ? individualAdmin.administratorEmail
+                    : enterpriseAdmin.email,
+                )}
+              </Grid>
+              {administrationType === "ENTERPRISE" && (
+                <>
+                  <Grid size={{ xs: 12, sm: 4 }}>
+                    {renderField(
+                      "Representante Legal",
+                      enterpriseAdmin.legalRepName,
+                    )}
+                  </Grid>
+                  <Grid size={{ xs: 12, sm: 4 }}>
+                    {renderField(
+                      "Teléfono Representante",
+                      enterpriseAdmin.legalRepPhone,
+                    )}
+                  </Grid>
+                </>
+              )}
+            </Grid>
+
+            {/* Listado de Contactos Adicionales en Read-Only */}
+            {administrationType === "ENTERPRISE" &&
+              enterpriseAdmin.additionalContacts &&
+              enterpriseAdmin.additionalContacts.length > 0 && (
+                <Box sx={{ mt: 1 }}>
+                  <Typography
+                    variant="caption"
+                    color="text.secondary"
+                    fontWeight={700}
+                    sx={{ textTransform: "uppercase", display: "block", mb: 1 }}
+                  >
+                    Contactos Adicionales Registrados
+                  </Typography>
+                  <Grid container spacing={1.5}>
+                    {enterpriseAdmin.additionalContacts.map((c, i) => (
+                      <Grid size={{ xs: 12, sm: 6, md: 4 }} key={i}>
+                        <Paper
+                          variant="outlined"
+                          sx={{ p: 1.5, borderRadius: 2 }}
+                        >
+                          <Typography variant="subtitle2" fontWeight={700}>
+                            {c.name || "Sin nombre"}
+                          </Typography>
+                          <Chip
+                            size="small"
+                            label={c.roleName || "Contacto"}
+                            variant="outlined"
+                            color="info"
+                            sx={{ mt: 0.5, mb: 0.5, height: 22 }}
+                          />
+                          <Typography
+                            variant="caption"
+                            display="block"
+                            color="text.secondary"
+                          >
+                            Tel: {c.phone || "N/A"} • Email: {c.email || "N/A"}
+                          </Typography>
+                        </Paper>
+                      </Grid>
+                    ))}
+                  </Grid>
+                </Box>
+              )}
+          </Box>
         )}
       </Paper>
 
-      {/* Card 3: Consejo de Administración */}
+      {/* Card 3: Consejo de Administración (Mesa Directiva y Vocales Dinámicos) */}
       <Paper
         elevation={0}
         sx={{
@@ -687,15 +1281,22 @@ export default function ClientLegalPage() {
           border: `1px solid ${theme.palette.divider}`,
         }}
       >
-        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 2 }}>
+        <Box
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            mb: 2,
+          }}
+        >
           <Box sx={{ display: "flex", alignItems: "center", gap: 1.2 }}>
             <GroupsIcon color="primary" />
             <Typography variant="subtitle1" fontWeight={700}>
-              Consejo de Administración
+              Consejo de Administración (Mesa Directiva y Vocales)
             </Typography>
           </Box>
-          {permissions.canEditLegal && (
-            editingCard === "council" ? (
+          {permissions.canEditLegal &&
+            (editingCard === "council" ? (
               <Box sx={{ display: "flex", gap: 1 }}>
                 <Button
                   size="small"
@@ -726,126 +1327,316 @@ export default function ClientLegalPage() {
               >
                 Editar
               </Button>
-            )
-          )}
+            ))}
         </Box>
         <Divider sx={{ mb: 2.5 }} />
 
         {editingCard === "council" ? (
-          <Box sx={{ display: "flex", flexDirection: "column", gap: 2.5 }}>
-            <Typography variant="subtitle2" fontWeight={600}>
-              Presidente del Consejo
-            </Typography>
+          <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
+            {/* Presidente */}
+            <Box>
+              <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 1.5 }}>
+                Presidente del Consejo
+              </Typography>
+              <Grid container spacing={2}>
+                <Grid size={{ xs: 12, sm: 4 }}>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    label="Nombre Completo"
+                    value={councilPresident.name}
+                    onChange={(e) =>
+                      setCouncilPresident({
+                        ...councilPresident,
+                        name: e.target.value,
+                      })
+                    }
+                  />
+                </Grid>
+                <Grid size={{ xs: 12, sm: 3 }}>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    label="Teléfono"
+                    value={councilPresident.phone}
+                    onChange={(e) =>
+                      setCouncilPresident({
+                        ...councilPresident,
+                        phone: e.target.value,
+                      })
+                    }
+                  />
+                </Grid>
+                <Grid size={{ xs: 12, sm: 3 }}>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    label="Correo"
+                    value={councilPresident.email}
+                    onChange={(e) =>
+                      setCouncilPresident({
+                        ...councilPresident,
+                        email: e.target.value,
+                      })
+                    }
+                  />
+                </Grid>
+                <Grid size={{ xs: 12, sm: 2 }}>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    label="Unidad / Apto"
+                    value={councilPresident.unit}
+                    onChange={(e) =>
+                      setCouncilPresident({
+                        ...councilPresident,
+                        unit: e.target.value,
+                      })
+                    }
+                  />
+                </Grid>
+              </Grid>
+            </Box>
+
+            {/* Tesorero */}
+            <Box>
+              <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 1.5 }}>
+                Tesorero del Consejo
+              </Typography>
+              <Grid container spacing={2}>
+                <Grid size={{ xs: 12, sm: 4 }}>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    label="Nombre Completo"
+                    value={councilTreasurer.name}
+                    onChange={(e) =>
+                      setCouncilTreasurer({
+                        ...councilTreasurer,
+                        name: e.target.value,
+                      })
+                    }
+                  />
+                </Grid>
+                <Grid size={{ xs: 12, sm: 3 }}>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    label="Teléfono"
+                    value={councilTreasurer.phone}
+                    onChange={(e) =>
+                      setCouncilTreasurer({
+                        ...councilTreasurer,
+                        phone: e.target.value,
+                      })
+                    }
+                  />
+                </Grid>
+                <Grid size={{ xs: 12, sm: 3 }}>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    label="Correo"
+                    value={councilTreasurer.email}
+                    onChange={(e) =>
+                      setCouncilTreasurer({
+                        ...councilTreasurer,
+                        email: e.target.value,
+                      })
+                    }
+                  />
+                </Grid>
+                <Grid size={{ xs: 12, sm: 2 }}>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    label="Unidad / Apto"
+                    value={councilTreasurer.unit}
+                    onChange={(e) =>
+                      setCouncilTreasurer({
+                        ...councilTreasurer,
+                        unit: e.target.value,
+                      })
+                    }
+                  />
+                </Grid>
+              </Grid>
+            </Box>
+
+            {/* Otros Consejeros / Vocales Dinámicos (Punto 7) */}
+            <Box>
+              <Box
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  mb: 1.5,
+                }}
+              >
+                <Typography variant="subtitle2" fontWeight={700}>
+                  Otros Consejeros / Vocales ({councilMembers.length})
+                </Typography>
+                <Button
+                  size="small"
+                  variant="outlined"
+                  startIcon={<AddIcon />}
+                  onClick={handleAddCouncilMember}
+                >
+                  Agregar Consejero / Vocal
+                </Button>
+              </Box>
+
+              <Grid container spacing={2}>
+                {councilMembers.map((member, idx) => (
+                  <Grid size={12} key={idx}>
+                    <Paper
+                      variant="outlined"
+                      sx={{
+                        p: 2,
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 1.5,
+                        flexWrap: "wrap",
+                        borderRadius: 2,
+                      }}
+                    >
+                      <TextField
+                        size="small"
+                        label="Nombre Consejero"
+                        value={member.name}
+                        onChange={(e) =>
+                          handleCouncilMemberChange(idx, "name", e.target.value)
+                        }
+                        sx={{ minWidth: 200, flex: 1 }}
+                      />
+                      <TextField
+                        size="small"
+                        label="Teléfono"
+                        value={member.phone}
+                        onChange={(e) =>
+                          handleCouncilMemberChange(idx, "phone", e.target.value)
+                        }
+                        sx={{ minWidth: 140, flex: 1 }}
+                      />
+                      <TextField
+                        size="small"
+                        label="Correo"
+                        value={member.email}
+                        onChange={(e) =>
+                          handleCouncilMemberChange(idx, "email", e.target.value)
+                        }
+                        sx={{ minWidth: 180, flex: 1 }}
+                      />
+                      <TextField
+                        size="small"
+                        label="Unidad / Apto"
+                        value={member.unit}
+                        onChange={(e) =>
+                          handleCouncilMemberChange(idx, "unit", e.target.value)
+                        }
+                        sx={{ minWidth: 110, width: 120 }}
+                      />
+                      <IconButton
+                        size="small"
+                        color="error"
+                        onClick={() => handleRemoveCouncilMember(idx)}
+                      >
+                        <DeleteIcon fontSize="small" />
+                      </IconButton>
+                    </Paper>
+                  </Grid>
+                ))}
+              </Grid>
+            </Box>
+          </Box>
+        ) : (
+          <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
             <Grid container spacing={2}>
-              <Grid size={{ xs: 12, sm: 4 }}>
-                <TextField
-                  fullWidth
-                  size="small"
-                  label="Nombre Completo"
-                  value={councilPresident.name}
-                  onChange={(e) => setCouncilPresident({ ...councilPresident, name: e.target.value })}
-                />
+              <Grid size={{ xs: 12, sm: 6 }}>
+                <Typography
+                  variant="caption"
+                  color="text.secondary"
+                  fontWeight={600}
+                >
+                  PRESIDENTE DEL CONSEJO
+                </Typography>
+                <Typography variant="body2" fontWeight={600}>
+                  {councilPresident.name || "No designado"}
+                </Typography>
+                {councilPresident.phone && (
+                  <Typography
+                    variant="caption"
+                    color="text.secondary"
+                    display="block"
+                  >
+                    Tel: {councilPresident.phone} • Apto:{" "}
+                    {councilPresident.unit || "N/A"}
+                  </Typography>
+                )}
               </Grid>
-              <Grid size={{ xs: 12, sm: 3 }}>
-                <TextField
-                  fullWidth
-                  size="small"
-                  label="Teléfono"
-                  value={councilPresident.phone}
-                  onChange={(e) => setCouncilPresident({ ...councilPresident, phone: e.target.value })}
-                />
-              </Grid>
-              <Grid size={{ xs: 12, sm: 3 }}>
-                <TextField
-                  fullWidth
-                  size="small"
-                  label="Correo"
-                  value={councilPresident.email}
-                  onChange={(e) => setCouncilPresident({ ...councilPresident, email: e.target.value })}
-                />
-              </Grid>
-              <Grid size={{ xs: 12, sm: 2 }}>
-                <TextField
-                  fullWidth
-                  size="small"
-                  label="Unidad / Apto"
-                  value={councilPresident.unit}
-                  onChange={(e) => setCouncilPresident({ ...councilPresident, unit: e.target.value })}
-                />
+              <Grid size={{ xs: 12, sm: 6 }}>
+                <Typography
+                  variant="caption"
+                  color="text.secondary"
+                  fontWeight={600}
+                >
+                  TESORERO DEL CONSEJO
+                </Typography>
+                <Typography variant="body2" fontWeight={600}>
+                  {councilTreasurer.name || "No designado"}
+                </Typography>
+                {councilTreasurer.phone && (
+                  <Typography
+                    variant="caption"
+                    color="text.secondary"
+                    display="block"
+                  >
+                    Tel: {councilTreasurer.phone} • Apto:{" "}
+                    {councilTreasurer.unit || "N/A"}
+                  </Typography>
+                )}
               </Grid>
             </Grid>
 
-            <Typography variant="subtitle2" fontWeight={600}>
-              Tesorero del Consejo
-            </Typography>
-            <Grid container spacing={2}>
-              <Grid size={{ xs: 12, sm: 4 }}>
-                <TextField
-                  fullWidth
-                  size="small"
-                  label="Nombre Completo"
-                  value={councilTreasurer.name}
-                  onChange={(e) => setCouncilTreasurer({ ...councilTreasurer, name: e.target.value })}
-                />
-              </Grid>
-              <Grid size={{ xs: 12, sm: 3 }}>
-                <TextField
-                  fullWidth
-                  size="small"
-                  label="Teléfono"
-                  value={councilTreasurer.phone}
-                  onChange={(e) => setCouncilTreasurer({ ...councilTreasurer, phone: e.target.value })}
-                />
-              </Grid>
-              <Grid size={{ xs: 12, sm: 3 }}>
-                <TextField
-                  fullWidth
-                  size="small"
-                  label="Correo"
-                  value={councilTreasurer.email}
-                  onChange={(e) => setCouncilTreasurer({ ...councilTreasurer, email: e.target.value })}
-                />
-              </Grid>
-              <Grid size={{ xs: 12, sm: 2 }}>
-                <TextField
-                  fullWidth
-                  size="small"
-                  label="Unidad / Apto"
-                  value={councilTreasurer.unit}
-                  onChange={(e) => setCouncilTreasurer({ ...councilTreasurer, unit: e.target.value })}
-                />
-              </Grid>
-            </Grid>
+            {/* Listado de Vocales en Read-Only */}
+            {councilMembers && councilMembers.length > 0 && (
+              <Box sx={{ mt: 1 }}>
+                <Typography
+                  variant="caption"
+                  color="text.secondary"
+                  fontWeight={700}
+                  sx={{ textTransform: "uppercase", display: "block", mb: 1 }}
+                >
+                  Otros Consejeros y Vocales ({councilMembers.length})
+                </Typography>
+                <Grid container spacing={1.5}>
+                  {councilMembers.map((m, i) => (
+                    <Grid size={{ xs: 12, sm: 6, md: 4 }} key={i}>
+                      <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 2 }}>
+                        <Typography variant="subtitle2" fontWeight={700}>
+                          {m.name || "Sin nombre"}
+                        </Typography>
+                        <Chip
+                          size="small"
+                          label={`Vocal • ${m.unit || "Sin unidad"}`}
+                          variant="outlined"
+                          color="primary"
+                          sx={{ mt: 0.5, mb: 0.5, height: 22 }}
+                        />
+                        <Typography
+                          variant="caption"
+                          display="block"
+                          color="text.secondary"
+                        >
+                          Tel: {m.phone || "N/A"} • Email: {m.email || "N/A"}
+                        </Typography>
+                      </Paper>
+                    </Grid>
+                  ))}
+                </Grid>
+              </Box>
+            )}
           </Box>
-        ) : (
-          <Grid container spacing={2}>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <Typography variant="caption" color="text.secondary" fontWeight={600}>
-                PRESIDENTE DEL CONSEJO
-              </Typography>
-              <Typography variant="body2" fontWeight={600}>
-                {councilPresident.name || "No designado"}
-              </Typography>
-              {councilPresident.phone && (
-                <Typography variant="caption" color="text.secondary" display="block">
-                  Tel: {councilPresident.phone} • Apto: {councilPresident.unit || "N/A"}
-                </Typography>
-              )}
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <Typography variant="caption" color="text.secondary" fontWeight={600}>
-                TESORERO DEL CONSEJO
-              </Typography>
-              <Typography variant="body2" fontWeight={600}>
-                {councilTreasurer.name || "No designado"}
-              </Typography>
-              {councilTreasurer.phone && (
-                <Typography variant="caption" color="text.secondary" display="block">
-                  Tel: {councilTreasurer.phone} • Apto: {councilTreasurer.unit || "N/A"}
-                </Typography>
-              )}
-            </Grid>
-          </Grid>
         )}
       </Paper>
     </Box>
