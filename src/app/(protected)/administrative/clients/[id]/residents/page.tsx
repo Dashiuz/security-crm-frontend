@@ -232,8 +232,15 @@ export default function ClientResidentsPage() {
         <Box sx={{ display: "flex", alignItems: "center", gap: 0.8 }}>
           <HomeIcon fontSize="small" sx={{ color: "text.secondary" }} />
           <Typography variant="body2" fontWeight={500}>
-            {params.row.unit?.tower?.towerName ? `${params.row.unit.tower.towerName} - ` : ""}
-            {params.row.unit?.unitName || "Sin unidad"}
+            {(() => {
+              const uName = params.row.unit?.unitName;
+              const tName = params.row.unit?.tower?.towerName;
+              if (!uName) return "Sin unidad";
+              if (tName && !uName.toLowerCase().startsWith(tName.toLowerCase())) {
+                return `${tName} - ${uName}`;
+              }
+              return uName;
+            })()}
           </Typography>
         </Box>
       ),
@@ -459,8 +466,9 @@ export default function ClientResidentsPage() {
               >
                 {clientUnits.map((u: any) => (
                   <MenuItem key={u.id} value={u.id}>
-                    {u.tower?.towerName ? `${u.tower.towerName} - ` : ""}
-                    {u.unitName}
+                    {u.tower?.towerName && !u.unitName?.toLowerCase().startsWith(u.tower.towerName.toLowerCase())
+                      ? `${u.tower.towerName} - ${u.unitName}`
+                      : u.unitName}
                   </MenuItem>
                 ))}
               </TextField>
