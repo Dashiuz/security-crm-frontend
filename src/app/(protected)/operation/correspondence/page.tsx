@@ -5,6 +5,8 @@ import { useNotification } from "@/providers/NotificationProvider";
 import { useAuth } from "@/components/AuthContext";
 import DataTable from "@/components/common/DataTable";
 import DetailDialog from "@/components/common/DetailDialog";
+import ResponsiveFormDrawer from "@/components/common/ResponsiveFormDrawer";
+import dayjs from "dayjs";
 import { GridColDef } from "@mui/x-data-grid";
 import {
   Box,
@@ -151,8 +153,8 @@ export default function CorrespondencePage({ isInternal = false }: Correspondenc
       );
       return;
     }
-    const now = new Date();
-    const currentTime = now.toTimeString().split(" ")[0].substring(0, 5);
+    const today = dayjs();
+    const currentTime = today.format("HH:mm");
     setEvidenceReceptionFile(null);
     setExistingReceptionMediaUrl(null);
     setSelectedUnit(null);
@@ -161,7 +163,7 @@ export default function CorrespondencePage({ isInternal = false }: Correspondenc
     setEditId(null);
     setIsEditing(false);
     setFormData({
-      date: now.toISOString().split("T")[0],
+      date: today.format("YYYY-MM-DD"),
       time: currentTime + ":00",
       receivedTime: currentTime + ":00",
       destination: "",
@@ -963,44 +965,57 @@ export default function CorrespondencePage({ isInternal = false }: Correspondenc
         }
       />
 
-      {/* Modal de Registro / Edición de Recepción de Paquete */}
-      <Dialog
+      {/* Drawer de Registro / Edición de Recepción de Paquete */}
+      <ResponsiveFormDrawer
         open={dialogOpen}
         onClose={() => !submitting && setDialogOpen(false)}
-        maxWidth="md"
-        fullWidth
-        PaperProps={{ sx: { borderRadius: { xs: 2, sm: 2.5 }, m: { xs: 1.5, sm: 3 } } }}
+        title={
+          isEditing
+            ? "Actualizar Paquete"
+            : isInternal
+              ? `Nuevo Paquete - ${tenant?.name || "Empresa"}`
+              : activeClientName
+                ? `Nuevo Paquete para ${activeClientName}`
+                : "Nuevo Ingreso de Paquete / Domicilio"
+        }
+        headerIcon={<LocalShippingIcon color="primary" />}
+        headerBadge={
+          isInternal ? (
+            <Chip
+              size="small"
+              label="Uso Interno"
+              color="secondary"
+              variant="outlined"
+              sx={{ fontWeight: 600 }}
+            />
+          ) : isGlobalUser && !isEditing && activeClientName ? (
+            <Chip
+              size="small"
+              label={activeClientName}
+              color="primary"
+              variant="outlined"
+              sx={{ fontWeight: 600 }}
+            />
+          ) : undefined
+        }
+        actions={
+          <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 1.5, width: "100%", flexDirection: { xs: "column-reverse", sm: "row" } }}>
+            <Button onClick={() => setDialogOpen(false)} color="inherit" disabled={submitting} sx={{ width: { xs: "100%", sm: "auto" } }}>
+              Cancelar
+            </Button>
+            <Button
+              type="submit"
+              form="correspondence-form"
+              variant="contained"
+              disabled={submitting}
+              sx={{ fontWeight: 600, width: { xs: "100%", sm: "auto" } }}
+            >
+              {submitting ? "Guardando..." : isEditing ? "Actualizar Paquete" : "Registrar Recepción"}
+            </Button>
+          </Box>
+        }
       >
-        <form onSubmit={handleSubmit}>
-          <DialogTitle sx={{ pb: 1, fontWeight: 700, fontSize: { xs: "1.1rem", sm: "1.25rem" }, display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
-            <Box component="span">
-              {isEditing
-                ? "Actualizar Paquete"
-                : isInternal
-                  ? `Nuevo Paquete - ${tenant?.name || "Empresa"}`
-                  : activeClientName
-                    ? `Nuevo Paquete para ${activeClientName}`
-                    : "Nuevo Ingreso de Paquete / Domicilio"}
-            </Box>
-            {isInternal ? (
-              <Chip
-                size="small"
-                label="Uso Interno"
-                color="secondary"
-                variant="outlined"
-                sx={{ fontWeight: 600, ml: "auto" }}
-              />
-            ) : isGlobalUser && !isEditing && activeClientName ? (
-              <Chip
-                size="small"
-                label={activeClientName}
-                color="primary"
-                variant="outlined"
-                sx={{ fontWeight: 600, ml: "auto" }}
-              />
-            ) : null}
-          </DialogTitle>
-          <DialogContent dividers sx={{ pt: 2, px: { xs: 2, sm: 3 } }}>
+        <Box component="form" id="correspondence-form" onSubmit={handleSubmit}>
             <Grid container spacing={2}>
               <Grid size={{ xs: 12, sm: 6 }}>
                 <TextField
@@ -1166,30 +1181,33 @@ export default function CorrespondencePage({ isInternal = false }: Correspondenc
                 />
               </Grid>
             </Grid>
-          </DialogContent>
-          <DialogActions sx={{ px: { xs: 2, sm: 3 }, py: 2, flexDirection: { xs: "column-reverse", sm: "row" }, gap: { xs: 1, sm: 0 } }}>
-            <Button onClick={() => setDialogOpen(false)} color="inherit" disabled={submitting} sx={{ width: { xs: "100%", sm: "auto" } }}>
-              Cancelar
-            </Button>
-            <Button type="submit" variant="contained" disabled={submitting} sx={{ fontWeight: 600, width: { xs: "100%", sm: "auto" } }}>
-              {submitting ? "Guardando..." : isEditing ? "Actualizar Paquete" : "Registrar Recepción"}
-            </Button>
-          </DialogActions>
-        </form>
-      </Dialog>
+        </Box>
+      </ResponsiveFormDrawer>
 
-      {/* Modal de Entrega a Residente con Evidencia */}
-      <Dialog
+      {/* Drawer de Entrega a Residente con Evidencia */}
+      <ResponsiveFormDrawer
         open={deliveryDialogOpen}
         onClose={() => !delivering && setDeliveryDialogOpen(false)}
-        maxWidth="sm"
-        fullWidth
-        PaperProps={{ sx: { borderRadius: { xs: 2, sm: 2.5 }, m: { xs: 1.5, sm: 3 } } }}
+        title={isInternal ? "Entregar Paquete al Empleado" : "Entregar Paquete al Residente"}
+        headerIcon={<CheckCircleIcon color="success" />}
+        actions={
+          <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 1.5, width: "100%", flexDirection: { xs: "column-reverse", sm: "row" } }}>
+            <Button onClick={() => setDeliveryDialogOpen(false)} color="inherit" disabled={delivering} sx={{ width: { xs: "100%", sm: "auto" } }}>
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleConfirmDelivery}
+              variant="contained"
+              color="success"
+              disabled={delivering}
+              startIcon={delivering ? <CircularProgress size={16} color="inherit" /> : <CheckCircleIcon />}
+              sx={{ fontWeight: 600, width: { xs: "100%", sm: "auto" } }}
+            >
+              {delivering ? "Registrando Entrega..." : "Confirmar Entrega"}
+            </Button>
+          </Box>
+        }
       >
-        <DialogTitle sx={{ fontWeight: 700, fontSize: { xs: "1.1rem", sm: "1.25rem" } }}>
-          {isInternal ? "Entregar Paquete al Empleado" : "Entregar Paquete al Residente"}
-        </DialogTitle>
-        <DialogContent dividers sx={{ pt: 2, px: { xs: 2, sm: 3 } }}>
           {selectedRecordForDelivery && (
             <Card variant="outlined" sx={{ mb: 2, bgcolor: "background.default" }}>
               <CardContent sx={{ py: 1.5, px: 2, "&:last-child": { pb: 1.5 } }}>
@@ -1266,23 +1284,7 @@ export default function CorrespondencePage({ isInternal = false }: Correspondenc
               />
             </Box>
           </Stack>
-        </DialogContent>
-        <DialogActions sx={{ px: { xs: 2, sm: 3 }, py: 2, flexDirection: { xs: "column-reverse", sm: "row" }, gap: { xs: 1, sm: 0 } }}>
-          <Button onClick={() => setDeliveryDialogOpen(false)} color="inherit" disabled={delivering} sx={{ width: { xs: "100%", sm: "auto" } }}>
-            Cancelar
-          </Button>
-          <Button
-            onClick={handleConfirmDelivery}
-            variant="contained"
-            color="success"
-            disabled={delivering}
-            startIcon={delivering ? <CircularProgress size={16} color="inherit" /> : <CheckCircleIcon />}
-            sx={{ fontWeight: 600, width: { xs: "100%", sm: "auto" } }}
-          >
-            {delivering ? "Registrando Entrega..." : "Confirmar Entrega"}
-          </Button>
-        </DialogActions>
-      </Dialog>
+      </ResponsiveFormDrawer>
 
       {/* Modal Visor de Evidencias (Recepción y Entrega en Pestañas) */}
       <Dialog

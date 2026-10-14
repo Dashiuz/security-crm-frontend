@@ -59,6 +59,7 @@ interface MenuItem {
   permission?: string | string[];
   disabled?: boolean;
   internalOnly?: boolean;
+  bulletColor?: string;
 }
 
 const systemMenuItems: MenuItem[] = [
@@ -113,13 +114,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
                 path: "/operation/minuta-general",
                 feature: "minuta",
                 permission: ["minuta:manage", "minuta:read"],
-              },
-              {
-                text: "Control de Parqueadero",
-                icon: <ParkingIcon />,
-                path: "/operation/parking",
-                feature: "parking",
-                permission: ["minuta:manage", "minuta:read"],
+                bulletColor: "#1976d2", // Azul
               },
               {
                 text: "Control de Visitas",
@@ -127,6 +122,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
                 path: "/operation/visitor",
                 feature: "visitor",
                 permission: ["minuta:manage", "minuta:read"],
+                bulletColor: "#ed6c02", // Naranja
               },
               {
                 text: "Control de Domicilios",
@@ -134,6 +130,15 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
                 path: "/operation/correspondence",
                 feature: "correspondence",
                 permission: ["minuta:manage", "minuta:read"],
+                bulletColor: "#9c27b0", // Morada
+              },
+              {
+                text: "Control de Parqueadero",
+                icon: <ParkingIcon />,
+                path: "/operation/parking",
+                feature: "parking",
+                permission: ["minuta:manage", "minuta:read"],
+                bulletColor: "#2e7d32", // Verde
               },
             ],
           },
@@ -149,13 +154,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
                 path: "/operation/internal/minuta-general",
                 feature: "minuta",
                 permission: ["minuta:manage", "minuta:read"],
-              },
-              {
-                text: "Control de Parqueadero",
-                icon: <ParkingIcon />,
-                path: "/operation/internal/parking",
-                feature: "parking",
-                permission: ["minuta:manage", "minuta:read"],
+                bulletColor: "#1976d2", // Azul
               },
               {
                 text: "Control de Visitas",
@@ -163,6 +162,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
                 path: "/operation/internal/visitor",
                 feature: "visitor",
                 permission: ["minuta:manage", "minuta:read"],
+                bulletColor: "#ed6c02", // Naranja
               },
               {
                 text: "Control de Domicilios",
@@ -170,6 +170,15 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
                 path: "/operation/internal/correspondence",
                 feature: "correspondence",
                 permission: ["minuta:manage", "minuta:read"],
+                bulletColor: "#9c27b0", // Morada
+              },
+              {
+                text: "Control de Parqueadero",
+                icon: <ParkingIcon />,
+                path: "/operation/internal/parking",
+                feature: "parking",
+                permission: ["minuta:manage", "minuta:read"],
+                bulletColor: "#2e7d32", // Verde
               },
             ],
           },
@@ -420,7 +429,25 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
               {item.icon}
             </ListItemIcon>
             <ListItemText
-              primary={item.text}
+              primary={
+                <Box component="span" sx={{ display: "inline-flex", alignItems: "center", gap: 1 }}>
+                  {item.bulletColor && (
+                    <Box
+                      component="span"
+                      sx={{
+                        width: 7,
+                        height: 7,
+                        borderRadius: "50%",
+                        bgcolor: item.bulletColor,
+                        display: "inline-block",
+                        flexShrink: 0,
+                        boxShadow: `0 0 6px ${item.bulletColor}`,
+                      }}
+                    />
+                  )}
+                  <span>{item.text}</span>
+                </Box>
+              }
               primaryTypographyProps={{
                 fontWeight: isActive ? 700 : hasSubItems && isSubmenuOpen ? 600 : 500,
                 fontSize: level === 0 ? "0.9rem" : level === 1 ? "0.85rem" : "0.8rem",

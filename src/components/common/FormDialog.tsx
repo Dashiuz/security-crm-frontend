@@ -24,6 +24,8 @@ import dayjs from "dayjs";
 import { useEffect, useRef, useState } from "react";
 import { useNotification } from "@/providers/NotificationProvider";
 
+import ResponsiveFormDrawer from "./ResponsiveFormDrawer";
+
 export interface FormField<T extends FieldValues> {
   name: Path<T>;
   label: string;
@@ -126,19 +128,42 @@ export default function FormDialog<T extends FieldValues>({
   };
 
   return (
-    <Dialog 
-      open={open} 
-      onClose={onClose} 
-      maxWidth="sm" 
-      fullWidth
-      PaperProps={{ sx: { borderRadius: { xs: 2, sm: 2.5 }, m: { xs: 1.5, sm: 3 } } }}
+    <ResponsiveFormDrawer
+      open={open}
+      onClose={onClose}
+      title={title}
+      actions={
+        <Box
+          sx={{
+            display: "flex",
+            justifyContent: "flex-end",
+            gap: 1.5,
+            width: "100%",
+            flexDirection: { xs: "column-reverse", sm: "row" },
+          }}
+        >
+          <Button
+            onClick={onClose}
+            disabled={isPending}
+            color="inherit"
+            sx={{ width: { xs: "100%", sm: "auto" } }}
+          >
+            Cancelar
+          </Button>
+          <Button
+            type="submit"
+            form="form-dialog-form"
+            variant="contained"
+            disabled={isPending}
+            sx={{ fontWeight: 600, width: { xs: "100%", sm: "auto" } }}
+          >
+            {isPending ? "Guardando..." : "Guardar"}
+          </Button>
+        </Box>
+      }
     >
-      <DialogTitle sx={{ pb: 1, fontWeight: 700, fontSize: { xs: "1.1rem", sm: "1.25rem" } }}>
-        {title}
-      </DialogTitle>
-      <Box component="form" onSubmit={handleSubmit(handleFormSubmit as any)}>
-        <DialogContent dividers sx={{ pt: 2, px: { xs: 2, sm: 3 } }}>
-          {topContent}
+      <Box component="form" id="form-dialog-form" onSubmit={handleSubmit(handleFormSubmit as any)}>
+        {topContent}
           <Stack spacing={2.5}>
             {fields.map((field) => {
               const isHidden =
@@ -301,16 +326,7 @@ export default function FormDialog<T extends FieldValues>({
             })}
           </Stack>
           {children}
-        </DialogContent>
-        <DialogActions sx={{ px: { xs: 2, sm: 3 }, py: 2, flexDirection: { xs: "column-reverse", sm: "row" }, gap: { xs: 1, sm: 0 } }}>
-          <Button onClick={onClose} disabled={isPending} color="inherit" sx={{ width: { xs: "100%", sm: "auto" } }}>
-            Cancelar
-          </Button>
-          <Button type="submit" variant="contained" disabled={isPending} sx={{ fontWeight: 600, width: { xs: "100%", sm: "auto" } }}>
-            {isPending ? "Guardando..." : "Guardar"}
-          </Button>
-        </DialogActions>
-      </Box>
-    </Dialog>
+        </Box>
+    </ResponsiveFormDrawer>
   );
 }
