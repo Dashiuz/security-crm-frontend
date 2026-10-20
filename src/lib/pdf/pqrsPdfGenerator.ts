@@ -132,7 +132,7 @@ function hexToRgb(hex: string): [number, number, number] {
       .join("");
   }
   const num = parseInt(clean, 16);
-  if (isNaN(num)) return [27, 58, 38]; // default dark green
+  if (isNaN(num)) return [124, 58, 237]; // default Noxia Royal Violet (#7C3AED)
   return [(num >> 16) & 255, (num >> 8) & 255, num & 255];
 }
 

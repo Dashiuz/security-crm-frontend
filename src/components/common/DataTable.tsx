@@ -225,8 +225,8 @@ export default function DataTable({
   const actionsColumn: GridColDef = {
     field: "actions",
     type: "actions",
-    headerName: "Acciones",
-    width: actionsColumnWidth || 70,
+    headerName: "",
+    width: actionsColumnWidth || 54,
     sortable: false,
     filterable: false,
     disableColumnMenu: true,
@@ -668,45 +668,73 @@ export default function DataTable({
             }}
             sx={{
               border: "none",
+              "& .MuiDataGrid-columnHeaders": {
+                borderBottom: "1.5px solid #CBD5E1",
+                backgroundColor: "#F8FAFC",
+                color: "#475569",
+                fontSize: "0.78rem",
+                fontWeight: 600,
+                textTransform: "uppercase",
+                letterSpacing: "0.04em",
+              },
               "& .MuiDataGrid-row": {
                 cursor: onView ? "pointer" : "default",
                 transition: "background-color 0.15s ease",
+                "&:hover": {
+                  backgroundColor: "rgba(124, 58, 237, 0.035)",
+                },
+                "&.Mui-selected": {
+                  backgroundColor: "rgba(124, 58, 237, 0.08)",
+                  "&:hover": {
+                    backgroundColor: "rgba(124, 58, 237, 0.12)",
+                  },
+                },
               },
               "& .MuiDataGrid-cell": {
                 display: "flex",
                 alignItems: "center",
+                borderBottom: "1px solid #E2E8F0",
+                fontSize: "0.82rem",
+                color: "#1E293B",
               },
-              // Columna de Acciones Fija / Sticky a la derecha
+              // Columna de Acciones Compacta, Suave y Unificada (Estilo Stripe / Linear)
               "& .MuiDataGrid-columnHeader[data-field='actions']": {
                 position: "sticky",
                 right: 0,
                 zIndex: 5,
-                backgroundColor: (theme) =>
-                  theme.palette.mode === "dark" ? "#1e1e1e" : "#f8f9fa",
-                borderLeft: "1px solid",
-                borderColor: "divider",
-                boxShadow: "-3px 0 6px rgba(0, 0, 0, 0.06)",
+                backgroundColor: "#F8FAFC",
+                borderLeft: "1px solid #E2E8F0",
+                boxShadow: "-3px 0 6px rgba(15, 23, 42, 0.025)",
+                padding: 0,
               },
               "& .MuiDataGrid-cell[data-field='actions']": {
                 position: "sticky",
                 right: 0,
                 zIndex: 3,
-                backgroundColor: "background.paper",
-                borderLeft: "1px solid",
-                borderColor: "divider",
-                boxShadow: "-3px 0 6px rgba(0, 0, 0, 0.06)",
+                backgroundColor: "#FFFFFF",
+                borderLeft: "1px solid #E2E8F0",
+                boxShadow: "-3px 0 6px rgba(15, 23, 42, 0.025)",
+                padding: 0,
+                justifyContent: "center",
+              },
+              "& .MuiDataGrid-cell[data-field='actions'] .MuiIconButton-root": {
+                color: "#64748B",
+                width: 32,
+                height: 32,
+                transition: "all 0.15s ease",
+                "&:hover": {
+                  color: "primary.main",
+                  backgroundColor: "rgba(124, 58, 237, 0.08)",
+                },
               },
               "& .MuiDataGrid-row:hover .MuiDataGrid-cell[data-field='actions']": {
-                backgroundColor: (theme) =>
-                  theme.palette.mode === "dark" ? "#2a2a2a" : "#f4f6f8",
+                backgroundColor: "#FAF8FF",
               },
               "& .MuiDataGrid-row.Mui-selected .MuiDataGrid-cell[data-field='actions']": {
-                backgroundColor: (theme) =>
-                  theme.palette.mode === "dark" ? "#1e3a5f" : "#e3f2fd",
+                backgroundColor: "#F3EEFF",
               },
               "& .MuiDataGrid-row.Mui-selected:hover .MuiDataGrid-cell[data-field='actions']": {
-                backgroundColor: (theme) =>
-                  theme.palette.mode === "dark" ? "#1e3a5f" : "#d0e7fc",
+                backgroundColor: "#ECE5FF",
               },
             }}
           />
