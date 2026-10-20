@@ -4,11 +4,20 @@ import React, {
   createContext,
   useContext,
   useEffect,
+  useMemo,
   ReactNode,
 } from "react";
 import { Tenant } from "@/lib/api/auth";
 import { useAuth } from "@/components/AuthContext";
-import { createTheme, ThemeProvider, CssBaseline } from "@mui/material";
+import {
+  createTheme,
+  ThemeProvider,
+  CssBaseline,
+  alpha,
+  darken,
+  lighten,
+} from "@mui/material";
+import noxiaTheme, { noxiaPalette } from "@/theme/noxiaTheme";
 
 interface TenantContextType {
   tenant: Tenant | null;
@@ -35,26 +44,79 @@ export function TenantProvider({ children }: { children: ReactNode }) {
     return tenant.enabledFeatures.includes(featureKey);
   };
 
-  // Dynamic Theme based on Tenant branding
-  const theme = createTheme({
-    palette: {
-      primary: {
-        main: tenant?.primaryColor || "#1976d2",
+  // Dynamic Theme inheriting the full architectural foundation of noxiaTheme
+  const theme = useMemo(() => {
+    const rawPrimary = tenant?.primaryColor;
+    const isLegacyOrSystemGreen =
+      rawPrimary === "#224229" || rawPrimary === "#1976d2";
+    const hasCustomPrimary = Boolean(
+      rawPrimary &&
+        !isLegacyOrSystemGreen &&
+        rawPrimary.toLowerCase() !== noxiaPalette.primary.main.toLowerCase()
+    );
+    const primaryMain =
+      rawPrimary && !isLegacyOrSystemGreen
+        ? rawPrimary
+        : noxiaPalette.primary.main;
+
+    const rawSecondary = tenant?.secondaryColor;
+    const isLegacySecondary =
+      rawSecondary === "#24b343" || rawSecondary === "#9c27b0";
+    const hasCustomSecondary = Boolean(
+      rawSecondary &&
+        !isLegacySecondary &&
+        rawSecondary.toLowerCase() !== noxiaPalette.secondary.main.toLowerCase()
+    );
+    const secondaryMain =
+      rawSecondary && !isLegacySecondary
+        ? rawSecondary
+        : noxiaPalette.secondary.main;
+
+    const rawSidebar = tenant?.sidebarColor;
+    const isLegacySidebar = rawSidebar === "#252b27";
+    const appBarBg =
+      rawSidebar && !isLegacySidebar
+        ? rawSidebar
+        : hasCustomSecondary
+        ? secondaryMain
+        : noxiaPalette.secondary.main; // Default: Midnight Obsidian (#1E1B4B)
+
+    // Calculate dynamic primary palette (harmonic shades for custom tenant colors)
+    const primaryPalette = hasCustomPrimary
+      ? {
+          main: primaryMain,
+          light: lighten(primaryMain, 0.2),
+          dark: darken(primaryMain, 0.2),
+          soft: alpha(primaryMain, 0.08),
+          contrastText: "#FFFFFF",
+        }
+      : noxiaPalette.primary;
+
+    const secondaryPalette = hasCustomSecondary
+      ? {
+          main: secondaryMain,
+          light: lighten(secondaryMain, 0.2),
+          dark: darken(secondaryMain, 0.2),
+          contrastText: "#FFFFFF",
+        }
+      : noxiaPalette.secondary;
+
+    return createTheme(noxiaTheme, {
+      palette: {
+        primary: primaryPalette,
+        secondary: secondaryPalette,
       },
-      secondary: {
-        main: tenant?.secondaryColor || "#9c27b0",
-      },
-    },
-    components: {
-      MuiAppBar: {
-        styleOverrides: {
-          root: {
-            backgroundColor: tenant?.primaryColor || "#1976d2",
+      components: {
+        MuiAppBar: {
+          styleOverrides: {
+            root: {
+              backgroundColor: appBarBg,
+            },
           },
         },
       },
-    },
-  });
+    });
+  }, [tenant?.primaryColor, tenant?.secondaryColor, tenant?.sidebarColor]);
 
   const value = {
     tenant,
