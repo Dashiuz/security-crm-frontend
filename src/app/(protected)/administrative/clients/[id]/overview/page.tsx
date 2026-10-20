@@ -26,7 +26,6 @@ import {
   SecurityRounded as SecurityIcon,
 } from "@mui/icons-material";
 import { useClientDetail } from "../ClientContext";
-import UserAutocomplete, { UserOption } from "@/components/common/UserAutocomplete";
 
 export default function ClientOverviewPage() {
   const { client, loading, saving, updateGeneral, permissions } = useClientDetail();
@@ -55,15 +54,10 @@ export default function ClientOverviewPage() {
     receptionPhone: "",
     email: "",
     observations: "",
-    coordinatorInChargeId: "",
-    commercialContactId: "",
     weaponsAmount: 0,
     installedTech: false,
     securityStudy: "",
   });
-
-  const [coordinatorUser, setCoordinatorUser] = useState<UserOption | null>(null);
-  const [commercialUser, setCommercialUser] = useState<UserOption | null>(null);
 
   // Sync form with client data
   useEffect(() => {
@@ -87,41 +81,15 @@ export default function ClientOverviewPage() {
         receptionPhone: client.receptionPhone || "",
         email: client.email || "",
         observations: client.observations || "",
-        coordinatorInChargeId: client.coordinatorInChargeId || "",
-        commercialContactId: client.commercialContactId || "",
         weaponsAmount: client.weaponsAmount || 0,
         installedTech: Boolean(client.installedTech),
         securityStudy: client.securityStudy || "",
       });
-
-      if (client.coordinatorInCharge) {
-        setCoordinatorUser({
-          id: client.coordinatorInCharge.id,
-          fullName: client.coordinatorInCharge.fullName,
-          position: client.coordinatorInCharge.position,
-        });
-      } else {
-        setCoordinatorUser(null);
-      }
-
-      if (client.commercialContact) {
-        setCommercialUser({
-          id: client.commercialContact.id,
-          fullName: client.commercialContact.fullName,
-          position: client.commercialContact.position,
-        });
-      } else {
-        setCommercialUser(null);
-      }
     }
   }, [client]);
 
   const handleSaveCard = async () => {
-    const success = await updateGeneral({
-      ...form,
-      coordinatorInChargeId: coordinatorUser?.id || null,
-      commercialContactId: commercialUser?.id || null,
-    });
+    const success = await updateGeneral(form);
     if (success) {
       setEditingCard(null);
     }
@@ -335,7 +303,7 @@ export default function ClientOverviewPage() {
               <TextField
                 fullWidth
                 size="small"
-                label="Código Interno"
+                label="Omega"
                 value={form.internalCode}
                 onChange={(e) => setForm({ ...form, internalCode: e.target.value })}
               />
@@ -380,7 +348,7 @@ export default function ClientOverviewPage() {
               {renderField("NIT / Identificación", client?.nit)}
             </Grid>
             <Grid size={{ xs: 12, sm: 6, md: 4 }}>
-              {renderField("Código Interno", client?.internalCode)}
+              {renderField("Omega (código interno)", client?.internalCode)}
             </Grid>
             <Grid size={{ xs: 12, sm: 6, md: 4 }}>
               {renderField(
@@ -388,12 +356,12 @@ export default function ClientOverviewPage() {
                 client?.sector === "RESIDENTIAL"
                   ? "Residencial"
                   : client?.sector === "COMMERCIAL"
-                  ? "Comercial"
-                  : client?.sector === "INDUSTRIAL"
-                  ? "Industrial"
-                  : client?.sector === "GOVERNMENT"
-                  ? "Gubernamental"
-                  : client?.sector || "No especificado"
+                    ? "Comercial"
+                    : client?.sector === "INDUSTRIAL"
+                      ? "Industrial"
+                      : client?.sector === "GOVERNMENT"
+                        ? "Gubernamental"
+                        : client?.sector || "No especificado"
               )}
             </Grid>
             <Grid size={{ xs: 12, sm: 6, md: 4 }}>
@@ -402,17 +370,17 @@ export default function ClientOverviewPage() {
                 client?.clientStatus === "ACTIVE"
                   ? "Activo"
                   : client?.clientStatus === "SUSPENDED"
-                  ? "Suspendido"
-                  : client?.clientStatus === "INACTIVE"
-                  ? "Inactivo"
-                  : client?.clientStatus,
+                    ? "Suspendido"
+                    : client?.clientStatus === "INACTIVE"
+                      ? "Inactivo"
+                      : client?.clientStatus,
                 {
                   color:
                     client?.clientStatus === "ACTIVE"
                       ? "success"
                       : client?.clientStatus === "SUSPENDED"
-                      ? "warning"
-                      : "default",
+                        ? "warning"
+                        : "default",
                 }
               )}
             </Grid>
@@ -757,22 +725,6 @@ export default function ClientOverviewPage() {
 
         {editingCard === "card4" ? (
           <Grid container spacing={2}>
-            <Grid size={{ xs: 12, sm: 6, md: 4 }}>
-              <UserAutocomplete
-                type="coordinators"
-                label="Coordinador a Cargo"
-                value={coordinatorUser}
-                onChange={(val) => setCoordinatorUser(val)}
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6, md: 4 }}>
-              <UserAutocomplete
-                type="commercials"
-                label="Contacto Comercial"
-                value={commercialUser}
-                onChange={(val) => setCommercialUser(val)}
-              />
-            </Grid>
             <Grid size={{ xs: 12, sm: 6, md: 4 }} sx={{ display: "flex", alignItems: "center" }}>
               <FormControlLabel
                 control={
@@ -806,12 +758,6 @@ export default function ClientOverviewPage() {
           </Grid>
         ) : (
           <Grid container spacing={2}>
-            <Grid size={{ xs: 12, sm: 6, md: 4 }}>
-              {renderField("Coordinador a Cargo", client?.coordinatorInCharge?.fullName)}
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6, md: 4 }}>
-              {renderField("Contacto Comercial", client?.commercialContact?.fullName)}
-            </Grid>
             <Grid size={{ xs: 12, sm: 6, md: 4 }}>
               {renderField(
                 "Tecnología Instalada",

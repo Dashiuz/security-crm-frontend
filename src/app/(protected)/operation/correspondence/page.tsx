@@ -822,6 +822,7 @@ export default function CorrespondencePage({ isInternal = false }: Correspondenc
             ? `Correspondencia de ${tenant?.name || "la Empresa"}`
             : "Control de Correspondencia y Paquetería"
         }
+        hideStatusFilter={true}
         endpoint={endpoint}
         columns={columns}
         breadcrumbs={[

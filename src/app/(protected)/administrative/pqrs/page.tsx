@@ -25,14 +25,11 @@ import {
   Collapse,
   Skeleton,
   Chip,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
   Divider,
   useTheme,
   useMediaQuery,
 } from "@mui/material";
+import ResponsiveDetailWrapper from "@/components/common/ResponsiveDetailWrapper";
 import {
   GridColDef,
   GridActionsCellItem,
@@ -52,12 +49,14 @@ import {
   Refresh as RefreshIcon,
   Visibility as VisibilityIcon,
   InfoOutlined as InfoIcon,
+  PictureAsPdf as PdfIcon,
   VolumeUpRounded,
   VolumeOffRounded,
 } from "@mui/icons-material";
 import DataTable from "@/components/common/DataTable";
 import ClientAutocomplete from "@/components/common/ClientAutocomplete";
 import { useAuth } from "@/components/AuthContext";
+import { useNotification } from "@/providers/NotificationProvider";
 import { useNotificationSound } from "@/utils/notification-sound";
 import { formatDateTime } from "@/lib/formatters";
 import { HttpClient, ApiError } from "@/lib/api/client";
@@ -71,17 +70,22 @@ import {
 import PqrsStatusChip from "@/components/pqrs/PqrsStatusChip";
 import PqrsTypeChip, { TYPE_CONFIG } from "@/components/pqrs/PqrsTypeChip";
 import PqrsPriorityChip from "@/components/pqrs/PqrsPriorityChip";
-import CreatePqrsDialog from "@/components/pqrs/CreatePqrsDialog";
+import CreatePqrsDrawer from "@/components/pqrs/CreatePqrsDrawer";
 import AssignPqrsDialog from "@/components/pqrs/AssignPqrsDialog";
 import UpdatePqrsStatusDialog from "@/components/pqrs/UpdatePqrsStatusDialog";
+import { generatePqrsPdf } from "@/lib/pdf/pqrsPdfGenerator";
+import { useTenant } from "@/providers/TenantProvider";
 
 export default function PqrsListPage() {
   const router = useRouter();
   const { session } = useAuth();
+  const { tenant } = useTenant();
+  const { showSuccess, showError } = useNotification();
   const { isMuted, toggleMute } = useNotificationSound();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("md"));
   const [mounted, setMounted] = useState(false);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   useEffect(() => {
     setMounted(true);
@@ -101,7 +105,24 @@ export default function PqrsListPage() {
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [assignTicket, setAssignTicket] = useState<PqrsTicket | null>(null);
   const [statusTicket, setStatusTicket] = useState<PqrsTicket | null>(null);
-  const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [downloadingPdfId, setDownloadingPdfId] = useState<string | null>(null);
+
+  const handleDownloadPdf = async (ticket: PqrsTicket) => {
+    if (downloadingPdfId) return;
+    setDownloadingPdfId(ticket.id);
+    try {
+      const fullTicket = await PqrsApi.getById(ticket.id);
+      await generatePqrsPdf({
+        ticket: fullTicket,
+        tenant: tenant || null,
+      });
+      showSuccess("Expediente PDF generado exitosamente");
+    } catch (err: any) {
+      showError(err.message || "Error al generar el expediente en PDF");
+    } finally {
+      setDownloadingPdfId(null);
+    }
+  };
 
   // Tickets Data State for Mobile Card List & Desktop Table
   const [tickets, setTickets] = useState<PqrsTicket[]>([]);
@@ -407,7 +428,9 @@ export default function PqrsListPage() {
   const customActions = (row: PqrsTicket) => {
     const actions = [];
     const isTerminal =
-      row.status === PqrsStatus.CLOSED || row.status === PqrsStatus.REJECTED;
+      row.status === PqrsStatus.CLOSED ||
+      row.status === PqrsStatus.REJECTED ||
+      row.status === PqrsStatus.VOIDED;
 
     // Accion Asignar (Solo administradores del Tenant si no está en estado terminal)
     if (canManagePqrs && !isResidenceManager && !isTerminal) {
@@ -441,6 +464,17 @@ export default function PqrsListPage() {
         />
       );
     }
+
+    // Accion Descargar Ficha PDF (siempre disponible para auditoria y reporte)
+    actions.push(
+      <GridActionsCellItem
+        key="pdf"
+        icon={<PdfIcon color="action" fontSize="small" />}
+        label="Descargar Ficha PDF"
+        onClick={() => handleDownloadPdf(row)}
+        showInMenu={true}
+      />
+    );
 
     return actions;
   };
@@ -1118,7 +1152,9 @@ export default function PqrsListPage() {
         ) : (
           tickets.map((row) => {
             const isTerminal =
-              row.status === PqrsStatus.CLOSED || row.status === PqrsStatus.REJECTED;
+              row.status === PqrsStatus.CLOSED ||
+              row.status === PqrsStatus.REJECTED ||
+              row.status === PqrsStatus.VOIDED;
             const canTransition =
               canUpdateStatus ||
               canManagePqrs ||
@@ -1260,6 +1296,20 @@ export default function PqrsListPage() {
                       </Tooltip>
                     )}
 
+                    <Tooltip title="Descargar Ficha PDF">
+                      <IconButton
+                        size="small"
+                        color="default"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDownloadPdf(row);
+                        }}
+                        sx={{ p: 0.5 }}
+                      >
+                        <PdfIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+
                     <Tooltip title="Ver detalle">
                       <IconButton
                         size="small"
@@ -1306,31 +1356,46 @@ export default function PqrsListPage() {
       />
     )}
 
-      {/* Info Dialog */}
-      <Dialog
+      {/* Info Drawer */}
+      <ResponsiveDetailWrapper
         open={infoDialogOpen}
         onClose={() => setInfoDialogOpen(false)}
-        maxWidth="sm"
-        fullWidth
+        title="Información del Módulo de PQRS"
+        actions={
+          <Box sx={{ display: "flex", justifyContent: "flex-end" }}>
+            <Button
+              onClick={() => setInfoDialogOpen(false)}
+              variant="contained"
+              sx={{ borderRadius: 2, px: 3 }}
+            >
+              Entendido
+            </Button>
+          </Box>
+        }
       >
-        <DialogTitle sx={{ fontWeight: 700 }}>
-          Información del Módulo de PQRS
-        </DialogTitle>
-        <DialogContent dividers>
-          <Typography variant="body1" paragraph>
-            Canal B2B formal de radicación y seguimiento de Peticiones, Quejas, Reclamos, Sugerencias y Felicitaciones entre Administradores de Conjuntos y la Empresa de Seguridad.
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            Haz clic en &apos;Radicar Solicitud&apos; para crear un nuevo ticket con anexos y evidencias. Utiliza el ícono del ojo para ver el historial y responder al cliente en el hilo de mensajes. Los administradores pueden asignar el ticket a funcionarios y avanzar su estado.
-          </Typography>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setInfoDialogOpen(false)}>Entendido</Button>
-        </DialogActions>
-      </Dialog>
+        <Box sx={{ display: "flex", flexDirection: "column", gap: 2.5 }}>
+          <Paper variant="outlined" sx={{ p: 2.5, borderRadius: 2.5, bgcolor: "action.hover" }}>
+            <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1, textTransform: "uppercase", fontSize: "0.75rem", color: "primary.main" }}>
+              Canal B2B Formal
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              Canal formal de radicación y seguimiento de Peticiones, Quejas, Reclamos, Sugerencias y Felicitaciones entre Administradores de Conjuntos y la Empresa de Seguridad.
+            </Typography>
+          </Paper>
 
-      {/* Dialogs */}
-      <CreatePqrsDialog
+          <Paper variant="outlined" sx={{ p: 2.5, borderRadius: 2.5 }}>
+            <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1, textTransform: "uppercase", fontSize: "0.75rem", color: "text.primary" }}>
+              Flujo Operativo
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              Haz clic en &apos;Radicar Solicitud&apos; para crear un nuevo ticket con anexos y evidencias. Utiliza el ícono del ojo para ver el historial y responder al cliente en el hilo de mensajes. Los administradores pueden asignar el ticket a funcionarios y avanzar su estado de forma transparente.
+            </Typography>
+          </Paper>
+        </Box>
+      </ResponsiveDetailWrapper>
+
+      {/* Drawers & Dialogs */}
+      <CreatePqrsDrawer
         open={createDialogOpen}
         onClose={() => setCreateDialogOpen(false)}
         onSuccess={(newId) => {

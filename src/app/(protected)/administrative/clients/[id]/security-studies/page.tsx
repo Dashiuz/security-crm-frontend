@@ -17,14 +17,12 @@ import {
   Chip,
   IconButton,
   Tooltip,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
   TextField,
   Alert,
   Divider,
 } from "@mui/material";
+import ResponsiveFormDrawer from "@/components/common/ResponsiveFormDrawer";
+import PromptConfirmDialog from "@/components/common/PromptConfirmDialog";
 import {
   ArrowBack as ArrowBackIcon,
   Add as AddIcon,
@@ -854,126 +852,79 @@ export default function ClientSecurityStudiesPage({ params }: PageProps) {
   ) : null}
 
       {/* Dialog to Create a New Study */}
-      <Dialog
+      {/* Drawer to Create a New Study */}
+      <ResponsiveFormDrawer
         open={createDialogOpen}
         onClose={() => setCreateDialogOpen(false)}
-        maxWidth="sm"
-        fullWidth
+        title={hasCanva ? "Crear Nuevo Estudio de Seguridad" : "Crear Estudio de Seguridad Documental"}
+        subtitle="Evaluación pericial y modelado de vulnerabilidades"
+        isSubmitting={creatingStudy}
+        submitButtonText={
+          creatingStudy
+            ? "Creando..."
+            : hasCanva
+            ? "Crear y Abrir Canva"
+            : "Crear y Gestionar Archivos"
+        }
+        formId="create-study-form"
       >
-        <DialogTitle sx={{ fontWeight: 700 }}>
-          {hasCanva
-            ? "Crear Nuevo Estudio de Seguridad"
-            : "Crear Estudio de Seguridad Documental"}
-        </DialogTitle>
-        <DialogContent>
-          <Typography variant="body2" sx={{ mb: 2 }}>
+        <Box
+          component="form"
+          id="create-study-form"
+          onSubmit={(e) => {
+            e.preventDefault();
+            handleConfirmCreateStudy();
+          }}
+          sx={{ display: "flex", flexDirection: "column", gap: 2.5 }}
+        >
+          <Typography variant="body2" color="text.secondary">
             {hasCanva
               ? "El estudio heredará automáticamente la imagen satelital y el perímetro de geofencing establecido para este cliente."
               : "Este estudio servirá como repositorio documental para adjuntar informes, matrices de riesgo y anexos periciales."}
           </Typography>
           <TextField
             fullWidth
-            label="Título / Nombre del Estudio"
+            size="small"
+            label="Título / Nombre del Estudio *"
             value={newStudyName}
             onChange={(e) => setNewStudyName(e.target.value)}
             disabled={creatingStudy}
-            sx={{ mb: 2 }}
+            required
           />
           <TextField
             fullWidth
+            size="small"
             multiline
             rows={3}
             label="Descripción (Opcional)"
             value={newStudyDescription}
             onChange={(e) => setNewStudyDescription(e.target.value)}
             disabled={creatingStudy}
-            sx={{ mb: 2 }}
           />
-          <Alert severity="info">
-            Al crearlo, este estudio pasará a estado <strong>CURRENT (Vigente)</strong>{" "}
-            y cualquier estudio vigente previo será archivado como{" "}
-            <strong>DISCONTINUED</strong>.
+          <Alert severity="info" sx={{ borderRadius: 2 }}>
+            Al crearlo, este estudio pasará a estado <strong>CURRENT (Vigente)</strong> y cualquier estudio vigente previo será archivado como <strong>DISCONTINUED</strong>.
           </Alert>
-        </DialogContent>
-        <DialogActions sx={{ p: 2 }}>
-          <Button onClick={() => setCreateDialogOpen(false)} disabled={creatingStudy}>
-            Cancelar
-          </Button>
-          <Button
-            variant="contained"
-            color="primary"
-            onClick={handleConfirmCreateStudy}
-            disabled={creatingStudy || !newStudyName.trim()}
-          >
-            {creatingStudy
-              ? "Creando..."
-              : hasCanva
-              ? "Crear y Abrir Canva"
-              : "Crear y Gestionar Archivos"}
-          </Button>
-        </DialogActions>
-      </Dialog>
+        </Box>
+      </ResponsiveFormDrawer>
 
-      {/* Discontinue Study Confirmation Dialog */}
-      <Dialog
+      {/* Discontinue Study Confirmation Drawer */}
+      <PromptConfirmDialog
         open={Boolean(discontinueStudy)}
         onClose={() => {
           setDiscontinueStudy(null);
           setDiscontinueConfirmText("");
         }}
-        maxWidth="sm"
-        fullWidth
-      >
-        <DialogTitle sx={{ fontWeight: 700 }}>
-          Descontinuar Estudio de Seguridad
-        </DialogTitle>
-        <DialogContent>
-          <Typography variant="body2" sx={{ mb: 2 }}>
-            ¿Estás seguro de que deseas descontinuar el estudio{" "}
-            <strong>&quot;{discontinueStudy?.name}&quot;</strong>?
-          </Typography>
-          <Alert severity="warning" sx={{ mb: 2 }}>
-            El canva se convertirá en un plano de <strong>solo lectura</strong> y no
-            podrá modificarse. El perímetro geofencing ya establecido para el cliente
-            se mantendrá activo.
-          </Alert>
-          <Typography variant="body2" sx={{ mb: 1, fontWeight: 600 }}>
-            Para confirmar, escribe la palabra exacta <strong>acepto</strong>:
-          </Typography>
-          <TextField
-            fullWidth
-            size="small"
-            placeholder="acepto"
-            value={discontinueConfirmText}
-            onChange={(e) => setDiscontinueConfirmText(e.target.value)}
-          />
-        </DialogContent>
-        <DialogActions sx={{ p: 2 }}>
-          <Button
-            onClick={() => {
-              setDiscontinueStudy(null);
-              setDiscontinueConfirmText("");
-            }}
-            disabled={discontinuing}
-          >
-            Cancelar
-          </Button>
-          <Button
-            variant="contained"
-            color="error"
-            onClick={handleConfirmDiscontinue}
-            disabled={
-              discontinuing ||
-              discontinueConfirmText.trim().toLowerCase() !== "acepto"
-            }
-          >
-            {discontinuing ? "Descontinuando..." : "Confirmar Descontinuación"}
-          </Button>
-        </DialogActions>
-      </Dialog>
+        onConfirm={handleConfirmDiscontinue}
+        title="Descontinuar Estudio de Seguridad"
+        description={`¿Estás seguro de que deseas descontinuar el estudio "${discontinueStudy?.name}"? El canva se convertirá en un plano de solo lectura. Para confirmar, escribe la palabra exacta:`}
+        expectedValue="acepto"
+        inputLabel="Confirmación"
+        confirmButtonText="Confirmar Descontinuación"
+        confirmColor="error"
+      />
 
-      {/* Dialog to Edit Study Metadata */}
-      <Dialog
+      {/* Drawer to Edit Study Metadata */}
+      <ResponsiveFormDrawer
         open={editDialogOpen}
         onClose={() => {
           if (!savingEdit) {
@@ -981,26 +932,36 @@ export default function ClientSecurityStudiesPage({ params }: PageProps) {
             setEditingStudy(null);
           }
         }}
-        maxWidth="sm"
-        fullWidth
+        title="Editar Estudio de Seguridad"
+        subtitle="Actualización de título y descripción general"
+        isSubmitting={savingEdit}
+        submitButtonText="Guardar Cambios"
+        formId="edit-study-form"
       >
-        <DialogTitle sx={{ fontWeight: 700 }}>
-          Editar Estudio de Seguridad
-        </DialogTitle>
-        <DialogContent>
-          <Typography variant="body2" sx={{ mb: 2, color: "text.secondary" }}>
+        <Box
+          component="form"
+          id="edit-study-form"
+          onSubmit={(e) => {
+            e.preventDefault();
+            handleConfirmEditStudy();
+          }}
+          sx={{ display: "flex", flexDirection: "column", gap: 2.5 }}
+        >
+          <Typography variant="body2" color="text.secondary">
             Actualiza el título y la descripción del estudio de seguridad.
           </Typography>
           <TextField
             fullWidth
-            label="Título / Nombre del Estudio"
+            size="small"
+            label="Título / Nombre del Estudio *"
             value={editStudyName}
             onChange={(e) => setEditStudyName(e.target.value)}
             disabled={savingEdit}
-            sx={{ mb: 2 }}
+            required
           />
           <TextField
             fullWidth
+            size="small"
             multiline
             rows={3}
             label="Descripción"
@@ -1009,27 +970,8 @@ export default function ClientSecurityStudiesPage({ params }: PageProps) {
             disabled={savingEdit}
             placeholder="Descripción detallada del estudio de seguridad..."
           />
-        </DialogContent>
-        <DialogActions sx={{ p: 2 }}>
-          <Button
-            onClick={() => {
-              setEditDialogOpen(false);
-              setEditingStudy(null);
-            }}
-            disabled={savingEdit}
-          >
-            Cancelar
-          </Button>
-          <Button
-            variant="contained"
-            color="primary"
-            onClick={handleConfirmEditStudy}
-            disabled={savingEdit || !editStudyName.trim()}
-          >
-            {savingEdit ? "Guardando..." : "Guardar Cambios"}
-          </Button>
-        </DialogActions>
-      </Dialog>
+        </Box>
+      </ResponsiveFormDrawer>
 
       {/* Study Files Dialog */}
       {filesStudy && (

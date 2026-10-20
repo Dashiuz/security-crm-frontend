@@ -28,6 +28,7 @@ export interface MediaAttachmentResponse {
   fileName: string;
   mimeType: string;
   sizeBytes: number;
+  subType?: string;
   presignedUrl?: string;
   createdAt: string;
 }

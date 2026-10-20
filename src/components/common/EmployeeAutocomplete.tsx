@@ -29,7 +29,7 @@ interface EmployeeAutocompleteProps {
 export default function EmployeeAutocomplete({
   value,
   onChange,
-  label = "Empleado del Tenant",
+  label = "Empleado",
   placeholder = "Buscar por nombre o cédula...",
   size = "small",
   disabled = false,

@@ -80,8 +80,10 @@ import { StorageApi, MediaTypeCategory } from "@/lib/api/storage";
 import PqrsStatusChip, { STATUS_CONFIG } from "@/components/pqrs/PqrsStatusChip";
 import PqrsTypeChip from "@/components/pqrs/PqrsTypeChip";
 import PqrsPriorityChip from "@/components/pqrs/PqrsPriorityChip";
-import AssignPqrsDialog from "@/components/pqrs/AssignPqrsDialog";
 import UpdatePqrsStatusDialog from "@/components/pqrs/UpdatePqrsStatusDialog";
+import AssignPqrsDialog from "@/components/pqrs/AssignPqrsDialog";
+import { generatePqrsPdf } from "@/lib/pdf/pqrsPdfGenerator";
+import { useTenant } from "@/providers/TenantProvider";
 
 const WORKFLOW_STEPS: PqrsStatus[] = [
   PqrsStatus.OPEN,
@@ -95,6 +97,7 @@ export default function PqrsDetailPage() {
   const params = useParams();
   const router = useRouter();
   const { session } = useAuth();
+  const { tenant } = useTenant();
   const { showSuccess, showError } = useNotification();
   const { isMuted, toggleMute } = useNotificationSound();
 
@@ -138,9 +141,12 @@ export default function PqrsDetailPage() {
   // Priority Reclassification state & handlers
   const [priorityAnchorEl, setPriorityAnchorEl] = useState<null | HTMLElement>(null);
   const [updatingPriority, setUpdatingPriority] = useState(false);
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
 
   const isTerminal =
-    ticket?.status === PqrsStatus.CLOSED || ticket?.status === PqrsStatus.REJECTED;
+    ticket?.status === PqrsStatus.CLOSED ||
+    ticket?.status === PqrsStatus.REJECTED ||
+    ticket?.status === PqrsStatus.VOIDED;
 
   const canChangePriority =
     (canManagePqrs || canUpdateStatus) && !isResidenceManager && !isTerminal;
@@ -174,6 +180,22 @@ export default function PqrsDetailPage() {
       showError(err.message || "Error al actualizar la prioridad");
     } finally {
       setUpdatingPriority(false);
+    }
+  };
+
+  const handleDownloadPdf = async () => {
+    if (!ticket) return;
+    setDownloadingPdf(true);
+    try {
+      await generatePqrsPdf({
+        ticket,
+        tenant: tenant || null,
+      });
+      showSuccess("Expediente PDF generado exitosamente");
+    } catch (err: any) {
+      showError(err.message || "Error al generar el expediente en PDF");
+    } finally {
+      setDownloadingPdf(false);
     }
   };
 
@@ -353,7 +375,7 @@ export default function PqrsDetailPage() {
 
   // Compute active step in linear workflow
   const activeStep =
-    ticket.status === PqrsStatus.REJECTED
+    ticket.status === PqrsStatus.REJECTED || ticket.status === PqrsStatus.VOIDED
       ? -1
       : WORKFLOW_STEPS.indexOf(ticket.status);
 
@@ -545,6 +567,17 @@ export default function PqrsDetailPage() {
 
         {/* Action Buttons in Desktop Header */}
         <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", gap: 1 }}>
+          <Button
+            variant="outlined"
+            size="small"
+            startIcon={downloadingPdf ? <CircularProgress size={15} color="inherit" /> : <PdfIcon />}
+            onClick={handleDownloadPdf}
+            disabled={downloadingPdf}
+            sx={{ textTransform: "none" }}
+          >
+            {downloadingPdf ? "Generando..." : "Descargar Ficha PDF"}
+          </Button>
+
           <Tooltip title="Actualizar datos">
             <IconButton onClick={handleRefresh} disabled={refreshing} size="small">
               <RefreshIcon fontSize="small" />
@@ -616,11 +649,18 @@ export default function PqrsDetailPage() {
             </Tooltip>
           </Stack>
 
-          <Tooltip title="Actualizar datos">
-            <IconButton onClick={handleRefresh} disabled={refreshing} size="small" sx={{ p: 0.5 }}>
-              <RefreshIcon fontSize="small" />
-            </IconButton>
-          </Tooltip>
+          <Stack direction="row" spacing={0.5} alignItems="center">
+            <Tooltip title="Descargar Ficha PDF">
+              <IconButton onClick={handleDownloadPdf} disabled={downloadingPdf} size="small" sx={{ p: 0.5 }}>
+                {downloadingPdf ? <CircularProgress size={16} /> : <PdfIcon fontSize="small" />}
+              </IconButton>
+            </Tooltip>
+            <Tooltip title="Actualizar datos">
+              <IconButton onClick={handleRefresh} disabled={refreshing} size="small" sx={{ p: 0.5 }}>
+                <RefreshIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          </Stack>
         </Stack>
 
         {/* Fila Media: Chips de Estado, Tipo y Prioridad */}
@@ -778,6 +818,41 @@ export default function PqrsDetailPage() {
           >
             {originalDescriptionContent}
           </Card>
+
+          {/* Banner de Anulación Administrativa */}
+          {ticket.status === PqrsStatus.VOIDED && (
+            <Alert
+              severity="warning"
+              icon={<LockIcon />}
+              sx={{
+                borderRadius: 2,
+                border: "1px solid",
+                borderColor: "warning.main",
+                flexShrink: 0,
+              }}
+            >
+              <Typography variant="subtitle2" fontWeight={700}>
+                Solicitud Anulada Administrativamente
+              </Typography>
+              <Typography variant="body2" sx={{ mt: 0.5 }}>
+                Esta PQRS ha sido anulada formalmente. El radicado original se conserva con fines de trazabilidad e inmutabilidad.
+              </Typography>
+              {ticket.voidReason && (
+                <Box sx={{ mt: 1, p: 1, bgcolor: "action.hover", borderRadius: 1 }}>
+                  <Typography variant="caption" fontWeight={700} color="text.secondary" display="block">
+                    MOTIVO DE ANULACIÓN:
+                  </Typography>
+                  <Typography variant="body2" sx={{ fontStyle: "italic" }}>
+                    {ticket.voidReason}
+                  </Typography>
+                </Box>
+              )}
+              <Typography variant="caption" display="block" color="text.secondary" sx={{ mt: 0.75 }}>
+                Anulado el {ticket.voidedAt ? formatDateTime(ticket.voidedAt) : "N/A"}
+                {ticket.voidedBy?.fullName ? ` por ${ticket.voidedBy.fullName}` : ""}
+              </Typography>
+            </Alert>
+          )}
 
           {/* Unified Conversation Thread & Composer Card */}
           <Paper
@@ -1385,6 +1460,25 @@ export default function PqrsDetailPage() {
               {ticket.status === PqrsStatus.REJECTED ? (
                 <Alert severity="error" sx={{ my: 0.5, py: 0.5, fontSize: "0.85rem" }}>
                   Esta solicitud fue <strong>RECHAZADA</strong>.
+                </Alert>
+              ) : ticket.status === PqrsStatus.VOIDED ? (
+                <Alert severity="warning" sx={{ my: 0.5, py: 0.5, fontSize: "0.85rem" }}>
+                  Esta solicitud fue <strong>ANULADA</strong>.
+                  {ticket.voidReason && (
+                    <Typography variant="caption" display="block" sx={{ mt: 0.5 }}>
+                      <strong>Motivo:</strong> {ticket.voidReason}
+                    </Typography>
+                  )}
+                  {ticket.voidedAt && (
+                    <Typography variant="caption" display="block" color="text.secondary" sx={{ mt: 0.25 }}>
+                      Fecha: {formatDateTime(ticket.voidedAt)}
+                    </Typography>
+                  )}
+                  {ticket.voidedBy && (
+                    <Typography variant="caption" display="block" color="text.secondary">
+                      Por: {ticket.voidedBy.fullName}
+                    </Typography>
+                  )}
                 </Alert>
               ) : (
                 <Stepper

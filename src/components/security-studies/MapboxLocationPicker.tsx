@@ -283,20 +283,22 @@ export default function MapboxLocationPicker({
               Resultados coincidentes encontrados:
             </Typography>
             <Stack direction="row" flexWrap="wrap" gap={1} sx={{ mt: 0.5 }}>
-              {searchResults.map((item) => (
-                <Button
-                  key={item.id}
-                  size="small"
-                  variant={
-                    selectedPlace?.id === item.id ? "contained" : "outlined"
-                  }
-                  color={selectedPlace?.id === item.id ? "primary" : "inherit"}
-                  onClick={() => selectLocation(item)}
-                  sx={{ textTransform: "none", fontSize: "0.75rem", py: 0.2 }}
-                >
-                  {item.place_name.slice(0, 45)}...
-                </Button>
-              ))}
+              {searchResults.map((item, idx) => {
+                const isSelected =
+                  selectedPlace === item || selectedPlace?.id === item.id;
+                return (
+                  <Button
+                    key={`${item.id || "place"}-${idx}`}
+                    size="small"
+                    variant={isSelected ? "contained" : "outlined"}
+                    color={isSelected ? "primary" : "inherit"}
+                    onClick={() => selectLocation(item)}
+                    sx={{ textTransform: "none", fontSize: "0.75rem", py: 0.2 }}
+                  >
+                    {item.place_name.slice(0, 45)}...
+                  </Button>
+                );
+              })}
             </Stack>
           </Box>
         )}

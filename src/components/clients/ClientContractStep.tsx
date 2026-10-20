@@ -33,8 +33,8 @@ export interface ContractFormData {
   renewedContract: boolean;
   contractDate: string;
   lastContractDate: string;
-  coordinatorInChargeId: string;
-  commercialContactId: string;
+  coordinatorInChargeId?: string;
+  commercialContactId?: string;
   installedTech: boolean;
   weaponsAmount: number;
   securityStudy: string;
@@ -44,10 +44,10 @@ export interface ClientContractStepProps {
   clientId?: string;
   contractForm: ContractFormData;
   onChangeContractForm: (data: ContractFormData) => void;
-  coordinatorUser: UserOption | null;
-  onChangeCoordinatorUser: (user: UserOption | null) => void;
-  commercialUser: UserOption | null;
-  onChangeCommercialUser: (user: UserOption | null) => void;
+  coordinatorUser?: UserOption | null;
+  onChangeCoordinatorUser?: (user: UserOption | null) => void;
+  commercialUser?: UserOption | null;
+  onChangeCommercialUser?: (user: UserOption | null) => void;
   contractMediaFiles: Record<string, any>;
   onChangeContractMediaFiles: (files: Record<string, any>) => void;
   disabled?: boolean;
@@ -225,31 +225,6 @@ export default function ClientContractStep({
             />
           </Grid>
 
-          <Grid size={{ xs: 12, sm: 4 }}>
-            <UserAutocomplete
-              type="coordinators"
-              label="Coordinador a Cargo"
-              value={coordinatorUser}
-              onChange={(u) => {
-                onChangeCoordinatorUser(u);
-                updateField("coordinatorInChargeId", u?.id || "");
-              }}
-              disabled={disabled}
-            />
-          </Grid>
-
-          <Grid size={{ xs: 12, sm: 4 }}>
-            <UserAutocomplete
-              type="commercials"
-              label="Contacto Comercial Asignado"
-              value={commercialUser}
-              onChange={(u) => {
-                onChangeCommercialUser(u);
-                updateField("commercialContactId", u?.id || "");
-              }}
-              disabled={disabled}
-            />
-          </Grid>
 
           <Grid size={{ xs: 12, sm: 4 }}>
             <TextField

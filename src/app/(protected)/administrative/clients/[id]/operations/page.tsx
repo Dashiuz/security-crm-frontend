@@ -17,13 +17,10 @@ import {
   Divider,
   IconButton,
   Chip,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
   Link,
   Tooltip,
 } from "@mui/material";
+import PromptConfirmDialog from "@/components/common/PromptConfirmDialog";
 import {
   EditRounded as EditIcon,
   SaveRounded as SaveIcon,
@@ -1826,51 +1823,21 @@ export default function ClientOperationsPage() {
         )}
       </Paper>
 
-      {/* Confirmation Modal for Structure Regeneration */}
-      <Dialog
+      {/* Confirmation Drawer for Structure Regeneration */}
+      <PromptConfirmDialog
         open={confirmModalOpen}
         onClose={() => setConfirmModalOpen(false)}
-        maxWidth="xs"
-        fullWidth
-      >
-        <DialogTitle
-          sx={{ display: "flex", alignItems: "center", gap: 1, color: "error.main" }}
-        >
-          <WarningIcon />
-          Confirmación Destructiva
-        </DialogTitle>
-        <DialogContent>
-          <Typography variant="body2" sx={{ mb: 2 }}>
-            La regeneración de la estructura física borrará en cascada las torres, pisos, unidades y
-            residentes asociados a este cliente en la base de datos.
-          </Typography>
-          <Typography
-            variant="caption"
-            fontWeight={700}
-            sx={{ display: "block", mb: 1 }}
-          >
-            Para proceder, escriba exactamente &quot;REGENERAR&quot;:
-          </Typography>
-          <TextField
-            fullWidth
-            size="small"
-            placeholder="REGENERAR"
-            value={confirmInput}
-            onChange={(e) => setConfirmInput(e.target.value)}
-          />
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setConfirmModalOpen(false)}>Cancelar</Button>
-          <Button
-            variant="contained"
-            color="error"
-            disabled={confirmInput !== "REGENERAR" || saving}
-            onClick={() => executeSaveStructure("REGENERAR")}
-          >
-            Confirmar y Regenerar
-          </Button>
-        </DialogActions>
-      </Dialog>
+        onConfirm={async () => {
+          await executeSaveStructure("REGENERAR");
+          setConfirmModalOpen(false);
+        }}
+        title="Confirmación Destructiva"
+        description="La regeneración de la estructura física borrará en cascada las torres, pisos, unidades y residentes asociados a este cliente en la base de datos. Para proceder, confirme ingresando:"
+        expectedValue="REGENERAR"
+        inputLabel="Palabra de Confirmación"
+        confirmButtonText="Confirmar y Regenerar"
+        confirmColor="error"
+      />
     </Box>
   );
 }

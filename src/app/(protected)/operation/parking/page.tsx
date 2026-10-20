@@ -745,6 +745,7 @@ export default function ParkingPage({ isInternal = false }: ParkingPageProps) {
             ? `Control de Parqueadero - ${tenant?.name || "Interno"}`
             : "Control de Parqueadero"
         }
+        hideStatusFilter={true}
         endpoint={endpoint}
         columns={columns}
         breadcrumbs={
@@ -1165,53 +1166,53 @@ export default function ParkingPage({ isInternal = false }: ParkingPageProps) {
         </Box>
       </ResponsiveFormDrawer>
 
-      {/* Paso 1 Salida: Diálogo de Confirmación */}
-      <Dialog
+      {/* Paso 1 Salida: Drawer de Confirmación */}
+      <ResponsiveFormDrawer
         open={exitConfirmOpen}
         onClose={() => setExitConfirmOpen(false)}
-        maxWidth="xs"
-        fullWidth
-        PaperProps={{ sx: { borderRadius: 2.5, p: 1 } }}
+        title="Confirmar Salida del Vehículo"
+        subtitle="Verificación de vehículo y espacio asignado"
+        customActions={
+          <Box sx={{ display: "flex", gap: 1.5, justifyContent: "flex-end", width: "100%", flexWrap: "wrap" }}>
+            <Button onClick={() => setExitConfirmOpen(false)} color="inherit" sx={{ borderRadius: 2 }}>
+              Cancelar
+            </Button>
+            <Button
+              variant="contained"
+              color="warning"
+              onClick={handleProceedToExitModal}
+              startIcon={<LogoutIcon />}
+              sx={{ fontWeight: 600, borderRadius: 2 }}
+            >
+              Continuar con Salida
+            </Button>
+          </Box>
+        }
       >
-        <DialogTitle sx={{ display: "flex", alignItems: "center", gap: 1, fontWeight: 700 }}>
-          <WarningIcon color="warning" /> Confirmar Salida del Vehículo
-        </DialogTitle>
-        <DialogContent>
-          <Typography variant="body2" sx={{ mb: 1.5 }}>
-            ¿Está seguro de que desea registrar la salida de este vehículo?
+        <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+          <Typography variant="body2" color="text.secondary">
+            ¿Está seguro de que desea registrar la salida de este vehículo del parqueadero?
           </Typography>
           {selectedExitRecord && (
-            <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 1.5, bgcolor: "action.hover" }}>
-              <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+            <Paper variant="outlined" sx={{ p: 2, borderRadius: 2.5, bgcolor: "action.hover", border: "1px solid", borderColor: "divider" }}>
+              <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 1, fontFamily: "monospace" }}>
                 Placa: {selectedExitRecord.plate}
               </Typography>
-              <Typography variant="caption" color="text.secondary" display="block">
-                Parqueadero: {selectedExitRecord.parkingNumber}
-              </Typography>
-              <Typography variant="caption" color="text.secondary" display="block">
-                Unidad: {selectedExitRecord.unitName || selectedExitRecord.unit?.unitName || "N/A"}
-              </Typography>
-              <Typography variant="caption" color="text.secondary" display="block">
-                Hora de Entrada: {formatTime(selectedExitRecord.entryTime || selectedExitRecord.time)}
-              </Typography>
+              <Stack spacing={1}>
+                <Typography variant="body2" color="text.secondary">
+                  <strong>Parqueadero:</strong> {selectedExitRecord.parkingNumber}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  <strong>Unidad / Apto:</strong> {selectedExitRecord.unitName || selectedExitRecord.unit?.unitName || "N/A"}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  <strong>Hora de Entrada:</strong> {formatTime(selectedExitRecord.entryTime || selectedExitRecord.time)}
+                </Typography>
+              </Stack>
             </Paper>
           )}
-        </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={() => setExitConfirmOpen(false)} color="inherit">
-            Cancelar
-          </Button>
-          <Button
-            variant="contained"
-            color="warning"
-            onClick={handleProceedToExitModal}
-            startIcon={<LogoutIcon />}
-            sx={{ fontWeight: 600 }}
-          >
-            Continuar con Salida
-          </Button>
-        </DialogActions>
-      </Dialog>
+        </Box>
+      </ResponsiveFormDrawer>
 
       {/* Paso 2 Salida: Drawer de Salida con Fotografía Opcional y Observaciones */}
       <ResponsiveFormDrawer

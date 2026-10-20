@@ -15,6 +15,7 @@ export enum PqrsStatus {
   RESOLVED = "RESOLVED",
   CLOSED = "CLOSED",
   REJECTED = "REJECTED",
+  VOIDED = "VOIDED",
 }
 
 export enum PqrsPriority {
@@ -41,6 +42,14 @@ export interface PqrsTicket {
     document?: string;
     department?: string;
     position?: string;
+  } | null;
+  voidReason?: string | null;
+  voidedAt?: string | null;
+  voidedById?: string | null;
+  voidedBy?: {
+    id: string;
+    fullName: string;
+    document?: string;
   } | null;
   client?: {
     id: string;
@@ -93,6 +102,11 @@ export interface CreatePqrsTicketPayload {
 export interface UpdatePqrsStatusPayload {
   status: PqrsStatus;
   reason?: string;
+  assignedToId?: string;
+}
+
+export interface VoidPqrsTicketPayload {
+  reason: string;
 }
 
 export interface AssignPqrsTicketPayload {
@@ -144,6 +158,10 @@ export class PqrsApi {
 
   static async updateStatus(id: string, payload: UpdatePqrsStatusPayload): Promise<PqrsTicket> {
     return HttpClient.patch<PqrsTicket>(`/administrative/pqrs/${id}/status`, payload);
+  }
+
+  static async void(id: string, payload: VoidPqrsTicketPayload): Promise<PqrsTicket> {
+    return HttpClient.patch<PqrsTicket>(`/administrative/pqrs/${id}/void`, payload);
   }
 
   static async updatePriority(id: string, priority: PqrsPriority): Promise<PqrsTicket> {
