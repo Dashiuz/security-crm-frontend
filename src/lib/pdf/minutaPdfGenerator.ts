@@ -178,7 +178,7 @@ function hexToRgb(hex: string): [number, number, number] {
       .join("");
   }
   const num = parseInt(clean, 16);
-  if (isNaN(num)) return [25, 118, 210];
+  if (isNaN(num)) return [124, 58, 237]; // default Noxia Royal Violet (#7C3AED)
   return [(num >> 16) & 255, (num >> 8) & 255, num & 255];
 }
 
@@ -195,7 +195,13 @@ export async function generateMinutaRangePdf(options: RangeReportOptions): Promi
 
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
-  const primaryRgb = hexToRgb(tenant?.primaryColor || "#1b3a26");
+  const rawPrimary = tenant?.primaryColor;
+  const isLegacyGreen =
+    rawPrimary === "#224229" ||
+    rawPrimary === "#1b3a26" ||
+    rawPrimary === "#1976d2";
+  const primaryHex = rawPrimary && !isLegacyGreen ? rawPrimary : "#7C3AED";
+  const primaryRgb = hexToRgb(primaryHex);
 
   // Load tenant logo if available
   let logoInfo: LoadedImageInfo | null = null;
@@ -364,19 +370,19 @@ export async function generateMinutaSingleSheetPdf(options: SingleSheetOptions):
   const margin = 14;
   const contentWidth = pageWidth - margin * 2;
 
-  // Severity color calculation
+  // Severity color calculation (aligned with official Noxia Operational Palette)
   const priority = Number(minuta.priority) || 3;
-  let severityRgb: [number, number, number] = [25, 118, 210]; // Media (Azul)
+  let severityRgb: [number, number, number] = [79, 70, 229]; // Media / Ordinaria: Noxia Iris (#4F46E5)
   let severityLabel = "MEDIA / ORDINARIA";
 
   if (priority === 5) {
-    severityRgb = [211, 47, 47]; // Rojo Crítico
+    severityRgb = [225, 29, 72]; // Crítica / Pánico: Noxia Rose (#E11D48)
     severityLabel = "CRÍTICA / EMERGENCIA OPERATIVA";
   } else if (priority === 4) {
-    severityRgb = [237, 108, 2]; // Naranja Alta
+    severityRgb = [217, 119, 6]; // Alta / Novedad: Noxia Amber (#D97706)
     severityLabel = "ALTA SEVERIDAD";
   } else if (priority <= 2) {
-    severityRgb = [46, 125, 50]; // Verde Baja
+    severityRgb = [5, 150, 105]; // Baja / Informativa: Noxia Emerald (#059669)
     severityLabel = "BAJA / INFORMATIVA";
   }
 
