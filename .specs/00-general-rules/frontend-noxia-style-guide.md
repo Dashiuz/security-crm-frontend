@@ -120,6 +120,13 @@ Diseñado para la gestión y búsqueda de grandes volúmenes de datos (Residente
 - **Comportamiento Desktop (`md+`)**:
   - Renderiza [`DataTable`](file:///d:/projects/security-crm-frontend/src/components/common/DataTable.tsx) basado en `@mui/x-data-grid`.
   - Altura de fila compacta (`density="standard"` o `"compact"`), cabecera fijada con fondo `#F8FAFC`, ordenamiento multi-columna, búsqueda rápida y exportación a CSV/PDF.
+  - **Líneas Divisorias de Filas**: Separador horizontal nítido en `#E2E8F0` (Slate-200) y cabecera en `1.5px solid #CBD5E1` (Slate-300) para un ritmo visual denso, ordenado y descansado para la vista.
+  - **Fila en Hover**: Velo sutil en `rgba(124, 58, 237, 0.035)` que acompaña el escaneo horizontal del operador.
+  - **Columna de Acciones Canónica (Estilo Stripe / Linear SaaS)**:
+    - Cabecera limpia sin texto: `headerName: ""` (evita el anti-patrón de recorte `"Accio..."`).
+    - Ancho ultra-compacto de **`54px`** (centrado ergonómico para el botón circular de 32x32px del kebab menu).
+    - Fija / Sticky a la derecha con sombra difuminada suave (`boxShadow: -3px 0 6px rgba(15, 23, 42, 0.025)`) y borde divisorio `#E2E8F0`, manteniendo el fondo mimetizado idéntico al de la fila en reposo (`#FFFFFF`) y en hover (`#FAF8FF`).
+    - Botón de tres puntos (`⋮`) en gris pizarra `#64748B`, con hover circular reactivo en `rgba(124, 58, 237, 0.08)` y color primario violeta.
   - Paginación server-side basada en cursor o números de página.
 - **Comportamiento Mobile (`xs`, `sm`)**:
   - Se conmuta automáticamente a desplazamiento infinito virtualizado mediante `react-virtuoso`.

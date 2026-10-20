@@ -1,6 +1,7 @@
 "use client";
 
 import { createTheme, alpha } from "@mui/material/styles";
+import type {} from "@mui/x-data-grid/themeAugmentation";
 import { Plus_Jakarta_Sans, JetBrains_Mono } from "next/font/google";
 
 export const plusJakartaSans = Plus_Jakarta_Sans({
@@ -324,6 +325,30 @@ export const noxiaTheme = createTheme({
         body: {
           fontSize: "0.875rem",
           borderBottom: `1px solid ${noxiaPalette.divider}`,
+        },
+      },
+    },
+    MuiDataGrid: {
+      styleOverrides: {
+        root: {
+          border: "none",
+          "& .MuiDataGrid-columnHeaders": {
+            borderBottom: "1.5px solid #CBD5E1",
+            backgroundColor: noxiaPalette.neutral[50],
+            color: noxiaPalette.text.secondary,
+            fontSize: "0.78rem",
+            fontWeight: 600,
+            textTransform: "uppercase",
+            letterSpacing: "0.04em",
+          },
+          "& .MuiDataGrid-cell": {
+            borderBottom: `1px solid ${noxiaPalette.divider}`,
+            fontSize: "0.82rem",
+            color: noxiaPalette.text.primary,
+          },
+          "& .MuiDataGrid-row:hover": {
+            backgroundColor: "rgba(124, 58, 237, 0.035)",
+          },
         },
       },
     },
