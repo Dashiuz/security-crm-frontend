@@ -9,15 +9,12 @@ import {
   TextField,
   MenuItem,
   Chip,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
   IconButton,
   Tooltip,
   Paper,
   useTheme,
 } from "@mui/material";
+import ResponsiveFormDrawer from "@/components/common/ResponsiveFormDrawer";
 import {
   PersonAddRounded as PersonAddIcon,
   CloudUploadRounded as CloudUploadIcon,
@@ -396,129 +393,133 @@ export default function ClientResidentsPage() {
         deleteIcon={<DeleteIcon color="error" />}
       />
 
-      {/* Create / Edit Dialog */}
-      <Dialog
+      {/* Create / Edit Drawer */}
+      <ResponsiveFormDrawer
         open={modalOpen}
         onClose={() => setModalOpen(false)}
-        maxWidth="sm"
-        fullWidth
+        title={editingId ? "Editar Residente" : "Registrar Nuevo Residente"}
+        subtitle="Complete los datos de filiación, unidad y contacto del residente."
+        headerIcon={<PersonAddIcon color="primary" />}
+        width={{ xs: "100%", sm: 540 }}
+        isSubmitting={saving}
+        submitButtonText={saving ? "Guardando..." : "Guardar Residente"}
+        actions={
+          <Box sx={{ display: "flex", gap: 1.5, justifyContent: "flex-end", width: "100%" }}>
+            <Button onClick={() => setModalOpen(false)} color="inherit" disabled={saving}>
+              Cancelar
+            </Button>
+            <Button
+              variant="contained"
+              onClick={handleSaveResident}
+              disabled={saving}
+              sx={{ fontWeight: 600, minWidth: 140 }}
+            >
+              {saving ? "Guardando..." : "Guardar Residente"}
+            </Button>
+          </Box>
+        }
       >
-        <DialogTitle sx={{ fontWeight: 700 }}>
-          {editingId ? "Editar Residente" : "Registrar Nuevo Residente"}
-        </DialogTitle>
-        <DialogContent dividers>
-          <Grid container spacing={2} sx={{ pt: 1 }}>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                fullWidth
-                size="small"
-                label="Nombres"
-                value={form.firstName}
-                onChange={(e) => setForm({ ...form, firstName: e.target.value })}
-                required
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                fullWidth
-                size="small"
-                label="Apellidos"
-                value={form.lastName}
-                onChange={(e) => setForm({ ...form, lastName: e.target.value })}
-                required
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 4 }}>
-              <TextField
-                fullWidth
-                select
-                size="small"
-                label="Tipo Doc."
-                value={form.idType}
-                onChange={(e) => setForm({ ...form, idType: e.target.value })}
-              >
-                <MenuItem value="CC">Cédula Ciudadanía</MenuItem>
-                <MenuItem value="CE">Cédula Extranjería</MenuItem>
-                <MenuItem value="TI">Tarjeta Identidad</MenuItem>
-                <MenuItem value="PASSPORT">Pasaporte</MenuItem>
-                <MenuItem value="NIT">NIT</MenuItem>
-              </TextField>
-            </Grid>
-            <Grid size={{ xs: 12, sm: 8 }}>
-              <TextField
-                fullWidth
-                size="small"
-                label="Número de Documento"
-                value={form.document}
-                onChange={(e) => setForm({ ...form, document: e.target.value })}
-                required
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                fullWidth
-                select
-                size="small"
-                label="Inmueble / Unidad"
-                value={form.unitId}
-                onChange={(e) => setForm({ ...form, unitId: e.target.value })}
-                required
-              >
-                {clientUnits.map((u: any) => (
-                  <MenuItem key={u.id} value={u.id}>
-                    {u.tower?.towerName && !u.unitName?.toLowerCase().startsWith(u.tower.towerName.toLowerCase())
-                      ? `${u.tower.towerName} - ${u.unitName}`
-                      : u.unitName}
-                  </MenuItem>
-                ))}
-              </TextField>
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                fullWidth
-                select
-                size="small"
-                label="Tipo de Residente"
-                value={form.residentType}
-                onChange={(e) => setForm({ ...form, residentType: e.target.value })}
-              >
-                <MenuItem value="OWNER">Propietario</MenuItem>
-                <MenuItem value="TENANT">Inquilino / Arrendatario</MenuItem>
-                <MenuItem value="RESIDENT">Familiar / Residente</MenuItem>
-                <MenuItem value="OTHER">Otro</MenuItem>
-              </TextField>
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                fullWidth
-                size="small"
-                label="Teléfono"
-                value={form.phoneNumber}
-                onChange={(e) => setForm({ ...form, phoneNumber: e.target.value })}
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                fullWidth
-                size="small"
-                label="Correo Electrónico"
-                value={form.email}
-                onChange={(e) => setForm({ ...form, email: e.target.value })}
-              />
-            </Grid>
+        <Grid container spacing={2} sx={{ pt: 1 }}>
+          <Grid size={{ xs: 12, sm: 6 }}>
+            <TextField
+              fullWidth
+              size="small"
+              label="Nombres"
+              value={form.firstName}
+              onChange={(e) => setForm({ ...form, firstName: e.target.value })}
+              required
+            />
           </Grid>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setModalOpen(false)}>Cancelar</Button>
-          <Button
-            variant="contained"
-            onClick={handleSaveResident}
-            disabled={saving}
-          >
-            {saving ? "Guardando..." : "Guardar Residente"}
-          </Button>
-        </DialogActions>
-      </Dialog>
+          <Grid size={{ xs: 12, sm: 6 }}>
+            <TextField
+              fullWidth
+              size="small"
+              label="Apellidos"
+              value={form.lastName}
+              onChange={(e) => setForm({ ...form, lastName: e.target.value })}
+              required
+            />
+          </Grid>
+          <Grid size={{ xs: 12, sm: 4 }}>
+            <TextField
+              fullWidth
+              select
+              size="small"
+              label="Tipo Doc."
+              value={form.idType}
+              onChange={(e) => setForm({ ...form, idType: e.target.value })}
+            >
+              <MenuItem value="CC">Cédula Ciudadanía</MenuItem>
+              <MenuItem value="CE">Cédula Extranjería</MenuItem>
+              <MenuItem value="TI">Tarjeta Identidad</MenuItem>
+              <MenuItem value="PASSPORT">Pasaporte</MenuItem>
+              <MenuItem value="NIT">NIT</MenuItem>
+            </TextField>
+          </Grid>
+          <Grid size={{ xs: 12, sm: 8 }}>
+            <TextField
+              fullWidth
+              size="small"
+              label="Número de Documento"
+              value={form.document}
+              onChange={(e) => setForm({ ...form, document: e.target.value })}
+              required
+            />
+          </Grid>
+          <Grid size={{ xs: 12, sm: 6 }}>
+            <TextField
+              fullWidth
+              select
+              size="small"
+              label="Inmueble / Unidad"
+              value={form.unitId}
+              onChange={(e) => setForm({ ...form, unitId: e.target.value })}
+              required
+            >
+              {clientUnits.map((u: any) => (
+                <MenuItem key={u.id} value={u.id}>
+                  {u.tower?.towerName && !u.unitName?.toLowerCase().startsWith(u.tower.towerName.toLowerCase())
+                    ? `${u.tower.towerName} - ${u.unitName}`
+                    : u.unitName}
+                </MenuItem>
+              ))}
+            </TextField>
+          </Grid>
+          <Grid size={{ xs: 12, sm: 6 }}>
+            <TextField
+              fullWidth
+              select
+              size="small"
+              label="Tipo de Residente"
+              value={form.residentType}
+              onChange={(e) => setForm({ ...form, residentType: e.target.value })}
+            >
+              <MenuItem value="OWNER">Propietario</MenuItem>
+              <MenuItem value="TENANT">Inquilino / Arrendatario</MenuItem>
+              <MenuItem value="RESIDENT">Familiar / Residente</MenuItem>
+              <MenuItem value="OTHER">Otro</MenuItem>
+            </TextField>
+          </Grid>
+          <Grid size={{ xs: 12, sm: 6 }}>
+            <TextField
+              fullWidth
+              size="small"
+              label="Teléfono"
+              value={form.phoneNumber}
+              onChange={(e) => setForm({ ...form, phoneNumber: e.target.value })}
+            />
+          </Grid>
+          <Grid size={{ xs: 12, sm: 6 }}>
+            <TextField
+              fullWidth
+              size="small"
+              label="Correo Electrónico"
+              value={form.email}
+              onChange={(e) => setForm({ ...form, email: e.target.value })}
+            />
+          </Grid>
+        </Grid>
+      </ResponsiveFormDrawer>
 
       {/* CSV Import Dialog */}
       <CsvImportDialog

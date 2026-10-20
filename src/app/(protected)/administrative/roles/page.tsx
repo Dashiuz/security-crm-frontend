@@ -6,19 +6,13 @@ import DataTable from "@/components/common/DataTable";
 import FormDialog, { FormField } from "@/components/common/FormDialog";
 import ResponsiveDetailWrapper from "@/components/common/ResponsiveDetailWrapper";
 import PromptConfirmDialog from "@/components/common/PromptConfirmDialog";
+import ResponsiveFormDrawer from "@/components/common/ResponsiveFormDrawer";
 import { formatDateTime } from "@/lib/formatters";
 import {
   Typography,
   Stack,
   Button,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
   Box,
-  Tabs,
-  Tab,
-  FormControlLabel,
   Switch,
   TextField,
   Divider,
@@ -36,16 +30,23 @@ import {
   Grid,
   Paper,
   Avatar,
+  CircularProgress,
 } from "@mui/material";
-import { Close as CloseIcon } from "@mui/icons-material";
-import { GridColDef } from "@mui/x-data-grid";
+import {
+  AdminPanelSettingsOutlined as AdminPanelSettingsOutlinedIcon,
+  SecurityRounded as SecurityIcon,
+  BlockRounded as BlockIcon,
+  CheckCircleRounded as CheckCircleIcon,
+  DeleteForever as DeleteForeverIcon,
+} from "@mui/icons-material";
+import { GridColDef, GridActionsCellItem } from "@mui/x-data-grid";
 import { z } from "zod";
 import { HttpClient } from "@/lib/api/client";
 import { useAuth } from "@/components/AuthContext";
 
-// --- Role Edit Dialog (Consolidated & Refactored Master-Detail) ---
+// --- Role Edit Drawer (Consolidated & Refactored Master-Detail) ---
 
-interface RoleEditDialogProps {
+interface RoleEditDrawerProps {
   open: boolean;
   onClose: () => void;
   role: any;
@@ -87,13 +88,13 @@ const CATEGORY_ORDER: Record<string, number> = {
   godlike: 99,
 };
 
-function RoleEditDialog({
+function RoleEditDrawer({
   open,
   onClose,
   role,
   allPermissions,
   onSuccess,
-}: RoleEditDialogProps) {
+}: RoleEditDrawerProps) {
   const { session } = useAuth();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("md"));
@@ -138,33 +139,20 @@ function RoleEditDialog({
   const activeCategoryPerms = visiblePermissions.filter(
     (p) => p.key.startsWith(activeCategory + ":"),
   );
-  const activeCategoryKeys = activeCategoryPerms.map((p) => p.key);
-  const activeSelectedCount = activeCategoryKeys.filter((k) =>
-    selectedPermissions.includes(k),
-  ).length;
-  const isAllCategorySelected =
-    activeCategoryKeys.length > 0 &&
-    activeSelectedCount === activeCategoryKeys.length;
+
+  // Ordenar permisos: el permiso :manage va en primer lugar (Hero card)
+  const sortedCategoryPerms = [...activeCategoryPerms].sort((a, b) => {
+    const aIsManage = a.key.endsWith(":manage");
+    const bIsManage = b.key.endsWith(":manage");
+    if (aIsManage && !bIsManage) return -1;
+    if (!aIsManage && bIsManage) return 1;
+    return a.key.localeCompare(b.key);
+  });
 
   const togglePermission = (key: string) => {
     setSelectedPermissions((prev) =>
       prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key],
     );
-  };
-
-  const handleToggleAllCategory = () => {
-    if (isAllCategorySelected) {
-      // Desactivar todos los permisos de la categoría actual
-      setSelectedPermissions((prev) =>
-        prev.filter((k) => !activeCategoryKeys.includes(k)),
-      );
-    } else {
-      // Activar todos los permisos de la categoría actual
-      setSelectedPermissions((prev) => {
-        const next = new Set([...prev, ...activeCategoryKeys]);
-        return Array.from(next);
-      });
-    }
   };
 
   const handleSave = async () => {
@@ -191,48 +179,86 @@ function RoleEditDialog({
   };
 
   return (
-    <Dialog
+    <ResponsiveFormDrawer
       open={open}
       onClose={onClose}
-      fullScreen={isMobile}
-      fullWidth
-      maxWidth="md"
-      PaperProps={{
-        sx: {
-          borderRadius: isMobile ? 0 : 3,
-          maxHeight: isMobile ? "100%" : "85vh",
-          display: "flex",
-          flexDirection: "column",
-        },
-      }}
-    >
-      {/* 4. Cabecera Fija */}
-      <DialogTitle
-        sx={{
-          p: { xs: 2, sm: 2.5 },
-          borderBottom: "1px solid",
-          borderColor: "divider",
-          bgcolor: "background.paper",
-        }}
-      >
-        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+      title={`Gestionar Rol: ${role?.name || ""}`}
+      subtitle="Configure el nombre del rol y los permisos de acceso por módulo"
+      headerIcon={
+        <AdminPanelSettingsOutlinedIcon
+          color="primary"
+          sx={{ fontSize: { xs: 24, sm: 28 } }}
+        />
+      }
+      headerBadge={
+        <Chip
+          label={`${selectedPermissions.length} permisos`}
+          color="primary"
+          size="small"
+          variant="outlined"
+          sx={{ fontWeight: 700, fontSize: "0.75rem" }}
+        />
+      }
+      width={{ xs: "100%", md: 760, lg: 820 }}
+      actions={
+        <Box
+          sx={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            width: "100%",
+            flexDirection: { xs: "column-reverse", sm: "row" },
+            gap: 1.5,
+          }}
+        >
           <Typography
-            variant="h6"
+            variant="caption"
+            color="text.secondary"
+            sx={{ fontWeight: 600 }}
+          >
+            Total permisos activos: {selectedPermissions.length}
+          </Typography>
+
+          <Box
             sx={{
-              fontWeight: 800,
-              fontSize: { xs: "1.1rem", sm: "1.25rem" },
-              letterSpacing: "-0.01em",
+              display: "flex",
+              gap: 1.5,
+              width: { xs: "100%", sm: "auto" },
+              justifyContent: "flex-end",
             }}
           >
-            Gestionar Rol: {role?.name}
-          </Typography>
-          {isMobile && (
-            <IconButton onClick={onClose} size="small" edge="end" aria-label="cerrar">
-              <CloseIcon />
-            </IconButton>
-          )}
+            <Button
+              onClick={onClose}
+              disabled={saving}
+              color="inherit"
+              sx={{ width: { xs: "100%", sm: "auto" } }}
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleSave}
+              variant="contained"
+              color="primary"
+              disabled={saving}
+              startIcon={
+                saving ? (
+                  <CircularProgress size={16} color="inherit" />
+                ) : undefined
+              }
+              sx={{
+                fontWeight: 600,
+                minWidth: 140,
+                width: { xs: "100%", sm: "auto" },
+              }}
+            >
+              {saving ? "Guardando..." : "Guardar Cambios"}
+            </Button>
+          </Box>
         </Box>
-
+      }
+    >
+      <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+        {/* Nombre del Rol */}
         <TextField
           fullWidth
           size="small"
@@ -240,12 +266,12 @@ function RoleEditDialog({
           value={name}
           onChange={(e) => setName(e.target.value)}
           variant="outlined"
-          sx={{ mt: 1.5 }}
+          helperText="Identificador único para el conjunto de permisos"
         />
 
         {/* Selector de categoría en Móvil (xs/sm) */}
         {isMobile && (
-          <FormControl fullWidth size="small" sx={{ mt: 1.5 }}>
+          <FormControl fullWidth size="small">
             <InputLabel id="category-select-label">Módulo / Categoría</InputLabel>
             <Select
               labelId="category-select-label"
@@ -276,9 +302,22 @@ function RoleEditDialog({
                       <Chip
                         size="small"
                         label={`${count}/${catKeys.length}`}
-                        color={count > 0 ? (count === catKeys.length ? "primary" : "default") : "default"}
-                        variant={count === catKeys.length ? "filled" : "outlined"}
-                        sx={{ height: 20, fontSize: "0.68rem", fontWeight: 700, ml: 1 }}
+                        color={
+                          count > 0
+                            ? count === catKeys.length
+                              ? "primary"
+                              : "default"
+                            : "default"
+                        }
+                        variant={
+                          count === catKeys.length ? "filled" : "outlined"
+                        }
+                        sx={{
+                          height: 20,
+                          fontSize: "0.68rem",
+                          fontWeight: 700,
+                          ml: 1,
+                        }}
                       />
                     </Box>
                   </MenuItem>
@@ -287,274 +326,259 @@ function RoleEditDialog({
             </Select>
           </FormControl>
         )}
-      </DialogTitle>
 
-      {/* 1. Layout Master-Detail */}
-      <DialogContent
-        sx={{
-          p: 0,
-          display: "flex",
-          flexDirection: { xs: "column", md: "row" },
-          flex: 1,
-          overflow: "hidden",
-        }}
-      >
-        {/* Columna Izquierda: Tabs Verticales (30% en Desktop, oculta en Móvil) */}
+        {/* Master-Detail Container */}
         <Box
           sx={{
-            display: { xs: "none", md: "block" },
-            width: "30%",
-            borderRight: "1px solid",
+            display: "flex",
+            flexDirection: { xs: "column", md: "row" },
+            border: "1px solid",
             borderColor: "divider",
-            overflowY: "auto",
-            bgcolor: (t) =>
-              t.palette.mode === "dark" ? "rgba(255,255,255,0.02)" : "grey.50",
+            borderRadius: 2,
+            overflow: "hidden",
+            minHeight: { xs: "auto", md: 460 },
+            bgcolor: "background.paper",
           }}
         >
-          <Tabs
-            orientation="vertical"
-            value={tabIndex}
-            onChange={(_, v) => setTabIndex(v)}
+          {/* Columna Izquierda: Categorías (Desktop 34%) */}
+          <Box
             sx={{
-              "& .MuiTab-root": {
-                alignItems: "stretch",
-                textAlign: "left",
-                py: 1.5,
-                px: 2,
-                minHeight: 48,
-                textTransform: "none",
-                transition: "all 0.15s ease",
-                "&.Mui-selected": {
-                  bgcolor: (t) =>
-                    t.palette.mode === "dark"
-                      ? "rgba(25, 118, 210, 0.15)"
-                      : "primary.50",
-                  color: "primary.main",
-                  fontWeight: 700,
-                },
-                "&:hover": {
-                  bgcolor: "action.hover",
-                },
-              },
-              "& .MuiTabs-indicator": {
-                right: 0,
-                width: 3,
-                borderRadius: "3px 0 0 3px",
-              },
+              display: { xs: "none", md: "block" },
+              width: "34%",
+              borderRight: "1px solid",
+              borderColor: "divider",
+              overflowY: "auto",
+              maxHeight: 520,
+              bgcolor: (t) =>
+                t.palette.mode === "dark"
+                  ? "rgba(255,255,255,0.02)"
+                  : "grey.50",
             }}
           >
-            {categories.map((cat, i) => {
-              const catKeys = visiblePermissions
-                .filter((p) => p.key.startsWith(cat + ":"))
-                .map((p) => p.key);
-              const count = catKeys.filter((k) =>
-                selectedPermissions.includes(k),
-              ).length;
-              const isSelected = tabIndex === i;
+            <List dense disablePadding>
+              {categories.map((cat, i) => {
+                const catKeys = visiblePermissions
+                  .filter((p) => p.key.startsWith(cat + ":"))
+                  .map((p) => p.key);
+                const count = catKeys.filter((k) =>
+                  selectedPermissions.includes(k),
+                ).length;
+                const isSelected = tabIndex === i;
 
-              return (
-                <Tab
-                  key={cat}
-                  label={
-                    <Box
-                      sx={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                        width: "100%",
-                      }}
-                    >
-                      <Typography
-                        variant="body2"
-                        sx={{
-                          fontWeight: isSelected ? 700 : 500,
-                          fontSize: "0.85rem",
-                          color: isSelected ? "primary.main" : "text.primary",
-                        }}
-                      >
-                        {CATEGORY_LABELS[cat] || cat.toUpperCase()}
-                      </Typography>
-                      <Chip
-                        size="small"
-                        label={`${count}/${catKeys.length}`}
-                        color={count > 0 ? (count === catKeys.length ? "primary" : "default") : "default"}
-                        variant={count === catKeys.length ? "filled" : "outlined"}
-                        sx={{
-                          height: 20,
-                          fontSize: "0.68rem",
-                          fontWeight: 700,
-                          ml: 1,
-                          pointerEvents: "none",
-                        }}
-                      />
-                    </Box>
-                  }
-                />
-              );
-            })}
-          </Tabs>
-        </Box>
-
-        {/* Columna Derecha: Lista de Permisos (70% en Desktop, 100% en Móvil) */}
-        <Box
-          sx={{
-            width: { xs: "100%", md: "70%" },
-            p: { xs: 2, sm: 2.5 },
-            overflowY: "auto",
-            display: "flex",
-            flexDirection: "column",
-          }}
-        >
-          {/* 3. Control Maestro (Bulk Action) */}
-          {activeCategoryKeys.length > 0 && (
-            <Box
-              sx={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                p: 1.5,
-                borderRadius: 2,
-                bgcolor: (t) =>
-                  t.palette.mode === "dark"
-                    ? "rgba(255,255,255,0.04)"
-                    : "grey.50",
-                border: "1px solid",
-                borderColor: "divider",
-                mb: 2,
-              }}
-            >
-              <FormControlLabel
-                control={
-                  <Switch
-                    color="primary"
-                    checked={isAllCategorySelected}
-                    onChange={handleToggleAllCategory}
-                  />
-                }
-                label={
-                  <Typography variant="body2" sx={{ fontWeight: 700 }}>
-                    Habilitar todos los permisos de{" "}
-                    {CATEGORY_LABELS[activeCategory] || activeCategory.toUpperCase()}
-                  </Typography>
-                }
-                sx={{ m: 0 }}
-              />
-              <Chip
-                size="small"
-                label={`${activeSelectedCount} de ${activeCategoryKeys.length}`}
-                color={isAllCategorySelected ? "primary" : "default"}
-                variant="outlined"
-                sx={{ fontSize: "0.72rem", fontWeight: 700 }}
-              />
-            </Box>
-          )}
-
-          {/* 2. Micro-interacciones y Lista Moderna */}
-          <List dense disablePadding sx={{ width: "100%" }}>
-            {activeCategoryPerms.map((perm) => {
-              const isChecked = selectedPermissions.includes(perm.key);
-              return (
-                <ListItemButton
-                  key={perm.id || perm.key}
-                  onClick={() => togglePermission(perm.key)}
-                  sx={{
-                    borderRadius: 2,
-                    mb: 0.75,
-                    p: 1.25,
-                    border: "1px solid",
-                    borderColor: isChecked ? "primary.light" : "divider",
-                    bgcolor: isChecked
-                      ? (t) =>
+                return (
+                  <ListItemButton
+                    key={cat}
+                    selected={isSelected}
+                    onClick={() => setTabIndex(i)}
+                    sx={{
+                      py: 1.5,
+                      px: 2,
+                      borderBottom: "1px solid",
+                      borderColor: "divider",
+                      "&.Mui-selected": {
+                        bgcolor: (t) =>
                           t.palette.mode === "dark"
-                            ? "rgba(25, 118, 210, 0.12)"
-                            : "rgba(25, 118, 210, 0.04)"
-                      : "background.paper",
-                    transition: "all 0.15s ease",
-                    "&:hover": {
-                      bgcolor: isChecked
-                        ? (t) =>
-                            t.palette.mode === "dark"
-                              ? "rgba(25, 118, 210, 0.18)"
-                              : "rgba(25, 118, 210, 0.08)"
-                        : "action.hover",
-                      borderColor: isChecked ? "primary.main" : "primary.light",
-                    },
-                  }}
-                >
-                  <ListItemText
-                    disableTypography
-                    primary={
-                      <Typography
-                        variant="body2"
-                        sx={{ fontWeight: 600, color: "text.primary" }}
-                      >
-                        {perm.desc || perm.key}
-                      </Typography>
-                    }
-                    secondary={
-                      <Box sx={{ mt: 0.5 }}>
-                        <Chip
-                          size="small"
-                          variant="outlined"
-                          label={perm.key}
+                            ? "rgba(25, 118, 210, 0.16)"
+                            : "primary.50",
+                        color: "primary.main",
+                        fontWeight: 700,
+                        borderRight: (t) =>
+                          `3px solid ${t.palette.primary.main}`,
+                      },
+                      "&:hover": {
+                        bgcolor: "action.hover",
+                      },
+                    }}
+                  >
+                    <ListItemText
+                      disableTypography
+                      primary={
+                        <Typography
+                          variant="body2"
                           sx={{
-                            fontFamily: "monospace",
-                            fontSize: "0.7rem",
-                            height: 22,
-                            borderColor: isChecked ? "primary.main" : "divider",
-                            color: isChecked ? "primary.main" : "text.secondary",
-                            fontWeight: 600,
+                            fontWeight: isSelected ? 700 : 500,
+                            fontSize: "0.85rem",
+                            color: isSelected
+                              ? "primary.main"
+                              : "text.primary",
                           }}
-                        />
-                      </Box>
-                    }
-                    sx={{ my: 0, pr: 2 }}
-                  />
-                  <Switch
-                    edge="end"
-                    color="primary"
-                    checked={isChecked}
-                    onChange={() => togglePermission(perm.key)}
-                    onClick={(e) => e.stopPropagation()}
-                  />
-                </ListItemButton>
-              );
-            })}
-          </List>
-        </Box>
-      </DialogContent>
+                        >
+                          {CATEGORY_LABELS[cat] || cat.toUpperCase()}
+                        </Typography>
+                      }
+                    />
+                    <Chip
+                      size="small"
+                      label={`${count}/${catKeys.length}`}
+                      color={
+                        count > 0
+                          ? count === catKeys.length
+                            ? "primary"
+                            : "default"
+                          : "default"
+                      }
+                      variant={
+                        count === catKeys.length ? "filled" : "outlined"
+                      }
+                      sx={{
+                        height: 20,
+                        fontSize: "0.68rem",
+                        fontWeight: 700,
+                        ml: 1,
+                        pointerEvents: "none",
+                      }}
+                    />
+                  </ListItemButton>
+                );
+              })}
+            </List>
+          </Box>
 
-      {/* 4. Footer Fijo */}
-      <DialogActions
-        sx={{
-          p: 2,
-          borderTop: "1px solid",
-          borderColor: "divider",
-          bgcolor: "background.paper",
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-        }}
-      >
-        <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
-          Total permisos activos: {selectedPermissions.length}
-        </Typography>
-
-        <Stack direction="row" spacing={1.5}>
-          <Button onClick={onClose} disabled={saving} color="inherit">
-            Cancelar
-          </Button>
-          <Button
-            onClick={handleSave}
-            variant="contained"
-            color="primary"
-            disabled={saving}
+          {/* Columna Derecha: Lista de Permisos */}
+          <Box
+            sx={{
+              width: { xs: "100%", md: "66%" },
+              p: { xs: 1.5, sm: 2 },
+              overflowY: "auto",
+              maxHeight: { xs: "none", md: 520 },
+              display: "flex",
+              flexDirection: "column",
+            }}
           >
-            {saving ? "Guardando..." : "Guardar Cambios"}
-          </Button>
-        </Stack>
-      </DialogActions>
-    </Dialog>
+            <List dense disablePadding sx={{ width: "100%" }}>
+              {sortedCategoryPerms.map((perm) => {
+                const isChecked = selectedPermissions.includes(perm.key);
+                const isManage = perm.key.endsWith(":manage");
+
+                return (
+                  <ListItemButton
+                    key={perm.id || perm.key}
+                    onClick={() => togglePermission(perm.key)}
+                    sx={{
+                      borderRadius: 2,
+                      mb: 1,
+                      p: 1.5,
+                      border: "1px solid",
+                      borderColor: isManage
+                        ? isChecked
+                          ? "primary.main"
+                          : "primary.light"
+                        : isChecked
+                          ? "primary.light"
+                          : "divider",
+                      borderWidth: isManage ? 2 : 1,
+                      bgcolor: isManage
+                        ? isChecked
+                          ? (t) =>
+                              t.palette.mode === "dark"
+                                ? "rgba(25, 118, 210, 0.22)"
+                                : "rgba(25, 118, 210, 0.08)"
+                          : (t) =>
+                              t.palette.mode === "dark"
+                                ? "rgba(25, 118, 210, 0.08)"
+                                : "rgba(25, 118, 210, 0.03)"
+                        : isChecked
+                          ? (t) =>
+                              t.palette.mode === "dark"
+                                ? "rgba(25, 118, 210, 0.12)"
+                                : "rgba(25, 118, 210, 0.04)"
+                          : "background.paper",
+                      transition: "all 0.15s ease",
+                      "&:hover": {
+                        bgcolor: isChecked
+                          ? (t) =>
+                              t.palette.mode === "dark"
+                                ? "rgba(25, 118, 210, 0.25)"
+                                : "rgba(25, 118, 210, 0.12)"
+                          : "action.hover",
+                        borderColor: "primary.main",
+                      },
+                    }}
+                  >
+                    <ListItemText
+                      disableTypography
+                      primary={
+                        <Box sx={{ mb: 0.5 }}>
+                          {isManage && (
+                            <Chip
+                              size="small"
+                              color="primary"
+                              icon={
+                                <AdminPanelSettingsOutlinedIcon
+                                  sx={{ fontSize: "14px !important" }}
+                                />
+                              }
+                              label="ADMIN / CONTROL TOTAL"
+                              sx={{
+                                fontWeight: 800,
+                                fontSize: "0.68rem",
+                                height: 22,
+                                mb: 0.75,
+                              }}
+                            />
+                          )}
+                          <Typography
+                            variant="body2"
+                            sx={{
+                              fontWeight: isManage ? 750 : 600,
+                              color: "text.primary",
+                              fontSize: isManage ? "0.92rem" : "0.85rem",
+                            }}
+                          >
+                            {perm.desc || perm.key}
+                          </Typography>
+                          {isManage && (
+                            <Typography
+                              variant="caption"
+                              sx={{
+                                color: "text.secondary",
+                                display: "block",
+                                mt: 0.25,
+                              }}
+                            >
+                              Otorga gobernanza y control irrestricto sobre todas las operaciones de este módulo.
+                            </Typography>
+                          )}
+                        </Box>
+                      }
+                      secondary={
+                        <Box sx={{ mt: 0.5 }}>
+                          <Chip
+                            size="small"
+                            variant="outlined"
+                            label={perm.key}
+                            sx={{
+                              fontFamily: "monospace",
+                              fontSize: "0.7rem",
+                              height: 22,
+                              borderColor: isChecked
+                                ? "primary.main"
+                                : "divider",
+                              color: isChecked
+                                ? "primary.main"
+                                : "text.secondary",
+                              fontWeight: 600,
+                            }}
+                          />
+                        </Box>
+                      }
+                      sx={{ my: 0, pr: 2 }}
+                    />
+                    <Switch
+                      edge="end"
+                      color="primary"
+                      checked={isChecked}
+                      onChange={() => togglePermission(perm.key)}
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                  </ListItemButton>
+                );
+              })}
+            </List>
+          </Box>
+        </Box>
+      </Box>
+    </ResponsiveFormDrawer>
   );
 }
 
@@ -571,17 +595,79 @@ const fields: FormField<RoleForm>[] = [
 ];
 
 const columns: GridColDef[] = [
-  { field: "name", headerName: "Nombre del Rol", flex: 1 },
+  {
+    field: "name",
+    headerName: "Rol de Seguridad",
+    flex: 1.5,
+    minWidth: 220,
+    renderCell: (params) => (
+      <Stack direction="row" spacing={1.5} alignItems="center" sx={{ height: "100%" }}>
+        <Avatar
+          sx={{
+            width: 34,
+            height: 34,
+            bgcolor: params.row.isActive !== false ? "#6366f1" : "text.disabled",
+            color: "#ffffff",
+          }}
+        >
+          <SecurityIcon sx={{ fontSize: 18 }} />
+        </Avatar>
+        <Box sx={{ minWidth: 0 }}>
+          <Typography variant="body2" sx={{ fontWeight: 700, lineHeight: 1.2 }} noWrap>
+            {params.value}
+          </Typography>
+          <Typography variant="caption" color="text.secondary" noWrap display="block">
+            {params.row.permissions?.length ? `${params.row.permissions.length} permisos asignados` : "Perfil de Acceso"}
+          </Typography>
+        </Box>
+      </Stack>
+    ),
+  },
+  {
+    field: "isActive",
+    headerName: "Estado",
+    width: 130,
+    renderCell: (params) => {
+      const active = params.value !== false;
+      return (
+        <Chip
+          size="small"
+          label={active ? "Activo" : "Inactivo"}
+          icon={
+            <Box
+              sx={{
+                width: 7,
+                height: 7,
+                borderRadius: "50%",
+                bgcolor: active ? "#10b981" : "#94a3b8",
+                boxShadow: active ? "0 0 6px rgba(16, 185, 129, 0.6)" : "none",
+                ml: "4px !important",
+              }}
+            />
+          }
+          variant="outlined"
+          sx={{
+            fontWeight: 700,
+            fontSize: "0.72rem",
+            height: 24,
+            borderColor: active ? "success.light" : "divider",
+            color: active ? "success.dark" : "text.secondary",
+            bgcolor: active ? "rgba(16, 185, 129, 0.05)" : "transparent",
+          }}
+        />
+      );
+    },
+  },
   {
     field: "createdBy",
     headerName: "Creado Por",
-    width: 180,
+    width: 170,
     valueGetter: (value: any) => value || "Sistema",
   },
   {
     field: "createdAt",
     headerName: "Creado En",
-    width: 180,
+    width: 170,
     valueFormatter: (value: any) => (value ? formatDateTime(value) : "N/A"),
   },
 ];
@@ -594,7 +680,7 @@ export default function RolesPage() {
   const [deleteRole, setDeleteRole] = useState<any | null>(null);
   const [allPermissions, setAllPermissions] = useState<any[]>([]);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
-  const { showError } = useNotification();
+  const { showSuccess, showError } = useNotification();
 
   useEffect(() => {
     HttpClient.get<any[]>("/permission").then((data) => {
@@ -620,6 +706,16 @@ export default function RolesPage() {
       const target = roles.find((r) => r.id === id);
       if (target) setDeleteRole(target);
     });
+  };
+
+  const handleToggleRoleStatus = async (role: any) => {
+    try {
+      await HttpClient.patch(`/role/${role.id}/status`, { isActive: role.isActive === false });
+      showSuccess(`Rol ${role.isActive === false ? "habilitado" : "inhabilitado"} exitosamente`);
+      setRefreshTrigger((prev) => prev + 1);
+    } catch (err: any) {
+      showError(err.message || "Error al modificar el estado del rol");
+    }
   };
 
   const handleConfirmDelete = async () => {
@@ -651,7 +747,24 @@ export default function RolesPage() {
         onCreate={handleCreate}
         onEdit={handleEdit}
         onDelete={handleDeleteRequest}
+        deleteActionLabel="Eliminar..."
+        deleteIcon={<DeleteForeverIcon color="error" />}
         onView={handleView}
+        customActions={(row) => [
+          <GridActionsCellItem
+            key="toggle-status"
+            icon={
+              row.isActive !== false ? (
+                <BlockIcon color="error" fontSize="small" />
+              ) : (
+                <CheckCircleIcon color="success" fontSize="small" />
+              )
+            }
+            label={row.isActive !== false ? "Inhabilitar rol" : "Habilitar rol"}
+            onClick={() => handleToggleRoleStatus(row)}
+            showInMenu={true}
+          />,
+        ]}
         refreshTrigger={refreshTrigger}
         infoDescription="Administración de los roles de acceso al sistema, permitiendo definir perfiles de usuario y asignar permisos específicos por cada módulo."
         infoInstructions={`Utiliza esta vista para crear nuevos roles o modificar los existentes.
@@ -729,7 +842,7 @@ Haz clic en el icono de borrado para eliminar un rol especificando su nombre exa
         description={`Para confirmar la eliminación del rol "${deleteRole?.name}", por favor ingrese su nombre exacto:`}
         expectedValue={deleteRole?.name || ""}
         inputLabel="Nombre del Rol"
-        confirmButtonText="Eliminar Rol"
+        confirmButtonText="Confirmar Eliminación"
         confirmColor="error"
       />
 
@@ -742,7 +855,7 @@ Haz clic en el icono de borrado para eliminar un rol especificando su nombre exa
         fields={fields}
       />
 
-      <RoleEditDialog
+      <RoleEditDrawer
         open={editDialogOpen}
         onClose={() => setEditDialogOpen(false)}
         role={selectedRole}

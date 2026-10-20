@@ -11,7 +11,6 @@ import {
   IconButton,
   Tooltip,
   Stack,
-  Divider,
 } from "@mui/material";
 import {
   CalendarMonth as CalendarIcon,
@@ -23,7 +22,6 @@ import {
   CampaignOutlined as CampaignIcon,
   ShieldOutlined as ShieldIcon,
   InfoOutlined as InfoIcon,
-  FolderOutlined as FolderIcon,
   AssignmentOutlined as AssignmentIcon,
 } from "@mui/icons-material";
 import ResponsiveDetailWrapper from "./ResponsiveDetailWrapper";
@@ -43,6 +41,7 @@ interface DetailDialogProps {
   subtitle?: string;
   fields: DetailField[];
   headerContent?: React.ReactNode;
+  secondaryAction?: React.ReactNode;
 }
 
 export default function DetailDialog({
@@ -52,6 +51,7 @@ export default function DetailDialog({
   subtitle,
   fields,
   headerContent,
+  secondaryAction,
 }: DetailDialogProps) {
   const [copiedId, setCopiedId] = useState(false);
 
@@ -143,7 +143,17 @@ export default function DetailDialog({
       onClose={onClose}
       title={title}
       actions={
-        <Box display="flex" justifyContent="flex-end" width="100%">
+        <Box
+          display="flex"
+          justifyContent="space-between"
+          alignItems="center"
+          width="100%"
+          gap={1.5}
+          flexDirection={{ xs: "column-reverse", sm: "row" }}
+        >
+          <Box sx={{ width: { xs: "100%", sm: "auto" } }}>
+            {secondaryAction}
+          </Box>
           <Button
             onClick={onClose}
             variant="contained"

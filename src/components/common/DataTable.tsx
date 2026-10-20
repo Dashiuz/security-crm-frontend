@@ -13,11 +13,6 @@ import {
   Tooltip,
   Alert,
   CircularProgress,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogContentText,
-  DialogActions,
   ToggleButton,
   ToggleButtonGroup,
   TablePagination,
@@ -26,6 +21,8 @@ import {
   useTheme,
   useMediaQuery,
 } from "@mui/material";
+import ResponsiveFormDrawer from "./ResponsiveFormDrawer";
+import ResponsiveDetailWrapper from "./ResponsiveDetailWrapper";
 import UniversalMobileCard from "./UniversalMobileCard";
 import {
   DataGrid,
@@ -39,6 +36,7 @@ import {
   Refresh as RefreshIcon,
   Edit as EditIcon,
   Delete as DeleteIcon,
+  DeleteForever as DeleteForeverIcon,
   RemoveCircle as RemoveCircleIcon,
   InfoOutlined as InfoIcon,
   Visibility as VisibilityIcon,
@@ -53,6 +51,7 @@ export interface DataTableProps {
   breadcrumbs?: { label: string; href?: string }[];
   onCreate?: () => void;
   onEdit?: (id: string, row: any) => void;
+  editActionLabel?: string;
   onDelete?: (id: string, row?: any) => void | Promise<void>;
   onView?: (row: any) => void;
   customActions?: (row: any) => React.ReactElement<GridActionsCellItemProps>[];
@@ -85,6 +84,7 @@ export default function DataTable({
   breadcrumbs,
   onCreate,
   onEdit,
+  editActionLabel,
   onDelete,
   onView,
   customActions,
@@ -266,7 +266,7 @@ export default function DataTable({
           <GridActionsCellItem
             key="edit"
             icon={<EditIcon color="primary" />}
-            label="Editar"
+            label={editActionLabel || "Editar"}
             onClick={() => onEdit(params.id.toString(), params.row)}
             showInMenu={true}
           />
@@ -278,8 +278,8 @@ export default function DataTable({
         actions.push(
           <GridActionsCellItem
             key="delete"
-            icon={deleteIcon || <RemoveCircleIcon color="error" />}
-            label={deleteActionLabel || "Inhabilitar"}
+            icon={deleteIcon || <DeleteForeverIcon color="error" />}
+            label={deleteActionLabel || "Eliminar..."}
             onClick={() => handleDeleteClick(params.id, params.row)}
             showInMenu={true}
           />
@@ -713,8 +713,8 @@ export default function DataTable({
         </Paper>
       )}
 
-      {/* Confirmation Dialog for Delete */}
-      <Dialog
+      {/* Confirmation Drawer for Delete */}
+      <ResponsiveFormDrawer
         open={deleteDialogOpen}
         onClose={() => {
           if (!isDeleting) {
@@ -723,92 +723,95 @@ export default function DataTable({
             setSelectedRowToDelete(null);
           }
         }}
-        aria-labelledby="delete-dialog-title"
-        aria-describedby="delete-dialog-description"
+        title={deleteDialogTitle || "Confirmar Eliminación"}
+        subtitle="Operación de eliminación de registro"
+        customActions={
+          <Box sx={{ display: "flex", gap: 1.5, justifyContent: "flex-end", width: "100%", flexWrap: "wrap" }}>
+            <Button
+              onClick={() => {
+                setDeleteDialogOpen(false);
+                setSelectedIdToDelete(null);
+                setSelectedRowToDelete(null);
+              }}
+              color="inherit"
+              disabled={isDeleting || loading}
+              sx={{ borderRadius: 2 }}
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleConfirmDelete}
+              color="error"
+              variant="contained"
+              disabled={isDeleting || loading}
+              startIcon={isDeleting ? <CircularProgress size={16} color="inherit" /> : <DeleteForeverIcon />}
+              sx={{ fontWeight: 600, borderRadius: 2 }}
+            >
+              {isDeleting ? "Eliminando..." : "Eliminar"}
+            </Button>
+          </Box>
+        }
       >
-        <DialogTitle id="delete-dialog-title">
-          {deleteDialogTitle || "Confirmar Eliminación"}
-        </DialogTitle>
-        <DialogContent>
-          <DialogContentText id="delete-dialog-description">
+        <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+          <Alert severity="warning" sx={{ borderRadius: 2 }}>
+            Esta acción es irreversible y afectará los registros vinculados en el sistema.
+          </Alert>
+          <Typography variant="body1">
             {deleteDialogMessage ||
               "¿Estás seguro de que deseas eliminar este registro? Esta acción no se puede deshacer."}
-          </DialogContentText>
-        </DialogContent>
-        <DialogActions sx={{ p: 2 }}>
-          <Button
-            onClick={() => {
-              setDeleteDialogOpen(false);
-              setSelectedIdToDelete(null);
-              setSelectedRowToDelete(null);
-            }}
-            disabled={isDeleting || loading}
-          >
-            Cancelar
-          </Button>
-          <Button
-            onClick={handleConfirmDelete}
-            color="error"
-            variant="contained"
-            disabled={isDeleting || loading}
-            autoFocus
-          >
-            {isDeleting ? "Eliminando..." : "Eliminar"}
-          </Button>
-        </DialogActions>
-      </Dialog>
+          </Typography>
+        </Box>
+      </ResponsiveFormDrawer>
 
-      {/* Info/Help Dialog */}
-      <Dialog
+      {/* Info/Help Drawer */}
+      <ResponsiveDetailWrapper
         open={infoDialogOpen}
         onClose={() => setInfoDialogOpen(false)}
-        maxWidth="sm"
-        fullWidth
+        title={`Información: ${title}`}
+        actions={
+          <Box sx={{ display: "flex", justifyContent: "flex-end" }}>
+            <Button
+              onClick={() => setInfoDialogOpen(false)}
+              variant="contained"
+              sx={{ borderRadius: 2, px: 3 }}
+            >
+              Entendido
+            </Button>
+          </Box>
+        }
       >
-        <DialogTitle sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-          <InfoIcon color="primary" />
-          Información: {title}
-        </DialogTitle>
-        <DialogContent dividers>
+        <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
           {infoDescription && (
-            <Box sx={{ mb: 3 }}>
-              <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
+            <Paper variant="outlined" sx={{ p: 2.5, borderRadius: 2.5, bgcolor: "action.hover" }}>
+              <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1, textTransform: "uppercase", fontSize: "0.75rem", color: "primary.main" }}>
                 Finalidad
               </Typography>
               <Typography variant="body2" color="text.secondary">
                 {infoDescription}
               </Typography>
-            </Box>
+            </Paper>
           )}
+
           {infoInstructions && (
             <Box>
-              <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
+              <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1.5, textTransform: "uppercase", fontSize: "0.75rem", color: "text.primary" }}>
                 Instrucciones de Uso
               </Typography>
-              <Typography
-                variant="body2"
-                color="text.secondary"
-                component="div"
-              >
+              <Paper variant="outlined" sx={{ p: 2.5, borderRadius: 2.5 }}>
                 <ul style={{ paddingLeft: "1.2rem", margin: 0 }}>
                   {infoInstructions.split("\n").map((line, i) => (
-                    <li key={i}>{line}</li>
+                    <li key={i} style={{ marginBottom: "0.5rem" }}>
+                      <Typography variant="body2" color="text.secondary">
+                        {line}
+                      </Typography>
+                    </li>
                   ))}
                 </ul>
-              </Typography>
+              </Paper>
             </Box>
           )}
-        </DialogContent>
-        <DialogActions sx={{ p: 2 }}>
-          <Button
-            onClick={() => setInfoDialogOpen(false)}
-            variant="contained"
-            autoFocus
-          >
-            Entendido
-          </Button>
-        </DialogActions>
-      </Dialog>
+        </Box>
+      </ResponsiveDetailWrapper>
     </Box>
   );
 }

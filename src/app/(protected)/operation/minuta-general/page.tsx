@@ -5,13 +5,12 @@ import { useNotification } from "@/providers/NotificationProvider";
 import { useAuth } from "@/components/AuthContext";
 import DataTable from "@/components/common/DataTable";
 import DetailDialog from "@/components/common/DetailDialog";
-import ImageUploadCapture from "@/components/common/ImageUploadCapture";
 import UnitAutocomplete, { UnitOption } from "@/components/common/UnitAutocomplete";
 import ResidentAutocomplete, { ResidentOption } from "@/components/common/ResidentAutocomplete";
 import ClientAutocomplete, { ClientOption } from "@/components/common/ClientAutocomplete";
 import MinutaFilterBar, { MinutaFilterValues } from "@/components/common/MinutaFilterBar";
 import { useTenant } from "@/providers/TenantProvider";
-import { GridColDef } from "@mui/x-data-grid";
+import { GridColDef, GridActionsCellItem } from "@mui/x-data-grid";
 import {
   Box,
   MenuItem,
@@ -24,7 +23,6 @@ import {
   Dialog,
   DialogContent,
   DialogActions,
-  DialogTitle,
   Button,
   Chip,
   CircularProgress,
@@ -35,17 +33,23 @@ import {
   InputLabel,
   Stack,
   Divider,
+  Alert,
 } from "@mui/material";
 import {
   CameraAlt as CameraIcon,
   Badge as BadgeIcon,
   HomeWork as HomeWorkIcon,
-  Person as PersonIcon,
   Security as SecurityIcon,
   WarningAmber as WarningIcon,
   Delete as DeleteIcon,
+  PictureAsPdf as PictureAsPdfIcon,
+  InfoOutlined as InfoOutlinedIcon,
 } from "@mui/icons-material";
 import ResponsiveFormDrawer from "@/components/common/ResponsiveFormDrawer";
+import AudioVoiceNoteRecorder from "@/components/common/AudioVoiceNoteRecorder";
+import MultiMediaEvidencePicker from "@/components/common/MultiMediaEvidencePicker";
+import { generateMinutaSingleSheetPdf } from "@/lib/pdf/minutaPdfGenerator";
+import MinutaExportPdfDrawer from "./MinutaExportPdfDrawer";
 import dayjs from "dayjs";
 import { HttpClient } from "@/lib/api/client";
 import { StorageApi, MediaTypeCategory } from "@/lib/api/storage";
@@ -73,11 +77,17 @@ interface MinutaGeneralPageProps {
 export default function MinutaGeneralPage({ isInternal = false }: MinutaGeneralPageProps) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [evidenceFile, setEvidenceFile] = useState<File | null>(null);
+  const [photoFiles, setPhotoFiles] = useState<File[]>([]);
+  const [videoFile, setVideoFile] = useState<File | null>(null);
+  const [voiceNoteFile, setVoiceNoteFile] = useState<File | null>(null);
   const [existingMediaUrl, setExistingMediaUrl] = useState<string | null>(null);
   const [previewModalUrl, setPreviewModalUrl] = useState<string | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+
+  // Export PDF Drawer State
+  const [exportDialogOpen, setExportDialogOpen] = useState(false);
+  const initialAnnotationRef = useRef<string>("");
 
   // Form State
   const [formData, setFormData] = useState({
@@ -93,6 +103,15 @@ export default function MinutaGeneralPage({ isInternal = false }: MinutaGeneralP
     noveltySource: "",
   });
 
+  // Limpiar notas de voz y videos si el usuario baja la prioridad a < 4
+  useEffect(() => {
+    if (formData.priority < 4) {
+      if (voiceNoteFile) setVoiceNoteFile(null);
+      if (videoFile) setVideoFile(null);
+      if (photoFiles.length > 2) setPhotoFiles((prev) => prev.slice(0, 2));
+    }
+  }, [formData.priority, voiceNoteFile, videoFile, photoFiles.length]);
+
   const [selectedUnit, setSelectedUnit] = useState<UnitOption | null>(null);
   const [selectedResident, setSelectedResident] = useState<ResidentOption | null>(null);
 
@@ -103,6 +122,9 @@ export default function MinutaGeneralPage({ isInternal = false }: MinutaGeneralP
   // Detail & Filter State
   const [detailRecord, setDetailRecord] = useState<any | null>(null);
   const [detailImageUrl, setDetailImageUrl] = useState<string | null>(null);
+  const [detailVoiceNoteUrl, setDetailVoiceNoteUrl] = useState<string | null>(null);
+  const [detailVideoUrl, setDetailVideoUrl] = useState<string | null>(null);
+  const [detailPhotoUrls, setDetailPhotoUrls] = useState<string[]>([]);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [selectedClientFilter, setSelectedClientFilter] = useState<ClientOption | null>(null);
   const [filters, setFilters] = useState<MinutaFilterValues>({});
@@ -134,6 +156,10 @@ export default function MinutaGeneralPage({ isInternal = false }: MinutaGeneralP
     permissions.includes("godlike:manage") ||
     permissions.includes("minuta:manage") ||
     permissions.includes("minuta:create");
+  const canExport =
+    permissions.includes("godlike:manage") ||
+    permissions.includes("minuta:manage") ||
+    permissions.includes("minuta:export");
 
   const handleCreate = () => {
     if (!isInternal && isGlobalUser && !activeClientId) {
@@ -143,13 +169,14 @@ export default function MinutaGeneralPage({ isInternal = false }: MinutaGeneralP
       return;
     }
     setSelectedId(null);
-    setEvidenceFile(null);
+    setPhotoFiles([]);
+    setVideoFile(null);
+    setVoiceNoteFile(null);
     setExistingMediaUrl(null);
     setSelectedUnit(null);
     setSelectedResident(null);
     setIsClientLinked(false);
     setSelectedClientForRecord(null);
-    setSelectedResident(null);
     const today = dayjs();
     setFormData({
       date: today.format("YYYY-MM-DD"),
@@ -168,7 +195,9 @@ export default function MinutaGeneralPage({ isInternal = false }: MinutaGeneralP
 
   const handleEdit = async (id: string) => {
     try {
-      setEvidenceFile(null);
+      setPhotoFiles([]);
+      setVideoFile(null);
+      setVoiceNoteFile(null);
       setExistingMediaUrl(null);
       const data = await HttpClient.get<any>(`/operation/minuta/general/${id}`);
       setSelectedId(id);
@@ -218,7 +247,10 @@ export default function MinutaGeneralPage({ isInternal = false }: MinutaGeneralP
       // Cargar adjuntos
       const mediaList = await StorageApi.getByEntity(MediaTypeCategory.MINUTA, id);
       if (mediaList && mediaList.length > 0) {
-        setExistingMediaUrl(mediaList[0].presignedUrl || null);
+        const photo = mediaList.find((m) => m.mimeType?.startsWith("image/"));
+        if (photo) {
+          setExistingMediaUrl(photo.presignedUrl || null);
+        }
       }
 
       setDialogOpen(true);
@@ -230,19 +262,72 @@ export default function MinutaGeneralPage({ isInternal = false }: MinutaGeneralP
   const handleView = async (row: any) => {
     setDetailRecord(row);
     setDetailImageUrl(null);
+    setDetailVoiceNoteUrl(null);
+    setDetailVideoUrl(null);
+    setDetailPhotoUrls([]);
+
     try {
-      if (row.mediaAttachments && row.mediaAttachments.length > 0) {
-        const mediaId = row.mediaAttachments[0].id;
-        const res = await StorageApi.getPresignedUrl(mediaId);
-        setDetailImageUrl(res.presignedUrl);
-      } else {
-        const mediaList = await StorageApi.getByEntity(MediaTypeCategory.MINUTA, row.id);
-        if (mediaList && mediaList.length > 0) {
-          setDetailImageUrl(mediaList[0].presignedUrl || null);
+      const mediaList = await StorageApi.getByEntity(MediaTypeCategory.MINUTA, row.id);
+      const photos: string[] = [];
+
+      for (const item of mediaList) {
+        if (item.presignedUrl) {
+          const mime = item.mimeType || "";
+          const name = item.fileName || "";
+          if (mime.startsWith("audio/") || name.includes("voice_note")) {
+            setDetailVoiceNoteUrl(item.presignedUrl);
+          } else if (mime.startsWith("video/") || name.includes("clip")) {
+            setDetailVideoUrl(item.presignedUrl);
+          } else if (mime.startsWith("image/")) {
+            photos.push(item.presignedUrl);
+          }
         }
+      }
+
+      setDetailPhotoUrls(photos);
+      if (photos.length > 0) {
+        setDetailImageUrl(photos[0]);
       }
     } catch {
       // Ignorar fallo de carga de preview
+    }
+  };
+
+  const handleExportSingleSheet = async (row: any) => {
+    if (!row?.id) return;
+    try {
+      showSuccess("Generando Ficha Técnica PDF con evidencias...");
+      let photoUrls: string[] = [];
+
+      try {
+        const mediaList = await StorageApi.getByEntity(MediaTypeCategory.MINUTA, row.id);
+        photoUrls = mediaList
+          .filter(
+            (m) =>
+              Boolean(m.presignedUrl) &&
+              ((m.mimeType && m.mimeType.startsWith("image/")) ||
+                m.subType === "photo" ||
+                /\.(jpe?g|png|webp|gif|bmp)$/i.test(m.fileName || ""))
+          )
+          .map((m) => m.presignedUrl as string);
+      } catch (mediaErr) {
+        console.warn("No se pudieron consultar adjuntos en vivo para el PDF:", mediaErr);
+      }
+
+      // Fallback si estamos en el drawer de detalles y ya tenemos fotos cargadas
+      if (photoUrls.length === 0 && detailRecord?.id === row.id && detailPhotoUrls.length > 0) {
+        photoUrls = [...detailPhotoUrls];
+      }
+
+      await generateMinutaSingleSheetPdf({
+        minuta: row,
+        tenant,
+        photoUrls,
+      });
+      showSuccess("Ficha Técnica PDF generada con éxito");
+    } catch (err: any) {
+      console.error("PDF export error:", err);
+      showError("Error al generar el PDF de la minuta");
     }
   };
 
@@ -340,23 +425,62 @@ export default function MinutaGeneralPage({ isInternal = false }: MinutaGeneralP
 
       const entityId = selectedId || savedRecord?.id;
 
-      if (evidenceFile && entityId) {
-        try {
-          await StorageApi.uploadMedia({
-            file: evidenceFile,
-            entityType: MediaTypeCategory.MINUTA,
-            entityId,
-            clientId: isInternal
-              ? isClientLinked
-                ? selectedClientForRecord?.id || null
-                : null
-              : activeClientId || null,
-            subType: "general",
-          });
-          showSuccess("Evidencia fotográfica guardada");
-        } catch (uploadErr: any) {
-          console.error("S3 upload error:", uploadErr);
-          showError("La minuta se guardó, pero hubo un inconveniente al subir la foto.");
+      if (entityId) {
+        // 1. Upload Photos
+        for (const photo of photoFiles) {
+          try {
+            await StorageApi.uploadMedia({
+              file: photo,
+              entityType: MediaTypeCategory.MINUTA,
+              entityId,
+              clientId: isInternal
+                ? isClientLinked
+                  ? selectedClientForRecord?.id || null
+                  : null
+                : activeClientId || null,
+              subType: "photo",
+            });
+          } catch (uploadErr: any) {
+            console.error("S3 photo upload error:", uploadErr);
+          }
+        }
+
+        // 2. Upload Video Clip (if any)
+        if (videoFile) {
+          try {
+            await StorageApi.uploadMedia({
+              file: videoFile,
+              entityType: MediaTypeCategory.MINUTA,
+              entityId,
+              clientId: isInternal
+                ? isClientLinked
+                  ? selectedClientForRecord?.id || null
+                  : null
+                : activeClientId || null,
+              subType: "video",
+            });
+          } catch (uploadErr: any) {
+            console.error("S3 video upload error:", uploadErr);
+          }
+        }
+
+        // 3. Upload Voice Note (if any)
+        if (voiceNoteFile) {
+          try {
+            await StorageApi.uploadMedia({
+              file: voiceNoteFile,
+              entityType: MediaTypeCategory.MINUTA,
+              entityId,
+              clientId: isInternal
+                ? isClientLinked
+                  ? selectedClientForRecord?.id || null
+                  : null
+                : activeClientId || null,
+              subType: "voice_note",
+            });
+          } catch (uploadErr: any) {
+            console.error("S3 voice note upload error:", uploadErr);
+          }
         }
       }
 
@@ -607,6 +731,7 @@ export default function MinutaGeneralPage({ isInternal = false }: MinutaGeneralP
             ? `Minuta General - ${tenant?.name || "Interna"}`
             : "Minuta General"
         }
+        hideStatusFilter={true}
         endpoint={endpoint}
         columns={columns}
         breadcrumbs={
@@ -632,6 +757,33 @@ export default function MinutaGeneralPage({ isInternal = false }: MinutaGeneralP
         deleteIcon={<DeleteIcon color="error" />}
         onView={handleView}
         refreshTrigger={refreshTrigger}
+        extraHeaderActions={
+          canExport ? (
+            <Button
+              variant="outlined"
+              color="primary"
+              size="small"
+              startIcon={<PictureAsPdfIcon />}
+              onClick={() => setExportDialogOpen(true)}
+              sx={{ fontWeight: 600, textTransform: "none", borderRadius: 1.5 }}
+            >
+              Exportar PDF
+            </Button>
+          ) : undefined
+        }
+        customActions={(row) => [
+          ...(canExport
+            ? [
+              <GridActionsCellItem
+                key="export-pdf"
+                icon={<PictureAsPdfIcon sx={{ fontSize: 18, color: "primary.main" }} />}
+                label="Exportar Ficha PDF"
+                onClick={() => handleExportSingleSheet(row)}
+                showInMenu
+              />,
+            ]
+            : []),
+        ]}
         infoDescription={
           isInternal
             ? "Registro cronológico de novedades operativas internas de la empresa/tenant, con trazabilidad opcional a clientes."
@@ -657,24 +809,147 @@ export default function MinutaGeneralPage({ isInternal = false }: MinutaGeneralP
             ? "Detalles de la Minuta General Interna"
             : "Detalles de la Minuta General"
         }
+        subtitle={
+          detailRecord
+            ? `Radicado Oficial: RAD-${(detailRecord.id || "").slice(-8).toUpperCase()}`
+            : undefined
+        }
+        secondaryAction={
+          canExport && detailRecord ? (
+            <Button
+              variant="contained"
+              color="primary"
+              startIcon={<PictureAsPdfIcon />}
+              onClick={() => handleExportSingleSheet(detailRecord)}
+              sx={{
+                textTransform: "none",
+                fontWeight: 700,
+                borderRadius: 2,
+                py: 0.8,
+                px: 2.5,
+              }}
+            >
+              Descargar Ficha PDF
+            </Button>
+          ) : undefined
+        }
         headerContent={
-          detailImageUrl && (
-            <Box sx={{ mb: 2, textAlign: "center" }}>
-              <Box
-                component="img"
-                src={detailImageUrl}
-                alt="Evidencia"
-                sx={{
-                  maxHeight: 220,
-                  maxWidth: "100%",
-                  objectFit: "contain",
-                  borderRadius: 2,
-                  border: "1px solid",
-                  borderColor: "divider",
-                  boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
-                }}
-              />
-            </Box>
+          detailRecord && (detailPhotoUrls.length > 0 || detailVoiceNoteUrl || detailVideoUrl) && (
+            <Stack spacing={2} sx={{ width: "100%" }}>
+              {/* Nota de voz probatoria */}
+              {detailVoiceNoteUrl && (
+                <Paper
+                  elevation={0}
+                  sx={{
+                    p: 1.5,
+                    border: "1px solid",
+                    borderColor: "success.light",
+                    bgcolor: "#f0fdf4",
+                    borderRadius: 2,
+                  }}
+                >
+                  <Stack spacing={0.8}>
+                    <Typography variant="caption" sx={{ fontWeight: 700, color: "success.dark" }}>
+                      🎙️ Nota de Voz Probatoria Grabada en Puesto:
+                    </Typography>
+                    <Box component="audio" controls src={detailVoiceNoteUrl} sx={{ width: "100%", height: 36 }} />
+                  </Stack>
+                </Paper>
+              )}
+
+              {/* Clip de Video probatorio */}
+              {detailVideoUrl && (
+                <Paper
+                  elevation={0}
+                  sx={{
+                    p: 1.5,
+                    border: "1px solid",
+                    borderColor: "warning.light",
+                    bgcolor: "#fffdf8",
+                    borderRadius: 2,
+                  }}
+                >
+                  <Stack spacing={0.8}>
+                    <Typography variant="caption" sx={{ fontWeight: 700, color: "warning.dark" }}>
+                      🎥 Clip de Video Probatorio:
+                    </Typography>
+                    <Box
+                      component="video"
+                      controls
+                      src={detailVideoUrl}
+                      sx={{ width: "100%", maxHeight: 220, borderRadius: 1.5, bgcolor: "black" }}
+                    />
+                  </Stack>
+                </Paper>
+              )}
+
+              {/* Galería de Fotos - Symmetrical & Clean */}
+              {detailPhotoUrls.length > 0 && (
+                <Box sx={{ width: "100%" }}>
+                  <Typography
+                    variant="caption"
+                    sx={{
+                      fontWeight: 700,
+                      color: "text.secondary",
+                      mb: 1,
+                      display: "block",
+                      textAlign: "center",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.5px",
+                    }}
+                  >
+                    Evidencias Fotográficas ({detailPhotoUrls.length}):
+                  </Typography>
+
+                  {detailPhotoUrls.length === 1 ? (
+                    <Box sx={{ display: "flex", justifyContent: "center", width: "100%", py: 0.5 }}>
+                      <Box
+                        component="img"
+                        src={detailPhotoUrls[0]}
+                        alt="Evidencia fotográfica"
+                        onClick={() => setPreviewModalUrl(detailPhotoUrls[0])}
+                        sx={{
+                          maxWidth: "100%",
+                          maxHeight: 240,
+                          objectFit: "contain",
+                          borderRadius: 2,
+                          border: "1px solid",
+                          borderColor: "divider",
+                          boxShadow: "0 4px 14px rgba(0,0,0,0.08)",
+                          cursor: "pointer",
+                          transition: "transform 0.2s ease, opacity 0.2s ease",
+                          "&:hover": { transform: "scale(1.02)", opacity: 0.95 },
+                        }}
+                      />
+                    </Box>
+                  ) : (
+                    <Grid container spacing={1.5} justifyContent="center">
+                      {detailPhotoUrls.map((pUrl, idx) => (
+                        <Grid size={{ xs: 6, sm: 4 }} key={idx}>
+                          <Box
+                            component="img"
+                            src={pUrl}
+                            alt={`Evidencia ${idx + 1}`}
+                            onClick={() => setPreviewModalUrl(pUrl)}
+                            sx={{
+                              width: "100%",
+                              height: 120,
+                              objectFit: "cover",
+                              borderRadius: 2,
+                              border: "1px solid",
+                              borderColor: "divider",
+                              cursor: "pointer",
+                              transition: "transform 0.2s ease, opacity 0.2s ease",
+                              "&:hover": { transform: "scale(1.03)", opacity: 0.9 },
+                            }}
+                          />
+                        </Grid>
+                      ))}
+                    </Grid>
+                  )}
+                </Box>
+              )}
+            </Stack>
           )
         }
         fields={
@@ -865,7 +1140,17 @@ export default function MinutaGeneralPage({ isInternal = false }: MinutaGeneralP
                   labelId="priority-label"
                   label="Prioridad"
                   value={formData.priority}
-                  onChange={(e) => setFormData({ ...formData, priority: Number(e.target.value) })}
+                  onChange={(e) => {
+                    const newPriority = Number(e.target.value);
+                    setFormData((prev) => ({ ...prev, priority: newPriority }));
+                    if (newPriority < 4) {
+                      setVideoFile(null);
+                      setVoiceNoteFile(null);
+                      if (photoFiles.length > 2) {
+                        setPhotoFiles(photoFiles.slice(0, 2));
+                      }
+                    }
+                  }}
                 >
                   <MenuItem value={1}>Muy baja</MenuItem>
                   <MenuItem value={2}>Baja</MenuItem>
@@ -1025,31 +1310,108 @@ export default function MinutaGeneralPage({ isInternal = false }: MinutaGeneralP
               </>
             )}
 
-            {/* Anotación Principal */}
+            {/* Anotación Principal con Dictador de Voz Incorporado */}
             <Grid size={12}>
-              <TextField
-                fullWidth
-                required
-                multiline
-                rows={3}
-                label="Anotación / Descripción Detallada de la Novedad"
-                placeholder="Escribe de manera clara todos los detalles relevantes del suceso..."
-                value={formData.annotation}
-                onChange={(e) => setFormData({ ...formData, annotation: e.target.value })}
+              <Box
+                sx={{
+                  border: "1px solid",
+                  borderColor: "divider",
+                  borderRadius: 2,
+                  bgcolor: "background.paper",
+                  overflow: "hidden",
+                  transition: "all 0.2s ease",
+                  "&:hover": {
+                    borderColor: (theme) =>
+                      theme.palette.mode === "dark" ? "rgba(255,255,255,0.25)" : "rgba(0,0,0,0.35)",
+                  },
+                  "&:focus-within": {
+                    borderColor: "primary.main",
+                    boxShadow: (theme) =>
+                      `0 0 0 1px ${theme.palette.primary.main}`,
+                  },
+                }}
+              >
+                <Box sx={{ px: 1.5, pt: 1.2, pb: formData.priority >= 4 ? 0 : 1 }}>
+                  <Typography
+                    variant="caption"
+                    sx={{
+                      fontWeight: 700,
+                      color: "text.secondary",
+                      display: "block",
+                      fontSize: "0.75rem",
+                    }}
+                  >
+                    Anotación / Descripción Detallada de la Novedad *
+                  </Typography>
+                  <TextField
+                    fullWidth
+                    multiline
+                    rows={formData.priority >= 4 ? 3 : 3.5}
+                    variant="standard"
+                    InputProps={{ disableUnderline: true }}
+                    placeholder="Escribe de manera clara todos los detalles relevantes del suceso..."
+                    value={formData.annotation}
+                    onChange={(e) => setFormData({ ...formData, annotation: e.target.value })}
+                    sx={{
+                      mt: 0.5,
+                      "& .MuiInputBase-root": {
+                        fontSize: "0.88rem",
+                        lineHeight: 1.45,
+                      },
+                    }}
+                  />
+                </Box>
+
+                {/* Dictador de Voz Incorporado en la base de la misma caja (Solo Prioridad >= 4) */}
+                {formData.priority >= 4 && (
+                  <AudioVoiceNoteRecorder
+                    embedded
+                    onRecordingStart={() => {
+                      initialAnnotationRef.current = formData.annotation;
+                    }}
+                    onTranscript={(sessionText) => {
+                      setFormData((prev) => {
+                        const base = initialAnnotationRef.current ? initialAnnotationRef.current.trim() : "";
+                        const combined = base ? `${base} ${sessionText}` : sessionText;
+                        return { ...prev, annotation: combined };
+                      });
+                    }}
+                    onDiscard={() => {
+                      setFormData((prev) => ({ ...prev, annotation: initialAnnotationRef.current }));
+                      setVoiceNoteFile(null);
+                    }}
+                    onAudioFileReady={setVoiceNoteFile}
+                    disabled={submitting}
+                  />
+                )}
+              </Box>
+            </Grid>
+
+            {/* Evidencias Multimedia (Grid Symmetrical con Fotos + Video 30s) */}
+            <Grid size={12}>
+              <MultiMediaEvidencePicker
+                priority={formData.priority}
+                photoFiles={photoFiles}
+                onPhotosChange={setPhotoFiles}
+                videoFile={videoFile}
+                onVideoChange={setVideoFile}
+                disabled={submitting}
               />
             </Grid>
 
-            {/* Evidencia Fotográfica */}
-            <Grid size={12}>
-              <ImageUploadCapture
-                label="Evidencia Fotográfica (Opcional)"
-                variant="evidence"
-                value={evidenceFile}
-                previewUrl={existingMediaUrl}
-                onChange={setEvidenceFile}
-                helperText="Toma una foto en vivo con la cámara o selecciona un archivo para respaldar la novedad."
-              />
-            </Grid>
+            {/* Mensaje Informativo Sutil al Final del Formulario (Solo para Prioridad Alta o Crítica) */}
+            {formData.priority >= 4 && (
+              <Grid size={12}>
+                <Stack direction="row" spacing={0.8} alignItems="center" sx={{ px: 0.5, opacity: 0.85 }}>
+                  <InfoOutlinedIcon sx={{ fontSize: 15, color: "text.secondary", flexShrink: 0 }} />
+                  <Typography variant="caption" sx={{ color: "text.secondary", fontSize: "0.72rem", lineHeight: 1.25 }}>
+                    {formData.priority === 5
+                      ? "Este registro notificará inmediatamente por correo y en tiempo real a la Dirección Operativa, Coordinador y Supervisores."
+                      : "Este registro notificará en tiempo real al Coordinador y Supervisores de turno."}
+                  </Typography>
+                </Stack>
+              </Grid>
+            )}
           </Grid>
         </Box>
       </ResponsiveFormDrawer>
@@ -1095,6 +1457,16 @@ export default function MinutaGeneralPage({ isInternal = false }: MinutaGeneralP
           <Button onClick={() => setPreviewModalUrl(null)}>Cerrar</Button>
         </DialogActions>
       </Dialog>
+
+      {/* Drawer Exportar Reporte PDF por Rango */}
+      <MinutaExportPdfDrawer
+        open={exportDialogOpen}
+        onClose={() => setExportDialogOpen(false)}
+        isInternal={isInternal}
+        activeClientId={activeClientId}
+        activeClientName={activeClientName}
+        tenant={tenant}
+      />
     </>
   );
 }

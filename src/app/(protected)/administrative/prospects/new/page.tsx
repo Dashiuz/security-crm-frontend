@@ -22,12 +22,9 @@ import {
   FormGroup,
   FormControlLabel,
   Checkbox,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
   CircularProgress,
 } from "@mui/material";
+import ResponsiveFormDrawer from "@/components/common/ResponsiveFormDrawer";
 import {
   ArrowBack as ArrowBackIcon,
   Save as SaveIcon,
@@ -1120,34 +1117,85 @@ export default function CreateProspectPage() {
         </CardContent>
       </Card>
 
-      {/* Security Study Decision Dialog */}
-      <Dialog
+      {/* Security Study Decision Drawer */}
+      <ResponsiveFormDrawer
         open={securityStudyDialogOpen}
         onClose={() => handleSecurityStudyDecision(false)}
-        maxWidth="sm"
-        fullWidth
+        title="¿Desea iniciar el Estudio de Seguridad?"
+        subtitle="Fase post-registro para evaluación y geofencing"
+        customActions={
+          <Box sx={{ display: "flex", gap: 1.5, width: "100%", justifyContent: "flex-end", flexWrap: "wrap" }}>
+            <Button
+              onClick={() => handleSecurityStudyDecision(false)}
+              variant="outlined"
+              color="inherit"
+              sx={{ textTransform: "none", fontWeight: 600, borderRadius: 2 }}
+            >
+              No, solo guardar prospecto
+            </Button>
+            <Button
+              onClick={() => handleSecurityStudyDecision(true)}
+              variant="contained"
+              color="primary"
+              startIcon={<ShieldIcon />}
+              sx={{ textTransform: "none", fontWeight: 600, borderRadius: 2 }}
+            >
+              Sí, iniciar estudio de seguridad
+            </Button>
+          </Box>
+        }
       >
-        <DialogTitle sx={{ display: "flex", alignItems: "center", gap: 1.5, fontWeight: 600 }}>
-          <ShieldIcon color="primary" sx={{ fontSize: 32 }} />
-          ¿Desea iniciar el Estudio de Seguridad?
-        </DialogTitle>
-        <DialogContent dividers>
-          <Typography variant="body1" sx={{ mb: 2 }}>
-            El prospecto ha sido guardado exitosamente. ¿Deseas iniciar de inmediato la fase de <strong>Estudio de Seguridad y Vulnerabilidad</strong> para este conjunto residencial?
+        <Box sx={{ display: "flex", flexDirection: "column", gap: 2.5 }}>
+          <Box
+            sx={{
+              p: 2.5,
+              borderRadius: 2.5,
+              bgcolor: (theme) =>
+                theme.palette.mode === "dark"
+                  ? "rgba(14, 165, 233, 0.08)"
+                  : "rgba(14, 165, 233, 0.05)",
+              border: "1px solid",
+              borderColor: "primary.main",
+              display: "flex",
+              alignItems: "center",
+              gap: 2,
+            }}
+          >
+            <Box
+              sx={{
+                width: 48,
+                height: 48,
+                borderRadius: "50%",
+                bgcolor: "primary.main",
+                color: "primary.contrastText",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                flexShrink: 0,
+              }}
+            >
+              <ShieldIcon />
+            </Box>
+            <Box>
+              <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                Prospecto Guardado Exitosamente
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                El prospecto comercial ha sido registrado en la base de datos de Noxia.
+              </Typography>
+            </Box>
+          </Box>
+
+          <Typography variant="body1">
+            ¿Deseas iniciar de inmediato la fase de <strong>Estudio de Seguridad y Vulnerabilidad</strong> para este conjunto residencial?
           </Typography>
+
           <Typography variant="body2" color="text.secondary">
-            Si seleccionas <strong>Sí</strong>, el sistema abrirá la orden de estudio. Si seleccionas <strong>No</strong>, el prospecto se mantendrá registrado en el listado para cotización y seguimiento comercial.
+            • <strong>Sí, iniciar estudio</strong>: Abrirá de inmediato la orden de estudio con herramientas de geofencing perimetral y matriz de riesgos.<br />
+            • <strong>No, solo guardar</strong>: El prospecto se mantendrá disponible en el listado para cotización y seguimiento comercial.
           </Typography>
-        </DialogContent>
-        <DialogActions sx={{ p: 2.5 }}>
-          <Button onClick={() => handleSecurityStudyDecision(false)} variant="outlined">
-            No, solo guardar prospecto
-          </Button>
-          <Button onClick={() => handleSecurityStudyDecision(true)} variant="contained" color="primary">
-            Sí, iniciar estudio de seguridad
-          </Button>
-        </DialogActions>
-      </Dialog>
+        </Box>
+      </ResponsiveFormDrawer>
     </Box>
   );
 }

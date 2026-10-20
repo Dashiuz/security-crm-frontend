@@ -26,6 +26,7 @@ import {
   AccessTimeOutlined as AccessTimeOutlinedIcon,
   Visibility as VisibilityIcon,
   Edit as EditIcon,
+  DeleteForever as DeleteForeverIcon,
   RemoveCircle as RemoveCircleIcon,
 } from "@mui/icons-material";
 import { formatDateTime, formatDate, formatTime } from "@/lib/formatters";
@@ -392,7 +393,7 @@ export default function UniversalMobileCard<T extends Record<string, any>>({
   const isRowInactive = row.isActive === false || row.isRetired === true;
   if (onDelete && !isRowInactive && row.slug !== "system" && row.id !== "system") {
     actionItems.push(
-      <Tooltip key="delete" title={deleteActionLabel || "Inhabilitar"}>
+      <Tooltip key="delete" title={deleteActionLabel || "Eliminar..."}>
         <IconButton
           size="small"
           color="error"
@@ -406,7 +407,7 @@ export default function UniversalMobileCard<T extends Record<string, any>>({
           }}
           sx={{ p: 0.5 }}
         >
-          {deleteIcon || <RemoveCircleIcon fontSize="small" />}
+          {deleteIcon || <DeleteForeverIcon fontSize="small" />}
         </IconButton>
       </Tooltip>,
     );
