@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useNotification } from "@/providers/NotificationProvider";
 import DataTable from "@/components/common/DataTable";
 import FormDialog, { FormField } from "@/components/common/FormDialog";
-import { GridColDef } from "@mui/x-data-grid";
+import { GridColDef, GridActionsCellItem } from "@mui/x-data-grid";
 import { z } from "zod";
 import { HttpClient } from "@/lib/api/client";
 
@@ -13,7 +13,13 @@ import PromptConfirmDialog from "@/components/common/PromptConfirmDialog";
 import CsvImportDialog from "@/components/common/CsvImportDialog";
 import { formatDateTime } from "@/lib/formatters";
 import { Chip, Button, Box, Stack, Avatar, Typography, Paper, Grid } from "@mui/material";
-import { CloudUpload as CloudUploadIcon } from "@mui/icons-material";
+import {
+  CloudUpload as CloudUploadIcon,
+  DomainRounded as DomainIcon,
+  Block as BlockIcon,
+  CheckCircle as CheckCircleIcon,
+  DeleteForever as DeleteForeverIcon,
+} from "@mui/icons-material";
 
 const schema = z.object({
   name: z.string().min(1, "El nombre es requerido").max(100),
@@ -36,18 +42,79 @@ const fields: FormField<DepartmentForm>[] = [
 ];
 
 const columns: GridColDef[] = [
-  { field: "name", headerName: "Nombre", flex: 1 },
-  { field: "isActive", headerName: "Activo", type: "boolean", width: 90 },
+  {
+    field: "name",
+    headerName: "Departamento",
+    flex: 1.5,
+    minWidth: 220,
+    renderCell: (params) => (
+      <Stack direction="row" spacing={1.5} alignItems="center" sx={{ height: "100%" }}>
+        <Avatar
+          sx={{
+            width: 34,
+            height: 34,
+            bgcolor: params.row.isActive ? "primary.main" : "text.disabled",
+            color: "#ffffff",
+          }}
+        >
+          <DomainIcon sx={{ fontSize: 18 }} />
+        </Avatar>
+        <Box sx={{ minWidth: 0 }}>
+          <Typography variant="body2" sx={{ fontWeight: 700, lineHeight: 1.2 }} noWrap>
+            {params.value}
+          </Typography>
+          <Typography variant="caption" color="text.secondary" noWrap display="block">
+            {params.row.code ? `Código: ${params.row.code}` : "Área Corporativa"}
+          </Typography>
+        </Box>
+      </Stack>
+    ),
+  },
+  {
+    field: "isActive",
+    headerName: "Estado",
+    width: 130,
+    renderCell: (params) => {
+      const active = Boolean(params.value);
+      return (
+        <Chip
+          size="small"
+          label={active ? "Activo" : "Inactivo"}
+          icon={
+            <Box
+              sx={{
+                width: 7,
+                height: 7,
+                borderRadius: "50%",
+                bgcolor: active ? "#10b981" : "#94a3b8",
+                boxShadow: active ? "0 0 6px rgba(16, 185, 129, 0.6)" : "none",
+                ml: "4px !important",
+              }}
+            />
+          }
+          variant="outlined"
+          sx={{
+            fontWeight: 700,
+            fontSize: "0.72rem",
+            height: 24,
+            borderColor: active ? "success.light" : "divider",
+            color: active ? "success.dark" : "text.secondary",
+            bgcolor: active ? "rgba(16, 185, 129, 0.05)" : "transparent",
+          }}
+        />
+      );
+    },
+  },
   {
     field: "createdBy",
     headerName: "Creado Por",
-    width: 180,
+    width: 170,
     valueGetter: (value: any) => value || "Sistema",
   },
   {
     field: "createdAt",
     headerName: "Creado En",
-    width: 180,
+    width: 170,
     valueFormatter: (value: any) => (value ? formatDateTime(value) : "N/A"),
   },
 ];
@@ -97,6 +164,16 @@ export default function DepartmentsPage() {
       const target = depts.find((d) => d.id === id);
       if (target) setDeleteDept(target);
     });
+  };
+
+  const handleToggleDepartmentStatus = async (dept: any) => {
+    try {
+      await HttpClient.patch(`/department/${dept.id}/status`, { isActive: !dept.isActive });
+      showSuccess(`Departamento ${!dept.isActive ? "habilitado" : "inhabilitado"} exitosamente`);
+      setRefreshTrigger((prev) => prev + 1);
+    } catch (err: any) {
+      showError(err.message || "Error al modificar el estado del departamento");
+    }
   };
 
   const handleConfirmDelete = async () => {
@@ -151,7 +228,24 @@ export default function DepartmentsPage() {
         onCreate={handleCreate}
         onEdit={handleEdit}
         onDelete={handleDeleteRequest}
+        deleteActionLabel="Eliminar..."
+        deleteIcon={<DeleteForeverIcon color="error" />}
         onView={handleView}
+        customActions={(row) => [
+          <GridActionsCellItem
+            key="toggle-status"
+            icon={
+              row.isActive ? (
+                <BlockIcon color="error" fontSize="small" />
+              ) : (
+                <CheckCircleIcon color="success" fontSize="small" />
+              )
+            }
+            label={row.isActive ? "Inhabilitar departamento" : "Habilitar departamento"}
+            onClick={() => handleToggleDepartmentStatus(row)}
+            showInMenu={true}
+          />,
+        ]}
         refreshTrigger={refreshTrigger}
         extraHeaderActions={
           <Button
@@ -240,11 +334,11 @@ Para inhabilitar un departamento, confirma ingresando su nombre exacto.`}
         open={Boolean(deleteDept)}
         onClose={() => setDeleteDept(null)}
         onConfirm={handleConfirmDelete}
-        title="Inhabilitar / Eliminar Departamento"
-        description={`Para confirmar la inactivación del departamento "${deleteDept?.name}", por favor ingrese su nombre exacto:`}
+        title="Eliminar Departamento"
+        description={`Para confirmar la eliminación definitiva del departamento "${deleteDept?.name}", por favor ingrese su nombre exacto:`}
         expectedValue={deleteDept?.name || ""}
         inputLabel="Nombre del Departamento"
-        confirmButtonText="Confirmar Inactivación"
+        confirmButtonText="Confirmar Eliminación"
         confirmColor="error"
       />
 

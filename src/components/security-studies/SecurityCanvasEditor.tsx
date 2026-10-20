@@ -13,14 +13,11 @@ import {
   Chip,
   Divider,
   CircularProgress,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
   Alert,
   Popover,
   Drawer,
 } from "@mui/material";
+import ResponsiveFormDrawer from "@/components/common/ResponsiveFormDrawer";
 
 // High z-index Tooltip to float above the fullscreen canvas container (zIndex: 9999)
 const Tooltip = (props: TooltipProps) => (
@@ -3406,52 +3403,63 @@ export default function SecurityCanvasEditor({
         </Box>
       </Box>
 
-      {/* Confirmation Modal to Approve Geofencing */}
-      <Dialog
+      {/* Confirmation Drawer to Approve Geofencing */}
+      <ResponsiveFormDrawer
         open={approvalDialogOpen}
         onClose={() => setApprovalDialogOpen(false)}
-        maxWidth="sm"
-        fullWidth
-        sx={{ zIndex: 14000 }}
+        title="Aprobar Perímetro y Sincronizar Geofencing"
+        subtitle="Validación perimetral geoespacial (PostGIS)"
+        zIndex={140000}
+        customActions={
+          <Box sx={{ display: "flex", gap: 1.5, width: "100%", justifyContent: "flex-end", flexWrap: "wrap" }}>
+            <Button
+              onClick={() => setApprovalDialogOpen(false)}
+              disabled={approving}
+              variant="outlined"
+              color="inherit"
+              sx={{ textTransform: "none", fontWeight: 600, borderRadius: 2 }}
+            >
+              Cancelar
+            </Button>
+            <Button
+              variant="contained"
+              color="success"
+              startIcon={
+                approving ? (
+                  <CircularProgress size={18} color="inherit" />
+                ) : (
+                  <CheckCircleIcon />
+                )
+              }
+              onClick={handleConfirmApprovePerimeter}
+              disabled={approving}
+              sx={{ textTransform: "none", fontWeight: 600, borderRadius: 2 }}
+            >
+              {approving ? "Sincronizando..." : "Confirmar y Aprobar"}
+            </Button>
+          </Box>
+        }
       >
-        <DialogTitle sx={{ fontWeight: 700 }}>
-          Aprobar Perímetro y Sincronizar Geofencing
-        </DialogTitle>
-        <DialogContent>
-          <Typography variant="body2" sx={{ mb: 2 }}>
+        <Box sx={{ display: "flex", flexDirection: "column", gap: 2.5 }}>
+          <Typography variant="body2">
             Esta acción establecerá el polígono perimetral dibujado como la{" "}
             <strong>Fuente Única de Verdad (SSOT)</strong> para el cliente{" "}
             <strong>{clientName}</strong> en la base de datos geoespacial (PostGIS).
           </Typography>
-          <Alert severity="info" sx={{ mb: 2 }}>
+          <Alert severity="info" sx={{ borderRadius: 2 }}>
             El módulo de Control de Rondas validará las marcaciones del personal
             de seguridad contrastando su GPS contra este polígono perimetral.
           </Alert>
-          <Typography variant="caption" color="text.secondary">
-            Vértices calculados: {canvasData.geofencePolygon.points.length} puntos GPS
-          </Typography>
-        </DialogContent>
-        <DialogActions sx={{ p: 2 }}>
-          <Button onClick={() => setApprovalDialogOpen(false)} disabled={approving}>
-            Cancelar
-          </Button>
-          <Button
-            variant="contained"
-            color="success"
-            startIcon={
-              approving ? (
-                <CircularProgress size={18} color="inherit" />
-              ) : (
-                <CheckCircleIcon />
-              )
-            }
-            onClick={handleConfirmApprovePerimeter}
-            disabled={approving}
-          >
-            {approving ? "Sincronizando..." : "Confirmar y Aprobar"}
-          </Button>
-        </DialogActions>
-      </Dialog>
+          <Paper variant="outlined" sx={{ p: 2, borderRadius: 2, bgcolor: "action.hover" }}>
+            <Typography variant="caption" color="text.secondary" sx={{ display: "block", fontWeight: 600, textTransform: "uppercase", mb: 0.5 }}>
+              Coordenadas Registradas
+            </Typography>
+            <Typography variant="body2" sx={{ fontFamily: "monospace", fontWeight: 600 }}>
+              Vértices calculados: {canvasData.geofencePolygon?.points?.length || 0} puntos GPS
+            </Typography>
+          </Paper>
+        </Box>
+      </ResponsiveFormDrawer>
     </Box>
   );
 }

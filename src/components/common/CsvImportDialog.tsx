@@ -2,10 +2,6 @@
 
 import { useState } from "react";
 import {
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
   Button,
   Box,
   Typography,
@@ -15,6 +11,7 @@ import {
   Chip,
   IconButton,
 } from "@mui/material";
+import ResponsiveFormDrawer from "./ResponsiveFormDrawer";
 import {
   CloudUpload as CloudUploadIcon,
   Close as CloseIcon,
@@ -202,17 +199,60 @@ export default function CsvImportDialog({
   const previewData = parsedData.slice(0, 100);
 
   return (
-    <Dialog open={open} onClose={handleClose} maxWidth="lg" fullWidth>
-      <DialogTitle component="div" sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <Typography variant="h6" component="div" sx={{ fontWeight: 600 }}>
-          {title}
-        </Typography>
-        <IconButton onClick={handleClose} size="small">
-          <CloseIcon />
-        </IconButton>
-      </DialogTitle>
-
-      <DialogContent dividers sx={{ minHeight: 400 }}>
+    <ResponsiveFormDrawer
+      open={open}
+      onClose={handleClose}
+      title={title}
+      subtitle="Carga y mapeo masivo estructurado"
+      width={{ xs: "100%", md: 740, lg: 860 }}
+      customActions={
+        !importResult ? (
+          <Box sx={{ display: "flex", gap: 1.5, justifyContent: "flex-end", width: "100%", flexWrap: "wrap" }}>
+            <Button onClick={handleClose} color="inherit" disabled={loading} sx={{ borderRadius: 2 }}>
+              Descartar
+            </Button>
+            {file && (
+              <Button
+                variant="contained"
+                onClick={handleProcessImport}
+                disabled={loading || parsedData.length === 0}
+                startIcon={loading ? <CircularProgress size={20} color="inherit" /> : <CloudUploadIcon />}
+                sx={{ fontWeight: 600, borderRadius: 2 }}
+              >
+                {loading ? "Procesando Carga..." : "Proceder con la Carga"}
+              </Button>
+            )}
+          </Box>
+        ) : (
+          <Box sx={{ display: "flex", gap: 1.5, justifyContent: "flex-end", width: "100%", flexWrap: "wrap" }}>
+            {importResult.status !== "SUCCESS" && (
+              <>
+                <Button onClick={resetState} startIcon={<RefreshIcon />} sx={{ borderRadius: 2 }}>
+                  Cargar Archivo Nuevo
+                </Button>
+                <Button onClick={handleProcessImport} variant="outlined" disabled={loading} sx={{ borderRadius: 2 }}>
+                  Reintentar en Memoria
+                </Button>
+              </>
+            )}
+            <Button
+              variant="contained"
+              color={importResult.status === "SUCCESS" ? "success" : "primary"}
+              onClick={() => {
+                handleClose();
+                if (importResult.status !== "FAILED" && onSuccessRedirect) {
+                  onSuccessRedirect(importResult);
+                }
+              }}
+              sx={{ fontWeight: 600, borderRadius: 2 }}
+            >
+              {importResult.status === "SUCCESS" ? "Ver Registros" : "Cerrar"}
+            </Button>
+          </Box>
+        )
+      }
+    >
+      <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
         {errorMsg && (
           <Alert severity="error" sx={{ mb: 2 }}>
             {errorMsg}
@@ -357,52 +397,7 @@ export default function CsvImportDialog({
             )}
           </Box>
         )}
-      </DialogContent>
-
-      <DialogActions sx={{ px: 3, py: 2 }}>
-        {!importResult ? (
-          <>
-            <Button onClick={handleClose} color="inherit" disabled={loading}>
-              Descartar
-            </Button>
-            {file && (
-              <Button
-                variant="contained"
-                onClick={handleProcessImport}
-                disabled={loading || parsedData.length === 0}
-                startIcon={loading ? <CircularProgress size={20} color="inherit" /> : <CloudUploadIcon />}
-              >
-                {loading ? "Procesando Carga..." : "Proceder con la Carga"}
-              </Button>
-            )}
-          </>
-        ) : (
-          <>
-            {importResult.status !== "SUCCESS" && (
-              <>
-                <Button onClick={resetState} startIcon={<RefreshIcon />}>
-                  Cargar Archivo Nuevo
-                </Button>
-                <Button onClick={handleProcessImport} variant="outlined" disabled={loading}>
-                  Reintentar en Memoria
-                </Button>
-              </>
-            )}
-            <Button
-              variant="contained"
-              color={importResult.status === "SUCCESS" ? "success" : "primary"}
-              onClick={() => {
-                handleClose();
-                if (importResult.status !== "FAILED" && onSuccessRedirect) {
-                  onSuccessRedirect(importResult);
-                }
-              }}
-            >
-              {importResult.status === "SUCCESS" ? "Ver Registros" : "Cerrar"}
-            </Button>
-          </>
-        )}
-      </DialogActions>
-    </Dialog>
+      </Box>
+    </ResponsiveFormDrawer>
   );
 }

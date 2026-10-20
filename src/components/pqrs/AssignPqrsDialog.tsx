@@ -2,10 +2,6 @@
 
 import { useState, useEffect, useMemo } from "react";
 import {
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
   Button,
   CircularProgress,
   Typography,
@@ -27,6 +23,7 @@ import {
 import { HttpClient } from "@/lib/api/client";
 import { PqrsApi, PqrsTicket, PqrsPriority } from "@/lib/api/pqrs";
 import { useNotification } from "@/providers/NotificationProvider";
+import ResponsiveFormDrawer from "@/components/common/ResponsiveFormDrawer";
 
 interface AssignPqrsDialogProps {
   open: boolean;
@@ -51,7 +48,7 @@ export default function AssignPqrsDialog({
   const [loading, setLoading] = useState(false);
   const [fetchingUsers, setFetchingUsers] = useState(false);
 
-  // Debounce de 500ms para la búsqueda de funcionarios
+  // Debounce de 400ms para la búsqueda de funcionarios
   useEffect(() => {
     if (!inputValue) {
       setDebouncedSearch("");
@@ -63,12 +60,12 @@ export default function AssignPqrsDialog({
     const timer = setTimeout(() => {
       setDebouncedSearch(inputValue.trim().toLowerCase());
       setIsDebouncing(false);
-    }, 500);
+    }, 400);
 
     return () => clearTimeout(timer);
   }, [inputValue]);
 
-  // Cargar funcionarios al abrir el modal
+  // Cargar funcionarios al abrir el drawer
   useEffect(() => {
     if (open) {
       setFetchingUsers(true);
@@ -77,7 +74,7 @@ export default function AssignPqrsDialog({
       setIsDebouncing(false);
       setPriority(ticket?.priority || PqrsPriority.MEDIUM);
 
-      HttpClient.get<any[]>("/user")
+      HttpClient.get<any[]>("/user?userType=EMPLOYEE")
         .then((data) => {
           const activeUsers = (data || []).filter(
             (u) =>
@@ -89,9 +86,16 @@ export default function AssignPqrsDialog({
 
           if (ticket?.assignedToId) {
             const found = activeUsers.find((u) => u.id === ticket.assignedToId);
-            setSelectedUser(found || ticket.assignedTo || null);
+            const userToSet = found || ticket.assignedTo || null;
+            setSelectedUser(userToSet);
+            if (userToSet?.fullName) {
+              setInputValue(
+                `${userToSet.fullName} (${userToSet.position || userToSet.department || "Funcionario"})`
+              );
+            }
           } else {
             setSelectedUser(null);
+            setInputValue("");
           }
         })
         .catch(() => {
@@ -108,6 +112,16 @@ export default function AssignPqrsDialog({
     if (!debouncedSearch) {
       return users;
     }
+    // Si el texto coincide exactamente con el label del funcionario seleccionado, mostrar lista
+    if (
+      selectedUser &&
+      inputValue ===
+        (selectedUser.fullName
+          ? `${selectedUser.fullName} (${selectedUser.position || selectedUser.department || "Funcionario"})`
+          : "")
+    ) {
+      return users;
+    }
     return users.filter((u) => {
       const name = (u.fullName || "").toLowerCase();
       const pos = (u.position || "").toLowerCase();
@@ -120,10 +134,13 @@ export default function AssignPqrsDialog({
         doc.includes(debouncedSearch)
       );
     });
-  }, [users, debouncedSearch]);
+  }, [users, debouncedSearch, selectedUser, inputValue]);
 
   const handleSubmit = async () => {
-    if (!ticket || !selectedUser?.id) return;
+    if (!ticket || !selectedUser?.id) {
+      showError("Debe seleccionar un funcionario responsable");
+      return;
+    }
     setLoading(true);
     try {
       await PqrsApi.assign(ticket.id, {
@@ -141,37 +158,59 @@ export default function AssignPqrsDialog({
   };
 
   return (
-    <Dialog
+    <ResponsiveFormDrawer
       open={open}
-      onClose={loading ? undefined : onClose}
-      maxWidth="sm"
-      fullWidth
-      slotProps={{
-        paper: {
-          sx: { borderRadius: 3 },
-        },
-      }}
+      onClose={loading ? () => {} : onClose}
+      title="Asignar Funcionario Encargado"
+      subtitle={
+        ticket
+          ? `Ticket: ${ticket.code} — ${ticket.subject}`
+          : "Gestión de asignación de PQRS"
+      }
+      headerIcon={<AssignIcon color="primary" />}
+      isSubmitting={loading}
+      submitButtonText="Confirmar Asignación"
+      formId="assign-pqrs-form"
+      width={{ xs: "100%", md: 480 }}
     >
-      <DialogTitle sx={{ display: "flex", alignItems: "center", gap: 1, fontWeight: 700 }}>
-        <AssignIcon color="primary" />
-        Asignar Funcionario Encargado
-      </DialogTitle>
-      <DialogContent dividers>
+      <Box
+        component="form"
+        id="assign-pqrs-form"
+        onSubmit={(e) => {
+          e.preventDefault();
+          handleSubmit();
+        }}
+        sx={{ display: "flex", flexDirection: "column", gap: 2.5 }}
+      >
         {ticket && (
-          <Box sx={{ mb: 2 }}>
-            <Typography variant="subtitle2" color="text.secondary">
-              Ticket: <strong>{ticket.code}</strong> — {ticket.subject}
+          <Box
+            sx={{
+              p: 2,
+              borderRadius: 2,
+              bgcolor: (theme) =>
+                theme.palette.mode === "dark"
+                  ? "rgba(255, 255, 255, 0.04)"
+                  : "rgba(0, 0, 0, 0.02)",
+              border: "1px solid",
+              borderColor: "divider",
+            }}
+          >
+            <Typography variant="caption" color="text.secondary" display="block">
+              INFORMACIÓN DE LA SOLICITUD
             </Typography>
-            <Typography variant="body2" color="text.secondary">
-              Cliente: {ticket.client?.name || "No especificado"}
+            <Typography variant="body2" fontWeight={700} sx={{ mt: 0.5 }}>
+              {ticket.code} — {ticket.subject}
+            </Typography>
+            <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.5 }}>
+              Cliente: <strong>{ticket.client?.name || "No especificado"}</strong>
             </Typography>
           </Box>
         )}
 
-        <Alert severity="info" sx={{ mb: 2.5 }}>
-          Al asignar este ticket, si se encuentra en estado <strong>ABIERTO</strong>, pasará
-          automáticamente a <strong>ASIGNADO</strong> y el funcionario asignado recibirá la
-          notificación.
+        <Alert severity="info" sx={{ fontSize: "0.85rem" }}>
+          Al asignar este ticket, si se encuentra en estado <strong>ABIERTO</strong>,
+          pasará automáticamente a <strong>ASIGNADO</strong> y el funcionario
+          responsable recibirá la notificación.
         </Alert>
 
         {fetchingUsers ? (
@@ -183,14 +222,17 @@ export default function AssignPqrsDialog({
             value={selectedUser}
             onChange={(_event, newValue) => {
               setSelectedUser(newValue);
-            }}
-            inputValue={inputValue}
-            onInputChange={(_event, newInputValue, reason) => {
-              if (reason === "input") {
-                setInputValue(newInputValue);
-              } else if (reason === "clear") {
+              if (newValue?.fullName) {
+                setInputValue(
+                  `${newValue.fullName} (${newValue.position || newValue.department || "Funcionario"})`
+                );
+              } else {
                 setInputValue("");
               }
+            }}
+            inputValue={inputValue}
+            onInputChange={(_event, newInputValue) => {
+              setInputValue(newInputValue);
             }}
             options={filteredUsers}
             getOptionLabel={(option) =>
@@ -261,14 +303,15 @@ export default function AssignPqrsDialog({
             renderInput={(params) => (
               <TextField
                 {...params}
-                label="Seleccionar Funcionario"
+                label="Seleccionar Funcionario Responsable *"
                 placeholder="Escribe el nombre, cargo o documento..."
                 size="small"
+                required
                 InputProps={{
                   ...params.InputProps,
                   startAdornment: (
                     <>
-                      <SearchIcon color="action" sx={{ mr: 0.5, fontSize: 20 }} />
+                      <SearchIcon color="action" sx={{ mr: 1, fontSize: 20 }} />
                       {params.InputProps.startAdornment}
                     </>
                   ),
@@ -281,45 +324,77 @@ export default function AssignPqrsDialog({
                     </>
                   ),
                 }}
+                helperText="Busca y selecciona el funcionario que liderará la gestión del caso."
               />
             )}
           />
         )}
 
-        <FormControl fullWidth size="small" sx={{ mt: 2.5 }}>
-          <InputLabel id="assign-priority-label">Prioridad de la Solicitud</InputLabel>
+        <FormControl fullWidth size="small">
+          <InputLabel id="assign-priority-label">
+            Prioridad de la Solicitud
+          </InputLabel>
           <Select
             labelId="assign-priority-label"
             value={priority}
             label="Prioridad de la Solicitud"
             onChange={(e) => setPriority(e.target.value as PqrsPriority)}
           >
-            <MenuItem value={PqrsPriority.LOW}>🟢 Baja</MenuItem>
-            <MenuItem value={PqrsPriority.MEDIUM}>🟡 Media</MenuItem>
-            <MenuItem value={PqrsPriority.HIGH}>🟠 Alta</MenuItem>
-            <MenuItem value={PqrsPriority.CRITICAL}>🔴 Crítica</MenuItem>
+            <MenuItem value={PqrsPriority.LOW}>
+              <Stack direction="row" spacing={1} alignItems="center">
+                <Box
+                  sx={{
+                    width: 10,
+                    height: 10,
+                    borderRadius: "50%",
+                    bgcolor: "#10b981",
+                  }}
+                />
+                <Typography variant="body2">Baja</Typography>
+              </Stack>
+            </MenuItem>
+            <MenuItem value={PqrsPriority.MEDIUM}>
+              <Stack direction="row" spacing={1} alignItems="center">
+                <Box
+                  sx={{
+                    width: 10,
+                    height: 10,
+                    borderRadius: "50%",
+                    bgcolor: "#3b82f6",
+                  }}
+                />
+                <Typography variant="body2">Media</Typography>
+              </Stack>
+            </MenuItem>
+            <MenuItem value={PqrsPriority.HIGH}>
+              <Stack direction="row" spacing={1} alignItems="center">
+                <Box
+                  sx={{
+                    width: 10,
+                    height: 10,
+                    borderRadius: "50%",
+                    bgcolor: "#f59e0b",
+                  }}
+                />
+                <Typography variant="body2">Alta</Typography>
+              </Stack>
+            </MenuItem>
+            <MenuItem value={PqrsPriority.CRITICAL}>
+              <Stack direction="row" spacing={1} alignItems="center">
+                <Box
+                  sx={{
+                    width: 10,
+                    height: 10,
+                    borderRadius: "50%",
+                    bgcolor: "#ef4444",
+                  }}
+                />
+                <Typography variant="body2">Crítica</Typography>
+              </Stack>
+            </MenuItem>
           </Select>
         </FormControl>
-      </DialogContent>
-      <DialogActions sx={{ px: 3, py: 2 }}>
-        <Button onClick={onClose} disabled={loading} color="inherit">
-          Cancelar
-        </Button>
-        <Button
-          variant="contained"
-          onClick={handleSubmit}
-          disabled={!selectedUser?.id || loading || fetchingUsers}
-          startIcon={
-            loading ? (
-              <CircularProgress size={18} color="inherit" />
-            ) : (
-              <AssignIcon />
-            )
-          }
-        >
-          {loading ? "Asignando..." : "Confirmar Asignación"}
-        </Button>
-      </DialogActions>
-    </Dialog>
+      </Box>
+    </ResponsiveFormDrawer>
   );
 }

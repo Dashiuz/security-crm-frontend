@@ -22,11 +22,13 @@ export interface ResponsiveFormDrawerProps {
   headerBadge?: React.ReactNode;
   children: React.ReactNode;
   actions?: React.ReactNode;
+  customActions?: React.ReactNode;
   width?: number | string | { xs?: any; sm?: any; md?: any; lg?: any };
   isSubmitting?: boolean;
   submitButtonText?: string;
   submitButtonColor?: "primary" | "secondary" | "warning" | "error" | "info" | "success" | "inherit";
   formId?: string;
+  zIndex?: number;
 }
 
 export default function ResponsiveFormDrawer({
@@ -38,16 +40,19 @@ export default function ResponsiveFormDrawer({
   headerBadge,
   children,
   actions,
+  customActions,
   width,
   isSubmitting = false,
   submitButtonText,
   submitButtonColor = "primary",
   formId,
+  zIndex,
 }: ResponsiveFormDrawerProps) {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("md"));
 
-  const renderedActions = actions || (submitButtonText || formId ? (
+  const actionContent = customActions || actions;
+  const renderedActions = actionContent || (submitButtonText || formId ? (
     <Box sx={{ display: "flex", gap: 1.5, justifyContent: "flex-end", width: "100%", flexDirection: { xs: "column-reverse", sm: "row" } }}>
       <Button onClick={onClose} color="inherit" disabled={isSubmitting} sx={{ width: { xs: "100%", sm: "auto" } }}>
         Cancelar
@@ -73,9 +78,9 @@ export default function ResponsiveFormDrawer({
         open={open}
         onClose={onClose}
         sx={{
-          zIndex: (theme) => theme.zIndex.drawer + 50,
+          zIndex: (theme) => zIndex || theme.zIndex.drawer + 50,
           "& .MuiDrawer-paper": {
-            zIndex: (theme) => theme.zIndex.drawer + 50,
+            zIndex: (theme) => zIndex || theme.zIndex.drawer + 50,
           },
         }}
         PaperProps={{
@@ -173,9 +178,9 @@ export default function ResponsiveFormDrawer({
       open={open}
       onClose={onClose}
       sx={{
-        zIndex: (theme) => theme.zIndex.drawer + 50,
+        zIndex: (theme) => zIndex || theme.zIndex.drawer + 50,
         "& .MuiDrawer-paper": {
-          zIndex: (theme) => theme.zIndex.drawer + 50,
+          zIndex: (theme) => zIndex || theme.zIndex.drawer + 50,
         },
       }}
       PaperProps={{

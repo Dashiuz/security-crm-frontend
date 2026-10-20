@@ -2,28 +2,14 @@
 
 import React from "react";
 import {
-  Dialog,
   Drawer,
   Box,
   Typography,
   IconButton,
-  AppBar,
-  Toolbar,
   useTheme,
   useMediaQuery,
-  Slide,
 } from "@mui/material";
-import { TransitionProps } from "@mui/material/transitions";
-import { Close as CloseIcon, ArrowBack as ArrowBackIcon } from "@mui/icons-material";
-
-const Transition = React.forwardRef(function Transition(
-  props: TransitionProps & {
-    children: React.ReactElement;
-  },
-  ref: React.Ref<unknown>,
-) {
-  return <Slide direction="up" ref={ref} {...props} />;
-});
+import { Close as CloseIcon } from "@mui/icons-material";
 
 export interface ResponsiveDetailWrapperProps {
   open: boolean;

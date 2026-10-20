@@ -29,6 +29,7 @@ import {
   ShieldRounded as ShieldIcon,
   ApartmentRounded as ApartmentIcon,
   ArrowForwardIosRounded as ArrowForwardIcon,
+  SupervisorAccountRounded as SupervisorAccountIcon,
 } from "@mui/icons-material";
 import { ClientProvider, useClientDetail } from "./ClientContext";
 
@@ -64,6 +65,14 @@ function ClientLayoutContent({ children }: { children: React.ReactNode }) {
       icon: <HomeWorkIcon fontSize="small" />,
       description: "Estructura física, amenidades y accesos",
       visible: permissions.canReadOperations,
+    },
+    {
+      id: "users",
+      label: "Equipo Asignado",
+      pathSuffix: "users",
+      icon: <SupervisorAccountIcon fontSize="small" />,
+      description: "Personal, supervisores y coordinadores vinculados",
+      visible: permissions.canReadGeneral,
     },
     {
       id: "legal",
@@ -197,9 +206,13 @@ function ClientLayoutContent({ children }: { children: React.ReactNode }) {
                   <Typography
                     variant="subtitle1"
                     fontWeight={700}
-                    noWrap
                     title={client?.name}
-                    sx={{ flex: 1, fontSize: "0.95rem" }}
+                    sx={{
+                      flex: 1,
+                      fontSize: "0.95rem",
+                      lineHeight: 1.3,
+                      wordBreak: "break-word",
+                    }}
                   >
                     {client?.name || "Cliente"}
                   </Typography>
@@ -227,6 +240,13 @@ function ClientLayoutContent({ children }: { children: React.ReactNode }) {
                       client?.clientStatus === "ACTIVE" ? "success" : "default"
                     }
                     sx={{ fontSize: "0.72rem", height: 22, fontWeight: 600 }}
+                  />
+                  <Chip
+                    size="small"
+                    label={`Omega: ${client?.internalCode || "N/A"}`}
+                    variant="outlined"
+                    color="primary"
+                    sx={{ fontSize: "0.72rem", height: 22, fontWeight: 700 }}
                   />
                 </Box>
               </>

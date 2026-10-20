@@ -11,6 +11,14 @@ export interface Tenant {
   primaryColor?: string;
   secondaryColor?: string;
   sidebarColor?: string;
+  profile?: {
+    legalName?: string;
+    taxId?: string;
+    contactPhone?: string;
+    contactEmail?: string;
+    address?: string;
+    city?: string;
+  };
 }
 
 export interface User {

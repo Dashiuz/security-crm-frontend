@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { useNotification } from "@/providers/NotificationProvider";
 import DataTable from "@/components/common/DataTable";
 import FormDialog, { FormField } from "@/components/common/FormDialog";
@@ -13,6 +14,12 @@ import {
   PersonAdd as PersonAddIcon,
   Badge as BadgeIcon,
   CloudUpload as CloudUploadIcon,
+  BusinessOutlined as BusinessIcon,
+  Domain as DomainIcon,
+  DomainDisabled as DomainDisabledIcon,
+  History as HistoryIcon,
+  CalendarToday as CalendarIcon,
+  SwapHoriz as SwapHorizIcon,
 } from "@mui/icons-material";
 import CsvImportDialog from "@/components/common/CsvImportDialog";
 import { Chip, Box, Avatar, Typography, Stack, Button, Paper, Grid } from "@mui/material";
@@ -42,6 +49,7 @@ const schema = z.object({
 type EmployeeForm = z.infer<typeof schema>;
 
 export default function EmployeesPage() {
+  const router = useRouter();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [defaultValues, setDefaultValues] = useState<
@@ -50,8 +58,6 @@ export default function EmployeesPage() {
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [loading, setLoading] = useState(false);
   const { showError, showSuccess } = useNotification();
-  const [detailEmployee, setDetailEmployee] = useState<any | null>(null);
-  const [detailAvatarUrl, setDetailAvatarUrl] = useState<string | null>(null);
   const [retireEmployeeData, setRetireEmployeeData] = useState<any | null>(null);
   const [reactivateEmployeeData, setReactivateEmployeeData] = useState<any | null>(null);
 
@@ -61,7 +67,6 @@ export default function EmployeesPage() {
 
   const [csvImportOpen, setCsvImportOpen] = useState(false);
 
-  const [clients, setClients] = useState<{ value: string; label: string }[]>([]);
   const [departments, setDepartments] = useState<
     { value: string; label: string }[]
   >([]);
@@ -72,20 +77,10 @@ export default function EmployeesPage() {
   useEffect(() => {
     const fetchRelations = async () => {
       try {
-        const [clsRes, deptsRes, postsRes] = await Promise.allSettled([
-          HttpClient.get<any[]>("/client"),
+        const [deptsRes, postsRes] = await Promise.allSettled([
           HttpClient.get<any[]>("/department"),
           HttpClient.get<any[]>("/position"),
         ]);
-
-        if (clsRes.status === "fulfilled" && Array.isArray(clsRes.value)) {
-          const sortedCls = [...clsRes.value].sort((a, b) =>
-            a.name.localeCompare(b.name),
-          );
-          setClients(
-            sortedCls.map((c) => ({ value: c.id, label: `${c.name} (${c.internalCode})` })),
-          );
-        }
 
         if (deptsRes.status === "fulfilled" && Array.isArray(deptsRes.value)) {
           const sortedDepts = [...deptsRes.value].sort((a, b) =>
@@ -144,12 +139,6 @@ export default function EmployeesPage() {
       required: true,
     },
     { name: "address", label: "Dirección", required: true },
-    {
-      name: "clientId",
-      label: "Cliente / Conjunto Residencial",
-      type: "select",
-      options: clients,
-    },
     {
       name: "departmentId",
       label: "Departamento",
@@ -213,20 +202,8 @@ export default function EmployeesPage() {
     }
   };
 
-  const handleView = async (row: any) => {
-    setDetailEmployee(row);
-    setDetailAvatarUrl(null);
-    try {
-      if (row.mediaAttachments && row.mediaAttachments.length > 0) {
-        const presigned = await StorageApi.getPresignedUrl(row.mediaAttachments[0].id);
-        setDetailAvatarUrl(presigned.presignedUrl);
-      } else {
-        const mediaList = await StorageApi.getByEntity(MediaTypeCategory.EMPLOYEE, row.id);
-        if (mediaList && mediaList.length > 0) {
-          setDetailAvatarUrl(mediaList[0].presignedUrl || null);
-        }
-      }
-    } catch { }
+  const handleView = (row: any) => {
+    router.push(`/administrative/employees/${row.id}/overview`);
   };
 
   const handleRetireConfirm = async () => {
@@ -255,6 +232,13 @@ export default function EmployeesPage() {
     if (row.isRetired || !row.isActive) {
       return [
         <GridActionsCellItem
+          key={`view-${row.id}`}
+          icon={<BadgeIcon color="primary" />}
+          label="Ver Ficha Integral"
+          showInMenu={true}
+          onClick={() => router.push(`/administrative/employees/${row.id}/overview`)}
+        />,
+        <GridActionsCellItem
           key={`reactivate-${row.id}`}
           icon={<PersonAddIcon color="success" />}
           label="Reactivar Empleado"
@@ -264,6 +248,27 @@ export default function EmployeesPage() {
       ];
     }
     return [
+      <GridActionsCellItem
+        key={`view-${row.id}`}
+        icon={<BadgeIcon color="primary" />}
+        label="Ver Ficha Integral"
+        showInMenu={true}
+        onClick={() => router.push(`/administrative/employees/${row.id}/overview`)}
+      />,
+      <GridActionsCellItem
+        key={`assignments-${row.id}`}
+        icon={<BusinessIcon color="primary" />}
+        label="Puestos Asignados"
+        showInMenu={true}
+        onClick={() => router.push(`/administrative/employees/${row.id}/assignments`)}
+      />,
+      <GridActionsCellItem
+        key={`account-${row.id}`}
+        icon={<BadgeIcon color="secondary" />}
+        label="Cuenta Digital"
+        showInMenu={true}
+        onClick={() => router.push(`/administrative/employees/${row.id}/account`)}
+      />,
       <GridActionsCellItem
         key={`retire-${row.id}`}
         icon={<PersonOffIcon color="warning" />}
@@ -375,14 +380,18 @@ export default function EmployeesPage() {
       },
     },
     {
-      field: "clientName",
-      headerName: "Cliente / Conjunto",
-      flex: 1,
-      minWidth: 160,
-      valueGetter: (value: any) => value || "Sin asignar",
+      field: "positionName",
+      headerName: "Cargo",
+      width: 150,
+      renderCell: (params) => (
+        <Chip
+          size="small"
+          label={params.value || "Sin Cargo"}
+          variant="outlined"
+          sx={{ fontWeight: 600, fontSize: "0.75rem" }}
+        />
+      ),
     },
-    { field: "email", headerName: "Email", flex: 1, minWidth: 160 },
-    { field: "phone", headerName: "Teléfono", width: 120 },
     {
       field: "departmentName",
       headerName: "Departamento",
@@ -390,12 +399,45 @@ export default function EmployeesPage() {
       valueGetter: (value: any) => value || "N/A",
     },
     {
-      field: "positionName",
-      headerName: "Cargo",
-      width: 140,
-      valueGetter: (value: any) => value || "N/A",
+      field: "hasUser",
+      headerName: "Acceso Digital",
+      width: 160,
+      renderCell: (params) => {
+        const hasUser = Boolean(params.row.hasUser);
+        const role = params.row.userRole;
+        return (
+          <Chip
+            size="small"
+            label={hasUser ? (role ? `${role}` : "Con Usuario") : "Sin Acceso"}
+            color={hasUser ? "primary" : "default"}
+            variant={hasUser ? "filled" : "outlined"}
+            sx={{
+              fontWeight: 600,
+              fontSize: "0.72rem",
+            }}
+          />
+        );
+      },
     },
-    { field: "isActive", headerName: "Activo", type: "boolean", width: 80 },
+    {
+      field: "isActive",
+      headerName: "Estado",
+      width: 100,
+      renderCell: (params) => {
+        const isRetired = Boolean(params.row.isRetired);
+        const isActive = Boolean(params.row.isActive);
+        return (
+          <Chip
+            size="small"
+            label={isRetired ? "Retirado" : isActive ? "Activo" : "Inactivo"}
+            color={isRetired ? "error" : isActive ? "success" : "default"}
+            sx={{ fontWeight: 600, fontSize: "0.72rem" }}
+          />
+        );
+      },
+    },
+    { field: "email", headerName: "Email", flex: 1, minWidth: 150 },
+    { field: "phone", headerName: "Teléfono", width: 120 },
   ];
 
   return (
@@ -407,6 +449,7 @@ export default function EmployeesPage() {
         breadcrumbs={[{ label: "Administrativo" }, { label: "Empleados" }]}
         onCreate={handleCreate}
         onEdit={handleEdit}
+        editActionLabel="Editar Datos"
         onView={handleView}
         customActions={customActions}
         refreshTrigger={refreshTrigger}
@@ -431,119 +474,8 @@ export default function EmployeesPage() {
         }
         infoDescription="Registro y control de la información del personal de la empresa, incluyendo fotografía en vivo, datos de identificación, contacto y vinculación organizacional."
         infoInstructions={`Utiliza el botón 'Crear' para registrar un nuevo empleado con captura de foto en vivo o subida de archivo.
-Haz clic en el icono de ojo para ver los detalles y fotografía en alta resolución del empleado.
-Haz clic en el icono de baja para retirar al empleado o en la persona con signo más para reactivarlo.`}
+Haz clic sobre una fila o en el icono de ver para abrir la Ficha Integral del Recurso (Hub & Spoke), donde podrás gestionar datos laborales, puestos concurrentes, credenciales de usuario y programación de turnos.`}
       />
-
-      <ResponsiveDetailWrapper
-        open={Boolean(detailEmployee)}
-        onClose={() => setDetailEmployee(null)}
-        title="Detalles del Empleado"
-        actions={
-          <Box display="flex" justifyContent="flex-end">
-            <Button onClick={() => setDetailEmployee(null)} variant="outlined">
-              Cerrar
-            </Button>
-          </Box>
-        }
-      >
-        {detailEmployee && (
-          <Box>
-            <Box sx={{ bgcolor: 'background.default', p: 3, borderRadius: 2, mb: 3 }}>
-              <Stack direction="row" spacing={2} alignItems="center">
-                <Avatar
-                  src={detailAvatarUrl || detailEmployee?.avatarUrl || undefined}
-                  sx={{ width: 64, height: 64, bgcolor: "primary.main", fontSize: "1.5rem", fontWeight: 700 }}
-                >
-                  {detailEmployee.fullName
-                    ? detailEmployee.fullName
-                      .split(" ")
-                      .map((n: string) => n[0])
-                      .slice(0, 2)
-                      .join("")
-                    : "EM"}
-                </Avatar>
-                <Box>
-                  <Typography variant="h5" sx={{ fontWeight: 600 }}>
-                    {detailEmployee.fullName}
-                  </Typography>
-                  <Stack direction="row" spacing={1} sx={{ mt: 1, flexWrap: "wrap", gap: 1 }}>
-                    <Chip size="small" label={detailEmployee.positionName || "Sin Cargo"} variant="outlined" sx={{ ml: "0 !important" }} />
-                    <Chip size="small" label={detailEmployee.departmentName || "Sin Departamento"} variant="outlined" />
-                    <Chip
-                      size="small"
-                      label={
-                        detailEmployee.isRetired
-                          ? "Dado de Baja"
-                          : detailEmployee.isActive
-                            ? "Activo"
-                            : "Inactivo"
-                      }
-                      color={
-                        detailEmployee.isRetired
-                          ? "error"
-                          : detailEmployee.isActive
-                            ? "success"
-                            : "default"
-                      }
-                    />
-                  </Stack>
-                </Box>
-              </Stack>
-            </Box>
-
-            <Grid container spacing={3}>
-              <Grid size={{ xs: 12, md: 6 }}>
-                <Paper elevation={0} sx={{ bgcolor: 'background.default', borderRadius: 2, p: 3, height: '100%' }}>
-                  <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 2, fontWeight: 600, textTransform: 'uppercase', fontSize: '0.75rem' }}>
-                    Datos de Contacto
-                  </Typography>
-                  <Stack spacing={2}>
-                    <Box>
-                      <Typography variant="caption" sx={{ fontWeight: 600 }}>Correo Electrónico</Typography>
-                      <Typography variant="body2">{detailEmployee.email || "Sin registrar"}</Typography>
-                    </Box>
-                    <Box>
-                      <Typography variant="caption" sx={{ fontWeight: 600 }}>Teléfono</Typography>
-                      <Typography variant="body2">{detailEmployee.phone || "Sin registrar"}</Typography>
-                    </Box>
-                    <Box>
-                      <Typography variant="caption" sx={{ fontWeight: 600 }}>Dirección</Typography>
-                      <Typography variant="body2">{detailEmployee.address || "Sin registrar"}</Typography>
-                    </Box>
-                    <Box>
-                      <Typography variant="caption" sx={{ fontWeight: 600 }}>Cliente / Conjunto</Typography>
-                      <Typography variant="body2">{detailEmployee.clientName || "Sin asignar"}</Typography>
-                    </Box>
-                  </Stack>
-                </Paper>
-              </Grid>
-
-              <Grid size={{ xs: 12, md: 6 }}>
-                <Paper elevation={0} sx={{ bgcolor: 'background.default', borderRadius: 2, p: 3, height: '100%' }}>
-                  <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 2, fontWeight: 600, textTransform: 'uppercase', fontSize: '0.75rem' }}>
-                    Información Operativa
-                  </Typography>
-                  <Stack spacing={2}>
-                    <Box>
-                      <Typography variant="caption" sx={{ fontWeight: 600 }}>Documento</Typography>
-                      <Typography variant="body2">{detailEmployee.documentType || "CC"}: {detailEmployee.document}</Typography>
-                    </Box>
-                    <Box>
-                      <Typography variant="caption" sx={{ fontWeight: 600 }}>Fecha de Nacimiento</Typography>
-                      <Typography variant="body2">{detailEmployee.birthdate || "N/A"}</Typography>
-                    </Box>
-                    <Box>
-                      <Typography variant="caption" sx={{ fontWeight: 600 }}>Fecha de Ingreso</Typography>
-                      <Typography variant="body2">{detailEmployee.entryDate || "N/A"}</Typography>
-                    </Box>
-                  </Stack>
-                </Paper>
-              </Grid>
-            </Grid>
-          </Box>
-        )}
-      </ResponsiveDetailWrapper>
 
       <PromptConfirmDialog
         open={Boolean(retireEmployeeData)}

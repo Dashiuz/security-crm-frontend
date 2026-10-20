@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useNotification } from "@/providers/NotificationProvider";
 import DataTable from "@/components/common/DataTable";
 import FormDialog, { FormField } from "@/components/common/FormDialog";
-import { GridColDef } from "@mui/x-data-grid";
+import { GridColDef, GridActionsCellItem } from "@mui/x-data-grid";
 import { z } from "zod";
 import { HttpClient } from "@/lib/api/client";
 
@@ -13,11 +13,28 @@ import PromptConfirmDialog from "@/components/common/PromptConfirmDialog";
 import CsvImportDialog from "@/components/common/CsvImportDialog";
 import { formatDateTime } from "@/lib/formatters";
 import { Chip, Button, Box, Stack, Avatar, Typography, Paper, Grid } from "@mui/material";
-import { CloudUpload as CloudUploadIcon } from "@mui/icons-material";
+import {
+  CloudUpload as CloudUploadIcon,
+  BadgeRounded as BadgeIcon,
+  Block as BlockIcon,
+  CheckCircle as CheckCircleIcon,
+  DeleteForever as DeleteForeverIcon,
+} from "@mui/icons-material";
+
+export const OPERATIONAL_CATEGORIES = [
+  { value: "DIRECTOR", label: "Director / Gerencial", color: "error" },
+  { value: "COORDINATOR", label: "Coordinador", color: "warning" },
+  { value: "SUPERVISOR", label: "Supervisor", color: "info" },
+  { value: "OPERATOR", label: "Operador de Medios / CCTV", color: "secondary" },
+  { value: "GUARD", label: "Guarda de Seguridad", color: "primary" },
+  { value: "ADMINISTRATIVE", label: "Administrativo", color: "default" },
+  { value: "OTHER", label: "Otro Cargo", color: "default" },
+];
 
 const schema = z.object({
   name: z.string().min(1, "El nombre es requerido").max(100),
   level: z.coerce.number().int().min(1).optional().default(1),
+  operationalCategory: z.string().optional().default("GUARD"),
   isActive: z.boolean().optional().default(true),
 });
 
@@ -25,6 +42,15 @@ type PositionForm = z.infer<typeof schema>;
 
 const fields: FormField<PositionForm>[] = [
   { name: "name", label: "Nombre de la Posición/Cargo", required: true },
+  {
+    name: "operationalCategory",
+    label: "Categoría Operativa",
+    type: "select",
+    options: OPERATIONAL_CATEGORIES.map((c) => ({
+      value: c.value,
+      label: c.label,
+    })),
+  },
   { name: "level", label: "Nivel (Numérico)", type: "number" },
   {
     name: "isActive",
@@ -38,19 +64,96 @@ const fields: FormField<PositionForm>[] = [
 ];
 
 const columns: GridColDef[] = [
-  { field: "name", headerName: "Cargo", flex: 1 },
-  { field: "level", headerName: "Nivel", width: 90 },
-  { field: "isActive", headerName: "Activo", type: "boolean", width: 90 },
+  {
+    field: "name",
+    headerName: "Cargo / Posición",
+    flex: 1.5,
+    minWidth: 220,
+    renderCell: (params) => (
+      <Stack direction="row" spacing={1.5} alignItems="center" sx={{ height: "100%" }}>
+        <Avatar
+          sx={{
+            width: 34,
+            height: 34,
+            bgcolor: params.row.isActive ? "#0d9488" : "text.disabled",
+            color: "#ffffff",
+          }}
+        >
+          <BadgeIcon sx={{ fontSize: 18 }} />
+        </Avatar>
+        <Box sx={{ minWidth: 0 }}>
+          <Typography variant="body2" sx={{ fontWeight: 700, lineHeight: 1.2 }} noWrap>
+            {params.value}
+          </Typography>
+          <Typography variant="caption" color="text.secondary" noWrap display="block">
+            Nivel jerárquico: {params.row.level ?? 1}
+          </Typography>
+        </Box>
+      </Stack>
+    ),
+  },
+  {
+    field: "operationalCategory",
+    headerName: "Categoría Operativa",
+    width: 190,
+    renderCell: (params) => {
+      const cat = OPERATIONAL_CATEGORIES.find((c) => c.value === params.value);
+      return (
+        <Chip
+          size="small"
+          label={cat?.label || params.value || "Guarda"}
+          color={(cat?.color as any) || "default"}
+          variant="outlined"
+          sx={{ fontWeight: 600 }}
+        />
+      );
+    },
+  },
+  {
+    field: "isActive",
+    headerName: "Estado",
+    width: 130,
+    renderCell: (params) => {
+      const active = Boolean(params.value);
+      return (
+        <Chip
+          size="small"
+          label={active ? "Activo" : "Inactivo"}
+          icon={
+            <Box
+              sx={{
+                width: 7,
+                height: 7,
+                borderRadius: "50%",
+                bgcolor: active ? "#10b981" : "#94a3b8",
+                boxShadow: active ? "0 0 6px rgba(16, 185, 129, 0.6)" : "none",
+                ml: "4px !important",
+              }}
+            />
+          }
+          variant="outlined"
+          sx={{
+            fontWeight: 700,
+            fontSize: "0.72rem",
+            height: 24,
+            borderColor: active ? "success.light" : "divider",
+            color: active ? "success.dark" : "text.secondary",
+            bgcolor: active ? "rgba(16, 185, 129, 0.05)" : "transparent",
+          }}
+        />
+      );
+    },
+  },
   {
     field: "createdBy",
     headerName: "Creado Por",
-    width: 180,
+    width: 170,
     valueGetter: (value: any) => value || "Sistema",
   },
   {
     field: "createdAt",
     headerName: "Creado En",
-    width: 180,
+    width: 170,
     valueFormatter: (value: any) => (value ? formatDateTime(value) : "N/A"),
   },
 ];
@@ -70,7 +173,12 @@ export default function PositionsPage() {
 
   const handleCreate = () => {
     setSelectedId(null);
-    setDefaultValues({ name: "", level: 1, isActive: true });
+    setDefaultValues({
+      name: "",
+      level: 1,
+      operationalCategory: "GUARD",
+      isActive: true,
+    });
     setDialogOpen(true);
   };
 
@@ -82,6 +190,7 @@ export default function PositionsPage() {
       setDefaultValues({
         name: data.name,
         level: data.level || 1,
+        operationalCategory: data.operationalCategory || "GUARD",
         isActive: data.isActive,
       });
       setDialogOpen(true);
@@ -101,6 +210,16 @@ export default function PositionsPage() {
       const target = posts.find((p) => p.id === id);
       if (target) setDeletePos(target);
     });
+  };
+
+  const handleTogglePositionStatus = async (pos: any) => {
+    try {
+      await HttpClient.patch(`/position/${pos.id}/status`, { isActive: !pos.isActive });
+      showSuccess(`Cargo ${!pos.isActive ? "habilitado" : "inhabilitado"} exitosamente`);
+      setRefreshTrigger((prev) => prev + 1);
+    } catch (err: any) {
+      showError(err.message || "Error al modificar el estado del cargo");
+    }
   };
 
   const handleConfirmDelete = async () => {
@@ -160,7 +279,24 @@ export default function PositionsPage() {
         onCreate={handleCreate}
         onEdit={handleEdit}
         onDelete={handleDeleteRequest}
+        deleteActionLabel="Eliminar..."
+        deleteIcon={<DeleteForeverIcon color="error" />}
         onView={handleView}
+        customActions={(row) => [
+          <GridActionsCellItem
+            key="toggle-status"
+            icon={
+              row.isActive ? (
+                <BlockIcon color="error" fontSize="small" />
+              ) : (
+                <CheckCircleIcon color="success" fontSize="small" />
+              )
+            }
+            label={row.isActive ? "Inhabilitar cargo" : "Habilitar cargo"}
+            onClick={() => handleTogglePositionStatus(row)}
+            showInMenu={true}
+          />,
+        ]}
         refreshTrigger={refreshTrigger}
         extraHeaderActions={
           <Button
@@ -212,6 +348,21 @@ Para inhabilitar un cargo, confirma ingresando su nombre exacto.`}
                   </Typography>
                   <Stack direction="row" spacing={1} sx={{ mt: 1, flexWrap: "wrap", gap: 1 }}>
                     <Chip size="small" label={`Nivel Jerárquico: ${detailPos.level ?? 1}`} variant="outlined" sx={{ ml: "0 !important" }} />
+                    {detailPos.operationalCategory && (
+                      <Chip
+                        size="small"
+                        label={
+                          OPERATIONAL_CATEGORIES.find((c) => c.value === detailPos.operationalCategory)?.label ||
+                          detailPos.operationalCategory
+                        }
+                        color={
+                          (OPERATIONAL_CATEGORIES.find((c) => c.value === detailPos.operationalCategory)?.color as any) ||
+                          "default"
+                        }
+                        variant="outlined"
+                        sx={{ fontWeight: 600 }}
+                      />
+                    )}
                     <Chip
                       size="small"
                       label={detailPos.isActive ? "Activo" : "Inactivo"}
@@ -249,11 +400,11 @@ Para inhabilitar un cargo, confirma ingresando su nombre exacto.`}
         open={Boolean(deletePos)}
         onClose={() => setDeletePos(null)}
         onConfirm={handleConfirmDelete}
-        title="Inhabilitar / Eliminar Cargo"
-        description={`Para confirmar la inactivación del cargo "${deletePos?.name}", por favor ingrese su nombre exacto:`}
+        title="Eliminar Cargo / Posición"
+        description={`Para confirmar la eliminación definitiva del cargo "${deletePos?.name}", por favor ingrese su nombre exacto:`}
         expectedValue={deletePos?.name || ""}
         inputLabel="Nombre del Cargo"
-        confirmButtonText="Confirmar Inactivación"
+        confirmButtonText="Confirmar Eliminación"
         confirmColor="error"
       />
 
@@ -272,7 +423,7 @@ Para inhabilitar un cargo, confirma ingresando su nombre exacto.`}
         open={csvImportOpen}
         onClose={() => setCsvImportOpen(false)}
         title="Importar Posiciones / Cargos"
-        templateColumns={["Nombre", "Nivel", "EstadoActivo"]}
+        templateColumns={["Nombre", "Nivel", "CategoriaOperativa", "EstadoActivo"]}
         onImport={handleImport}
         onSuccessRedirect={(result) => {
           setCsvImportOpen(false);

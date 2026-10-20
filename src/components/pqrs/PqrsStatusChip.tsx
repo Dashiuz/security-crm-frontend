@@ -9,6 +9,7 @@ import {
   CheckCircle as ResolvedIcon,
   Lock as ClosedIcon,
   Cancel as RejectedIcon,
+  Block as VoidedIcon,
 } from "@mui/icons-material";
 
 interface PqrsStatusChipProps extends Omit<ChipProps, "color"> {
@@ -48,6 +49,11 @@ export const STATUS_CONFIG: Record<
     label: "Rechazado",
     color: "error",
     icon: <RejectedIcon fontSize="small" />,
+  },
+  [PqrsStatus.VOIDED]: {
+    label: "Anulada",
+    color: "default",
+    icon: <VoidedIcon fontSize="small" />,
   },
 };
 

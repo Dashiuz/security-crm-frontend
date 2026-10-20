@@ -2,10 +2,6 @@
 
 import { useState } from "react";
 import {
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
   Button,
   Typography,
   Box,
@@ -18,6 +14,7 @@ import {
   Stack,
   Avatar,
 } from "@mui/material";
+import ResponsiveFormDrawer from "@/components/common/ResponsiveFormDrawer";
 import {
   PictureAsPdf as PdfIcon,
   Image as ImageIcon,
@@ -105,17 +102,19 @@ export default function StudyFilesDialog({
   };
 
   return (
-    <Dialog
+    <ResponsiveFormDrawer
       open={open}
       onClose={onClose}
-      maxWidth="sm"
-      fullWidth
-      sx={{ zIndex: 14000 }}
+      title="Documentos y Archivos Adjuntos del Estudio"
+      subtitle="Gestión de evidencias documentales e informes periciales"
+      width={{ xs: "100%", md: 540, lg: 620 }}
+      customActions={
+        <Button onClick={onClose} variant="contained" sx={{ px: 3, borderRadius: 2 }}>
+          Cerrar
+        </Button>
+      }
     >
-      <DialogTitle sx={{ fontWeight: 700 }}>
-        Documentos y Archivos Adjuntos del Estudio
-      </DialogTitle>
-      <DialogContent dividers>
+      <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
         {isDiscontinued && (
           <Alert severity="warning" sx={{ mb: 2 }}>
             Este estudio está en estado <strong>DESCONTINUADO</strong>. No se permite
@@ -318,12 +317,7 @@ export default function StudyFilesDialog({
             ))}
           </List>
         )}
-      </DialogContent>
-      <DialogActions sx={{ p: 2 }}>
-        <Button onClick={onClose} variant="contained">
-          Cerrar
-        </Button>
-      </DialogActions>
-    </Dialog>
+      </Box>
+    </ResponsiveFormDrawer>
   );
 }
