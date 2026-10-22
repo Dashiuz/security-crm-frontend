@@ -21,6 +21,7 @@ import {
   Badge as BadgeIcon,
   Person as PersonIcon,
   Logout as LogoutIcon,
+  Search as SearchIcon,
 } from "@mui/icons-material";
 import { useAuth } from "@/components/AuthContext";
 import { AuthService } from "@/lib/api/auth";
@@ -30,9 +31,10 @@ import NotificationBell from "./NotificationBell";
 
 interface NavbarProps {
   onMenuClick: () => void;
+  onSearchClick?: () => void;
 }
 
-export default function Navbar({ onMenuClick }: NavbarProps) {
+export default function Navbar({ onMenuClick, onSearchClick }: NavbarProps) {
   const { session, logout } = useAuth();
   const { tenant } = useTenant();
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
@@ -106,6 +108,45 @@ export default function Navbar({ onMenuClick }: NavbarProps) {
             />
           )}
         </Box>
+
+        {/* Global Command Palette Trigger Button */}
+        {onSearchClick && (
+          <Box
+            onClick={onSearchClick}
+            sx={{
+              display: { xs: "none", md: "flex" },
+              alignItems: "center",
+              gap: 1,
+              bgcolor: "rgba(255, 255, 255, 0.12)",
+              px: 1.5,
+              py: 0.6,
+              borderRadius: 2,
+              cursor: "pointer",
+              mr: 2,
+              transition: "all 0.15s ease",
+              border: "1px solid rgba(255, 255, 255, 0.1)",
+              "&:hover": {
+                bgcolor: "rgba(255, 255, 255, 0.2)",
+              },
+            }}
+          >
+            <SearchIcon sx={{ fontSize: "1.05rem", color: "rgba(255,255,255,0.8)" }} />
+            <Typography variant="body2" sx={{ color: "rgba(255,255,255,0.85)", fontSize: "0.82rem", fontWeight: 500 }}>
+              Buscar módulo...
+            </Typography>
+            <Chip
+              label="Ctrl + K"
+              size="small"
+              sx={{
+                height: 18,
+                fontSize: "0.62rem",
+                bgcolor: "rgba(255, 255, 255, 0.15)",
+                color: "#ffffff",
+                fontWeight: 700,
+              }}
+            />
+          </Box>
+        )}
 
         {session?.isImpersonating && (
           <Box
