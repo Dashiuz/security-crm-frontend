@@ -234,6 +234,18 @@ export const noxiaTheme = createTheme({
         },
       },
     },
+    MuiInputLabel: {
+      styleOverrides: {
+        root: {
+          "&.MuiInputLabel-shrink": {
+            backgroundColor: noxiaPalette.background.paper,
+            padding: "0 6px",
+            borderRadius: 4,
+            zIndex: 2,
+          },
+        },
+      },
+    },
     MuiOutlinedInput: {
       styleOverrides: {
         root: {
