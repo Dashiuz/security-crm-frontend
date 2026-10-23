@@ -151,6 +151,16 @@ export const ERP_DIRECTIONS: ErpDirection[] = [
         features: ["client"],
       },
       {
+        id: "com-settings",
+        title: "Catálogo y Configuración",
+        description: "Motor tarifario SVSP, catálogo de servicios, salarios y plantillas",
+        status: "ACTIVE",
+        path: "/commercial/settings",
+        iconName: "TuneOutlined",
+        permissions: ["commercial:settings:read", "commercial:settings:manage"],
+        features: ["commercial"],
+      },
+      {
         id: "com-economic-proposal",
         title: "Propuesta Económica",
         description: "Generación de cotización formal con número consecutivo y envío por email",

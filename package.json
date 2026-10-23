@@ -24,6 +24,7 @@
     "konva": "^10.7.0",
     "next": "16.1.6",
     "react": "19.2.3",
+    "react-colorful": "^5.8.1",
     "react-dom": "19.2.3",
     "react-hook-form": "^7.71.1",
     "react-konva": "19.2.7",
