@@ -3,7 +3,7 @@ import { Box } from "@mui/material";
 
 export const metadata = {
   title: "Catálogo y Configuración Comercial | Noxia Security CRM",
-  description: "Parametrización macroeconómica, motor tarifario oficial SVSP, catálogo de servicios, salarios de guardas e identidad corporativa camaleón.",
+  description: "Parametrización macroeconómica, motor tarifario oficial SVSP, catálogo de servicios, salarios de guardas e identidad corporativa.",
 };
 
 export default function CommercialSettingsLayout({

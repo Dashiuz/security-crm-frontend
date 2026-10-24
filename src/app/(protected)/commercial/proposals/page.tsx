@@ -136,7 +136,7 @@ export default function ProposalsPage() {
             Propuestas y Cotizaciones Comerciales
           </Typography>
           <Typography variant="body2" color="text.secondary">
-            Generación automatizada de propuestas económicas con el Motor de Documentos Camaleón y seguimiento del embudo.
+            Generación automatizada de propuestas económicas, cotizaciones y seguimiento del embudo comercial.
           </Typography>
         </Box>
 
@@ -306,7 +306,7 @@ export default function ProposalsPage() {
                         <EditOutlined fontSize="small" />
                       </IconButton>
                     </Tooltip>
-                    <Tooltip title="Previsualizar PDF Camaleón">
+                    <Tooltip title="Previsualizar Documento PDF">
                       <IconButton size="small" color="default" onClick={() => setWorkspaceOpen(true)}>
                         <PictureAsPdf fontSize="small" />
                       </IconButton>

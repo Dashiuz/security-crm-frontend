@@ -153,16 +153,6 @@ export interface TenantDocumentSkin {
   hasBascCertified: boolean;
   hasPoliceSupportNetwork: boolean;
   hasDijinEnterpriseFront: boolean;
-  commercialDirectorName?: string | null;
-  commercialDirectorTitle?: string | null;
-  commercialDirectorEmail?: string | null;
-  commercialDirectorPhone?: string | null;
-  commercialDirectorSigS3?: string | null;
-  legalRepName?: string | null;
-  legalRepTitle?: string | null;
-  legalRepEmail?: string | null;
-  legalRepPhone?: string | null;
-  legalRepSigS3?: string | null;
 }
 
 export interface DocumentTextSnippet {

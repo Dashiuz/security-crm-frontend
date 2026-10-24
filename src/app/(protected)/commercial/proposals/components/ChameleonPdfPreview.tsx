@@ -364,7 +364,7 @@ export default function ChameleonPdfPreview({
               <Box sx={{ height: 40 }} />
               <Divider sx={{ borderColor: primaryColor, mb: 0.5 }} />
               <Typography variant="body2" sx={{ fontWeight: 700, fontSize: "0.82rem" }}>
-                {skin?.commercialDirectorName || "Director Comercial"}
+                Dirección Comercial / Representante Legal
               </Typography>
               <Typography variant="caption" sx={{ color: "text.secondary", display: "block" }}>
                 {companyName}

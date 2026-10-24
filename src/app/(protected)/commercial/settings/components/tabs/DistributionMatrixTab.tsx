@@ -15,6 +15,7 @@ import {
 } from "@mui/material";
 import {
   SaveOutlined,
+  ToggleOnOutlined,
 } from "@mui/icons-material";
 import {
   ServiceOrderDistributionRecipient,
@@ -23,6 +24,7 @@ import {
 } from "@/lib/api/commercial-settings";
 import { useNotification } from "@/providers/NotificationProvider";
 import { noxiaPalette } from "@/theme/noxiaTheme";
+import EmployeeAutocompleteSearch from "../widgets/EmployeeAutocompleteSearch";
 
 interface DistributionMatrixTabProps {
   recipients: ServiceOrderDistributionRecipient[];
@@ -78,6 +80,14 @@ export default function DistributionMatrixTab({
     setItems(mapped);
   }, [recipients]);
 
+  const allActive = items.length > 0 && items.every((i) => i.isActive);
+  const someActive = items.some((i) => i.isActive);
+
+  const handleToggleAll = (checked: boolean) => {
+    setItems((prev) => prev.map((item) => ({ ...item, isActive: checked })));
+    showSuccess(checked ? "Todos los departamentos activados" : "Todos los departamentos pausados");
+  };
+
   const handleChange = (index: number, field: "recipientName" | "recipientEmail" | "isActive", val: any) => {
     setItems((prev) => {
       const updated = [...prev];
@@ -118,31 +128,57 @@ export default function DistributionMatrixTab({
             Destinatarios institucionales que reciben la orden de servicio al ser adjudicado un contrato
           </Typography>
         </Box>
-        <Button
-          variant="contained"
-          size="small"
-          startIcon={isSaving ? <CircularProgress size={16} color="inherit" /> : <SaveOutlined />}
-          onClick={handleSave}
-          disabled={isSaving}
-          sx={{
-            bgcolor: noxiaPalette.primary.main,
-            "&:hover": {
-              bgcolor: noxiaPalette.primary.dark,
-              boxShadow: "0 4px 12px rgba(124, 58, 237, 0.35)",
-            },
-            borderRadius: 2,
-            textTransform: "none",
-            fontWeight: 600,
-            fontSize: "0.82rem",
-            px: 2.2,
-            height: 36,
-            whiteSpace: "nowrap",
-            flexShrink: 0,
-            boxShadow: "0 2px 6px rgba(124, 58, 237, 0.2)",
-          }}
-        >
-          Guardar Matriz de Distribución
-        </Button>
+
+        <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap">
+          {/* Toggle Maestro Seleccionar / Desmarcar Todos */}
+          <Stack
+            direction="row"
+            spacing={1}
+            alignItems="center"
+            sx={{
+              p: "4px 12px",
+              borderRadius: 2,
+              bgcolor: "background.paper",
+              border: "1px solid rgba(0,0,0,0.1)",
+            }}
+          >
+            <Typography variant="caption" sx={{ fontWeight: 700, color: "text.primary" }}>
+              {allActive ? "Todos Activos" : someActive ? "Parcial" : "Todos Pausados"}
+            </Typography>
+            <Switch
+              size="small"
+              checked={allActive}
+              onChange={(e) => handleToggleAll(e.target.checked)}
+              color="primary"
+            />
+          </Stack>
+
+          <Button
+            variant="contained"
+            size="small"
+            startIcon={isSaving ? <CircularProgress size={16} color="inherit" /> : <SaveOutlined />}
+            onClick={handleSave}
+            disabled={isSaving}
+            sx={{
+              bgcolor: noxiaPalette.primary.main,
+              "&:hover": {
+                bgcolor: noxiaPalette.primary.dark,
+                boxShadow: "0 4px 12px rgba(124, 58, 237, 0.35)",
+              },
+              borderRadius: 2,
+              textTransform: "none",
+              fontWeight: 600,
+              fontSize: "0.82rem",
+              px: 2.2,
+              height: 36,
+              whiteSpace: "nowrap",
+              flexShrink: 0,
+              boxShadow: "0 2px 6px rgba(124, 58, 237, 0.2)",
+            }}
+          >
+            Guardar Matriz de Distribución
+          </Button>
+        </Stack>
       </Box>
 
       <Grid container spacing={2}>
@@ -185,6 +221,26 @@ export default function DistributionMatrixTab({
                     />
                   </Stack>
                 </Box>
+
+                {/* Buscador con debounce de 500ms */}
+                <EmployeeAutocompleteSearch
+                  label="Asignar desde Empleados"
+                  placeholder="Buscar por nombre o cédula..."
+                  disabled={!item.isActive}
+                  onSelect={(emp) => {
+                    if (!emp) return;
+                    setItems((prev) => {
+                      const updated = [...prev];
+                      updated[idx] = {
+                        ...updated[idx],
+                        recipientName: emp.fullName,
+                        recipientEmail: emp.email || updated[idx].recipientEmail,
+                      };
+                      return updated;
+                    });
+                    showSuccess(`${emp.fullName} asignado a ${info.title}`);
+                  }}
+                />
 
                 <TextField
                   fullWidth

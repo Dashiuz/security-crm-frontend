@@ -37,6 +37,7 @@ import {
 import SnippetEditorDrawer from "../drawers/SnippetEditorDrawer";
 import AuthorizedSignerDrawer from "../drawers/AuthorizedSignerDrawer";
 import BrandColorPicker from "../BrandColorPicker";
+import HeaderLayoutPreviewCard from "../widgets/HeaderLayoutPreviewCard";
 import PromptConfirmDialog from "@/components/common/PromptConfirmDialog";
 import { useNotification } from "@/providers/NotificationProvider";
 import { noxiaPalette } from "@/theme/noxiaTheme";
@@ -72,12 +73,6 @@ export default function DocumentSkinTab({
     hasBascCertified: documentSkin?.hasBascCertified ?? true,
     hasPoliceSupportNetwork: documentSkin?.hasPoliceSupportNetwork ?? true,
     hasDijinEnterpriseFront: documentSkin?.hasDijinEnterpriseFront ?? true,
-    commercialDirectorName: documentSkin?.commercialDirectorName || "",
-    commercialDirectorEmail: documentSkin?.commercialDirectorEmail || "",
-    commercialDirectorPhone: documentSkin?.commercialDirectorPhone || "",
-    legalRepName: documentSkin?.legalRepName || "",
-    legalRepEmail: documentSkin?.legalRepEmail || "",
-    legalRepPhone: documentSkin?.legalRepPhone || "",
   });
 
   // State para Firmantes Autorizados
@@ -139,10 +134,10 @@ export default function DocumentSkinTab({
     try {
       setIsSavingSkin(true);
       await CommercialSettingsApi.updateDocumentSkin(skinForm);
-      showSuccess("Piel de marca y resoluciones actualizadas exitosamente");
+      showSuccess("Configuraciones guardadas exitosamente");
       onRefresh();
     } catch (err: any) {
-      showError(err?.message || "Error al actualizar la piel del documento");
+      showError(err?.message || "Error al actualizar las configuraciones");
     } finally {
       setIsSavingSkin(false);
     }
@@ -222,12 +217,27 @@ export default function DocumentSkinTab({
               boxShadow: "0 2px 6px rgba(124, 58, 237, 0.2)",
             }}
           >
-            Guardar Piel y Resoluciones
+            Guardar Configuraciones
           </Button>
         </Box>
 
-        <Grid container spacing={3} alignItems="center">
-          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+        {/* Cabecera Ancha en el Tope del Box */}
+        <Box sx={{ mb: 2.5 }}>
+          <HeaderLayoutPreviewCard
+            layout={skinForm.headerLayout}
+            companyName={skinForm.companyLegalName}
+            companyNit={skinForm.companyNit}
+            supervigilanciaLicense={skinForm.supervigilanciaLicense}
+            primaryColor={skinForm.primaryBrandColorHex}
+            accentColor={skinForm.accentBrandColorHex}
+            city="Bogotá D.C."
+            proposalNumber="PROP-2026-0084"
+          />
+        </Box>
+
+        {/* Selectores de Color */}
+        <Grid container spacing={3} sx={{ mb: 2 }}>
+          <Grid size={{ xs: 12, sm: 6, md: 4 }}>
             <BrandColorPicker
               label="Color Primario (Hex)"
               value={skinForm.primaryBrandColorHex}
@@ -236,7 +246,7 @@ export default function DocumentSkinTab({
               }
             />
           </Grid>
-          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+          <Grid size={{ xs: 12, sm: 6, md: 4 }}>
             <BrandColorPicker
               label="Color Acento (Hex)"
               value={skinForm.accentBrandColorHex}
@@ -245,39 +255,12 @@ export default function DocumentSkinTab({
               }
             />
           </Grid>
-
-          {/* Miniatura Previsualizador */}
-          <Grid size={{ xs: 12, md: 6 }}>
-            <Paper
-              elevation={0}
-              sx={{
-                p: 2,
-                borderRadius: 2,
-                bgcolor: skinForm.primaryBrandColorHex,
-                color: "#FFFFFF",
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                borderLeft: `6px solid ${skinForm.accentBrandColorHex}`,
-              }}
-            >
-              <Box>
-                <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>
-                  {skinForm.companyLegalName}
-                </Typography>
-                <Typography variant="caption" sx={{ opacity: 0.8 }}>
-                  NIT: {skinForm.companyNit} | SVSP: {skinForm.supervigilanciaLicense}
-                </Typography>
-              </Box>
-              <Chip label="VISTA PREVIA" size="small" sx={{ bgcolor: skinForm.accentBrandColorHex, color: "#FFFFFF", fontWeight: 700 }} />
-            </Paper>
-          </Grid>
         </Grid>
 
-        {/* Selector de Diseño de Membrete (4 Opciones Camaleón) */}
-        <Box sx={{ mt: 3, mb: 1 }}>
+        {/* Selector de Diseño de Membrete */}
+        <Box sx={{ mt: 1, mb: 1 }}>
           <Typography variant="caption" sx={{ fontWeight: 700, color: "text.secondary", textTransform: "uppercase", display: "block", mb: 1.5 }}>
-            Diseño del Membrete y Cabecera de Documentos (Motor Camaleón)
+            Diseño del Membrete y Cabecera de Documentos
           </Typography>
           <Grid container spacing={2}>
             {[
@@ -447,86 +430,21 @@ export default function DocumentSkinTab({
         <Divider sx={{ my: 2.5 }} />
 
         {/* Firmantes Autorizados */}
-        <Typography variant="caption" sx={{ fontWeight: 700, color: "text.secondary", textTransform: "uppercase", display: "block", mb: 1.5 }}>
-          Firmantes Oficiales de la Propuesta
-        </Typography>
-
-        <Grid container spacing={2}>
-          <Grid size={{ xs: 12, sm: 4 }}>
-            <TextField
-              fullWidth
-              size="small"
-              label="Director Comercial"
-              value={skinForm.commercialDirectorName}
-              onChange={(e) => setSkinForm((p) => ({ ...p, commercialDirectorName: e.target.value }))}
-            />
-          </Grid>
-          <Grid size={{ xs: 12, sm: 4 }}>
-            <TextField
-              fullWidth
-              size="small"
-              label="Email Director Comercial"
-              value={skinForm.commercialDirectorEmail}
-              onChange={(e) => setSkinForm((p) => ({ ...p, commercialDirectorEmail: e.target.value }))}
-            />
-          </Grid>
-          <Grid size={{ xs: 12, sm: 4 }}>
-            <TextField
-              fullWidth
-              size="small"
-              label="Teléfono Director Comercial"
-              value={skinForm.commercialDirectorPhone}
-              onChange={(e) => setSkinForm((p) => ({ ...p, commercialDirectorPhone: e.target.value }))}
-            />
-          </Grid>
-
-          <Grid size={{ xs: 12, sm: 4 }}>
-            <TextField
-              fullWidth
-              size="small"
-              label="Representante Legal / Gerente"
-              value={skinForm.legalRepName}
-              onChange={(e) => setSkinForm((p) => ({ ...p, legalRepName: e.target.value }))}
-            />
-          </Grid>
-          <Grid size={{ xs: 12, sm: 4 }}>
-            <TextField
-              fullWidth
-              size="small"
-              label="Email Representante Legal"
-              value={skinForm.legalRepEmail}
-              onChange={(e) => setSkinForm((p) => ({ ...p, legalRepEmail: e.target.value }))}
-            />
-          </Grid>
-          <Grid size={{ xs: 12, sm: 4 }}>
-            <TextField
-              fullWidth
-              size="small"
-              label="Teléfono Representante Legal"
-              value={skinForm.legalRepPhone}
-              onChange={(e) => setSkinForm((p) => ({ ...p, legalRepPhone: e.target.value }))}
-            />
-          </Grid>
-        </Grid>
-
-        <Divider sx={{ my: 2.5 }} />
-
-        {/* Gobernanza de Firmantes Autorizados (AuthorizedSigners) */}
         <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2 }}>
           <Box>
-            <Typography variant="caption" sx={{ fontWeight: 700, color: "text.secondary", textTransform: "uppercase", display: "block" }}>
-              Firmantes Autorizados del Tenant ({signers.length})
+            <Typography variant="subtitle2" sx={{ fontWeight: 800, color: noxiaPalette.primary.main, textTransform: "uppercase" }}>
+              Firmantes Autorizados y Estampación Digital ({signers.length})
             </Typography>
-            <Typography variant="caption" sx={{ color: "text.secondary" }}>
-              Personal legal y directivo con firma manuscrita digitalizada para estampar en propuestas
+            <Typography variant="caption" sx={{ color: "text.secondary", display: "block" }}>
+              Personal directivo con firma manuscrita digitalizada para estampar en propuestas y documentos comerciales (Ley 527 de 1999)
             </Typography>
           </Box>
           <Button
             size="small"
-            variant="outlined"
+            variant="contained"
             startIcon={<AddIcon />}
             onClick={handleCreateSigner}
-            sx={{ borderRadius: 1.5, fontSize: "0.75rem", textTransform: "none", fontWeight: 600 }}
+            sx={{ borderRadius: 1.5, fontSize: "0.75rem", textTransform: "none", fontWeight: 700, bgcolor: noxiaPalette.primary.main }}
           >
             Agregar Firmante
           </Button>

@@ -92,7 +92,7 @@ export default function CommercialSettingsPage() {
                 Catálogo y Configuración Comercial
               </Typography>
               <Typography variant="body2" sx={{ color: "text.secondary" }}>
-                Motor tarifario oficial SVSP, cálculo salarial de guardas, catálogo de servicios e identidad camaleón
+                Motor tarifario oficial SVSP, cálculo salarial de guardas, catálogo de servicios e identidad corporativa
               </Typography>
             </Box>
           </Box>

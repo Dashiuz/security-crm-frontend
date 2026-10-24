@@ -80,7 +80,7 @@ export default function LiveTariffSimulator({ activePeriod }: LiveTariffSimulato
           </Box>
           <Box>
             <Typography variant="subtitle2" sx={{ fontWeight: 700, color: noxiaPalette.secondary.main }}>
-              Simulador Tarifario en Vivo (SVSP 2026)
+              Simulador Tarifario en Vivo
             </Typography>
             <Typography variant="caption" sx={{ color: "text.secondary" }}>
               Cálculo instantáneo de precios y retenciones tributarias

@@ -118,7 +118,7 @@ export const ERP_DIRECTIONS: ErpDirection[] = [
     items: [
       {
         id: "com-prospects",
-        title: "Prospectos y Seguimiento (CRM)",
+        title: "Prospectos y Seguimiento",
         description: "Captación, pipeline de ventas y seguimiento comercial",
         status: "ACTIVE",
         path: "/commercial/prospects",
@@ -130,7 +130,7 @@ export const ERP_DIRECTIONS: ErpDirection[] = [
       {
         id: "com-proposals",
         title: "Propuestas y Cotizaciones",
-        description: "Emisión de propuestas económicas, cotizaciones, editor y visor PDF Camaleón",
+        description: "Emisión de propuestas económicas, cotizaciones, editor y visor PDF",
         status: "ACTIVE",
         path: "/commercial/proposals",
         iconName: "ReceiptLongOutlined",
@@ -155,7 +155,7 @@ export const ERP_DIRECTIONS: ErpDirection[] = [
       },
       {
         id: "com-clients",
-        title: "Cartera de Clientes (360°)",
+        title: "Cartera de Clientes",
         description: "Directorio de sedes contratadas, conjuntos residenciales y corporativos",
         status: "ACTIVE",
         path: "/commercial/clients",
@@ -167,7 +167,7 @@ export const ERP_DIRECTIONS: ErpDirection[] = [
       {
         id: "com-settings",
         title: "Catálogo y Configuración",
-        description: "Motor tarifario SVSP, catálogo de servicios, salarios, identidad camaleón y firmantes",
+        description: "Motor tarifario SVSP, catálogo de servicios, salarios, identidad visual y firmantes",
         status: "ACTIVE",
         path: "/commercial/settings",
         iconName: "TuneOutlined",
@@ -652,7 +652,6 @@ export const ERP_DIRECTIONS: ErpDirection[] = [
     shortTitle: "Finanzas",
     description: "Tesorería, facturación de puestos contratados, nómina y contabilidad NIIF",
     iconName: "AccountBalanceOutlined",
-    badge: "Fase 2",
     items: [
       {
         id: "fin-treasury",

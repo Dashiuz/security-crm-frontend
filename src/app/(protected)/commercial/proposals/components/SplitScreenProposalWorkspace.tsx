@@ -163,10 +163,10 @@ export default function SplitScreenProposalWorkspace({
             </IconButton>
             <Box>
               <Typography sx={{ fontWeight: 700, fontSize: "1.05rem" }}>
-                Emisión de Propuesta Económica & Visor Camaleón
+                Emisión de Propuesta Económica
               </Typography>
               <Typography variant="caption" sx={{ color: "rgba(255,255,255,0.7)" }}>
-                {proposalNumber} • Vista Dividida en Tiempo Real (Split-Screen)
+                {proposalNumber} • Vista Dividida en Tiempo Real
               </Typography>
             </Box>
           </Stack>
@@ -265,7 +265,7 @@ export default function SplitScreenProposalWorkspace({
               {/* Sección 2: Estilo de Membrete Camaleón */}
               <Box>
                 <Typography variant="subtitle2" sx={{ fontWeight: 800, color: "text.primary", mb: 1, textTransform: "uppercase" }}>
-                  2. Diseño de Membrete Institucional (Skin Camaleón)
+                  2. Diseño de Membrete Institucional
                 </Typography>
                 <Grid container spacing={1.5}>
                   {[
@@ -410,7 +410,7 @@ export default function SplitScreenProposalWorkspace({
           >
             <Box sx={{ mb: 2, display: "flex", justifyContent: "space-between", alignItems: "center", color: "#ffffff" }}>
               <Typography variant="caption" sx={{ fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase" }}>
-                Previsualización Dinámica Reactiva (A4 - Motor Camaleón)
+                Previsualización Dinámica Reactiva (A4)
               </Typography>
               <Chip label="Actualizado en Tiempo Real" size="small" sx={{ bgcolor: "success.main", color: "#ffffff", height: 18, fontSize: "0.6rem", fontWeight: 700 }} />
             </Box>
