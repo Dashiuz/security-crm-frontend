@@ -22,13 +22,20 @@ import {
   Add as AddIcon,
   EditOutlined,
   DeleteOutline,
+  DrawOutlined,
+  FormatPaint,
+  VerifiedUser,
 } from "@mui/icons-material";
 import {
   TenantDocumentSkin,
   DocumentTextSnippet,
   CommercialSettingsApi,
+  DocumentHeaderLayout,
+  AuthorizedSigner,
+  DocumentEngineApi,
 } from "@/lib/api/commercial-settings";
 import SnippetEditorDrawer from "../drawers/SnippetEditorDrawer";
+import AuthorizedSignerDrawer from "../drawers/AuthorizedSignerDrawer";
 import BrandColorPicker from "../BrandColorPicker";
 import PromptConfirmDialog from "@/components/common/PromptConfirmDialog";
 import { useNotification } from "@/providers/NotificationProvider";
@@ -50,6 +57,7 @@ export default function DocumentSkinTab({
 
   // Form State para Piel de Documento
   const [skinForm, setSkinForm] = useState({
+    headerLayout: documentSkin?.headerLayout || DocumentHeaderLayout.MODERN_MINIMALIST,
     primaryBrandColorHex: documentSkin?.primaryBrandColorHex || "#1E1B4B",
     accentBrandColorHex: documentSkin?.accentBrandColorHex || "#7C3AED",
     companyLegalName: documentSkin?.companyLegalName || "NOXIA SEGURIDAD PRIVADA S.A.S.",
@@ -71,6 +79,55 @@ export default function DocumentSkinTab({
     legalRepEmail: documentSkin?.legalRepEmail || "",
     legalRepPhone: documentSkin?.legalRepPhone || "",
   });
+
+  // State para Firmantes Autorizados
+  const [signers, setSigners] = useState<AuthorizedSigner[]>([]);
+  const [signerDrawerOpen, setSignerDrawerOpen] = useState(false);
+  const [selectedSigner, setSelectedSigner] = useState<AuthorizedSigner | null>(null);
+  const [deleteSignerConfirmOpen, setDeleteSignerConfirmOpen] = useState(false);
+  const [signerToDelete, setSignerToDelete] = useState<AuthorizedSigner | null>(null);
+
+  const loadSigners = async () => {
+    try {
+      const res = await DocumentEngineApi.getSigners();
+      setSigners(res);
+    } catch {
+      // Ignorar si aún no hay firmantes creados
+    }
+  };
+
+  React.useEffect(() => {
+    loadSigners();
+  }, []);
+
+  const handleEditSigner = (s: AuthorizedSigner) => {
+    setSelectedSigner(s);
+    setSignerDrawerOpen(true);
+  };
+
+  const handleCreateSigner = () => {
+    setSelectedSigner(null);
+    setSignerDrawerOpen(true);
+  };
+
+  const handleDeleteSignerClick = (s: AuthorizedSigner) => {
+    setSignerToDelete(s);
+    setDeleteSignerConfirmOpen(true);
+  };
+
+  const handleConfirmDeleteSigner = async () => {
+    if (!signerToDelete) return;
+    try {
+      await DocumentEngineApi.deleteSigner(signerToDelete.id);
+      showSuccess("Firmante autorizado eliminado");
+      loadSigners();
+    } catch (err: any) {
+      showError(err?.message || "Error al eliminar el firmante");
+    } finally {
+      setDeleteSignerConfirmOpen(false);
+      setSignerToDelete(null);
+    }
+  };
 
   // State para Snippets
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -216,6 +273,48 @@ export default function DocumentSkinTab({
             </Paper>
           </Grid>
         </Grid>
+
+        {/* Selector de Diseño de Membrete (4 Opciones Camaleón) */}
+        <Box sx={{ mt: 3, mb: 1 }}>
+          <Typography variant="caption" sx={{ fontWeight: 700, color: "text.secondary", textTransform: "uppercase", display: "block", mb: 1.5 }}>
+            Diseño del Membrete y Cabecera de Documentos (Motor Camaleón)
+          </Typography>
+          <Grid container spacing={2}>
+            {[
+              { id: DocumentHeaderLayout.MODERN_MINIMALIST, label: "Minimalista Moderno", desc: "Barra lateral de acento y datos limpios a la derecha" },
+              { id: DocumentHeaderLayout.CLASSIC_CORPORATE, label: "Clásico Corporativo", desc: "Banda superior sólida con color primario institucional" },
+              { id: DocumentHeaderLayout.EDITORIAL_CENTERED, label: "Editorial Centrado", desc: "Logo superior centrado y línea doble de separación" },
+              { id: DocumentHeaderLayout.FRAME_ACCREDITED, label: "Marco con Acreditaciones", desc: "Marco perimetral y sellos de certificación oficial" },
+            ].map((layout) => {
+              const isSelected = skinForm.headerLayout === layout.id;
+              return (
+                <Grid size={{ xs: 12, sm: 6, md: 3 }} key={layout.id}>
+                  <Card
+                    onClick={() => setSkinForm((p) => ({ ...p, headerLayout: layout.id }))}
+                    sx={{
+                      p: 2,
+                      cursor: "pointer",
+                      borderRadius: 2,
+                      border: "2px solid",
+                      borderColor: isSelected ? noxiaPalette.primary.main : "divider",
+                      bgcolor: isSelected ? `${noxiaPalette.primary.main}08` : "background.paper",
+                      transition: "all 0.18s ease-in-out",
+                      "&:hover": { borderColor: noxiaPalette.primary.main },
+                    }}
+                  >
+                    <FormatPaint sx={{ fontSize: 22, color: isSelected ? noxiaPalette.primary.main : "text.secondary", mb: 0.5 }} />
+                    <Typography variant="subtitle2" sx={{ fontWeight: 700, fontSize: "0.82rem" }}>
+                      {layout.label}
+                    </Typography>
+                    <Typography variant="caption" sx={{ color: "text.secondary", fontSize: "0.72rem", display: "block" }}>
+                      {layout.desc}
+                    </Typography>
+                  </Card>
+                </Grid>
+              );
+            })}
+          </Grid>
+        </Box>
 
         <Divider sx={{ my: 2.5 }} />
 
@@ -409,6 +508,79 @@ export default function DocumentSkinTab({
             />
           </Grid>
         </Grid>
+
+        <Divider sx={{ my: 2.5 }} />
+
+        {/* Gobernanza de Firmantes Autorizados (AuthorizedSigners) */}
+        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2 }}>
+          <Box>
+            <Typography variant="caption" sx={{ fontWeight: 700, color: "text.secondary", textTransform: "uppercase", display: "block" }}>
+              Firmantes Autorizados del Tenant ({signers.length})
+            </Typography>
+            <Typography variant="caption" sx={{ color: "text.secondary" }}>
+              Personal legal y directivo con firma manuscrita digitalizada para estampar en propuestas
+            </Typography>
+          </Box>
+          <Button
+            size="small"
+            variant="outlined"
+            startIcon={<AddIcon />}
+            onClick={handleCreateSigner}
+            sx={{ borderRadius: 1.5, fontSize: "0.75rem", textTransform: "none", fontWeight: 600 }}
+          >
+            Agregar Firmante
+          </Button>
+        </Box>
+
+        {signers.length === 0 ? (
+          <Box sx={{ p: 2.5, textAlign: "center", bgcolor: "neutral.50", borderRadius: 2, border: "1px dashed", borderColor: "divider" }}>
+            <Typography variant="caption" color="text.secondary">
+              No hay firmantes registrados aún. Pulse "Agregar Firmante" para registrar al Representante Legal o Director Comercial.
+            </Typography>
+          </Box>
+        ) : (
+          <Grid container spacing={2}>
+            {signers.map((s) => (
+              <Grid size={{ xs: 12, sm: 6, md: 4 }} key={s.id}>
+                <Card sx={{ p: 2, borderRadius: 2, border: "1px solid", borderColor: "divider" }}>
+                  <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", mb: 1 }}>
+                    <Box>
+                      <Typography variant="subtitle2" sx={{ fontWeight: 700, fontSize: "0.85rem" }}>
+                        {s.fullName}
+                      </Typography>
+                      <Typography variant="caption" sx={{ color: "text.secondary", display: "block" }}>
+                        {s.jobTitle}
+                      </Typography>
+                    </Box>
+                    <Stack direction="row" spacing={0.5}>
+                      <IconButton size="small" onClick={() => handleEditSigner(s)}>
+                        <EditOutlined fontSize="small" />
+                      </IconButton>
+                      <IconButton size="small" color="error" onClick={() => handleDeleteSignerClick(s)}>
+                        <DeleteOutline fontSize="small" />
+                      </IconButton>
+                    </Stack>
+                  </Box>
+                  <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: 1 }}>
+                    <Chip
+                      label={s.roleScope}
+                      size="small"
+                      sx={{ fontSize: "0.65rem", fontWeight: 600, height: 20 }}
+                    />
+                    {s.includeInCommercialProposal && (
+                      <Chip
+                        label="En Propuestas"
+                        size="small"
+                        color="primary"
+                        sx={{ fontSize: "0.65rem", fontWeight: 700, height: 20 }}
+                      />
+                    )}
+                  </Stack>
+                </Card>
+              </Grid>
+            ))}
+          </Grid>
+        )}
       </Card>
 
       {/* 2. Plantillas de Texto Dinámicas */}
@@ -518,7 +690,7 @@ export default function DocumentSkinTab({
         </Grid>
       </Box>
 
-      {/* Drawer */}
+      {/* Drawer Snippets */}
       <SnippetEditorDrawer
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
@@ -526,7 +698,15 @@ export default function DocumentSkinTab({
         onSuccess={onRefresh}
       />
 
-      {/* Confirmación Eliminación */}
+      {/* Drawer Firmantes */}
+      <AuthorizedSignerDrawer
+        open={signerDrawerOpen}
+        onClose={() => setSignerDrawerOpen(false)}
+        signer={selectedSigner}
+        onSuccess={loadSigners}
+      />
+
+      {/* Confirmación Eliminación Snippet */}
       <PromptConfirmDialog
         open={deleteConfirmOpen}
         title="Eliminar Plantilla de Texto"
@@ -537,6 +717,19 @@ export default function DocumentSkinTab({
         confirmColor="error"
         onConfirm={handleConfirmDeleteSnippet}
         onClose={() => setDeleteConfirmOpen(false)}
+      />
+
+      {/* Confirmación Eliminación Firmante */}
+      <PromptConfirmDialog
+        open={deleteSignerConfirmOpen}
+        title="Eliminar Firmante Autorizado"
+        description={`Para confirmar la eliminación del firmante "${signerToDelete?.fullName}", escriba ELIMINAR:`}
+        expectedValue="ELIMINAR"
+        inputLabel="Confirmación"
+        confirmButtonText="Eliminar Firmante"
+        confirmColor="error"
+        onConfirm={handleConfirmDeleteSigner}
+        onClose={() => setDeleteSignerConfirmOpen(false)}
       />
     </Box>
   );

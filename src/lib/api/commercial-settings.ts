@@ -133,8 +133,10 @@ export interface ValueAddedCatalogItem {
 
 export interface TenantDocumentSkin {
   id: string;
+  headerLayout?: DocumentHeaderLayout | null;
   primaryBrandColorHex: string;
   accentBrandColorHex: string;
+  headerAccentBarHex?: string | null;
   logoS3Key?: string | null;
   secondaryLogoS3Key?: string | null;
   companyLegalName: string;
@@ -368,3 +370,51 @@ export const CommercialSettingsApi = {
   deleteTextSnippet: (id: string) =>
     HttpClient.delete<{ success: boolean; message: string }>(`/commercial/settings/snippets/${id}`),
 };
+
+export enum SignerRoleScope {
+  LEGAL_REPRESENTATIVE = "LEGAL_REPRESENTATIVE",
+  COMMERCIAL_DIRECTOR = "COMMERCIAL_DIRECTOR",
+  TECHNICAL_DIRECTOR = "TECHNICAL_DIRECTOR",
+  OPERATIONS_MANAGER = "OPERATIONS_MANAGER",
+  CUSTOM_SIGNER = "CUSTOM_SIGNER",
+}
+
+export enum DocumentHeaderLayout {
+  MODERN_MINIMALIST = "MODERN_MINIMALIST",
+  CLASSIC_CORPORATE = "CLASSIC_CORPORATE",
+  EDITORIAL_CENTERED = "EDITORIAL_CENTERED",
+  FRAME_ACCREDITED = "FRAME_ACCREDITED",
+}
+
+export interface AuthorizedSigner {
+  id: string;
+  fullName: string;
+  jobTitle: string;
+  documentNumber?: string;
+  professionalCardNum?: string;
+  email?: string;
+  phone?: string;
+  roleScope: SignerRoleScope;
+  includeInCommercialProposal: boolean;
+  priorityOrder: number;
+  signatureS3Key?: string;
+  signatureUrl?: string;
+  isActive: boolean;
+}
+
+export const DocumentEngineApi = {
+  getSigners: () => HttpClient.get<AuthorizedSigner[]>("/commercial/document-engine/signers"),
+  createSigner: (data: Partial<AuthorizedSigner>) =>
+    HttpClient.post<AuthorizedSigner>("/commercial/document-engine/signers", data),
+  updateSigner: (id: string, data: Partial<AuthorizedSigner>) =>
+    HttpClient.patch<AuthorizedSigner>(`/commercial/document-engine/signers/${id}`, data),
+  deleteSigner: (id: string) =>
+    HttpClient.delete<{ success: boolean; message: string }>(`/commercial/document-engine/signers/${id}`),
+  reorderSigners: (order: { id: string; priorityOrder: number }[]) =>
+    HttpClient.put<AuthorizedSigner[]>("/commercial/document-engine/signers/reorder", { order }),
+  getPreviewConfig: () =>
+    HttpClient.get<{ skin: TenantDocumentSkin; signers: AuthorizedSigner[] }>("/commercial/document-engine/preview-config"),
+  interpolatePreview: (data: { template: string; variables?: Record<string, any> }) =>
+    HttpClient.post<{ interpolated: string }>("/commercial/document-engine/interpolate-preview", data),
+};
+

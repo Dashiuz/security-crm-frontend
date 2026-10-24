@@ -18,6 +18,7 @@ import {
 } from "@/lib/api/commercial-settings";
 import { useNotification } from "@/providers/NotificationProvider";
 import { noxiaPalette } from "@/theme/noxiaTheme";
+import TipTapRichEditor from "@/app/(protected)/commercial/proposals/components/TipTapRichEditor";
 
 interface SnippetEditorDrawerProps {
   open: boolean;
@@ -144,42 +145,16 @@ export default function SnippetEditorDrawer({
         />
 
         <Box>
-          <Typography variant="caption" sx={{ fontWeight: 600, color: "text.secondary", display: "block", mb: 1 }}>
-            Variables Disponibles (Clic para insertar en el texto):
+          <Typography variant="caption" sx={{ fontWeight: 700, color: "text.primary", display: "block", mb: 1 }}>
+            Cuerpo de la Cláusula / Minuta (Editor Enriquecido):
           </Typography>
-          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-            {TEMPLATE_VARIABLES.map((v) => (
-              <Chip
-                key={v.token}
-                label={v.label}
-                size="small"
-                onClick={() => insertVariable(v.token)}
-                sx={{
-                  bgcolor: `${noxiaPalette.primary.main}10`,
-                  color: noxiaPalette.primary.main,
-                  fontWeight: 600,
-                  fontSize: "0.75rem",
-                  cursor: "pointer",
-                  "&:hover": {
-                    bgcolor: `${noxiaPalette.primary.main}25`,
-                  },
-                }}
-              />
-            ))}
-          </Stack>
+          <TipTapRichEditor
+            value={formData.bodyTemplate}
+            onChange={(html) => setFormData((p) => ({ ...p, bodyTemplate: html }))}
+            placeholder="Redacte aquí la cláusula o minuta..."
+            availableVariables={TEMPLATE_VARIABLES.map((v) => ({ key: v.token.replace(/[{}]/g, ""), label: v.label }))}
+          />
         </Box>
-
-        <TextField
-          fullWidth
-          required
-          multiline
-          rows={8}
-          size="small"
-          label="Cuerpo del Texto (Plantilla)"
-          value={formData.bodyTemplate}
-          onChange={(e) => setFormData((p) => ({ ...p, bodyTemplate: e.target.value }))}
-          placeholder="Estimados señores {{client_name}}, mediante la presente nos permitimos remitir la propuesta..."
-        />
 
         <FormControlLabel
           control={

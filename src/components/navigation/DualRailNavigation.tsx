@@ -307,7 +307,27 @@ export default function DualRailNavigation() {
             const isRoadmap = item.status === "ROADMAP";
 
             return (
-              <ListItem key={item.id} disablePadding sx={{ mb: 0.5 }}>
+              <React.Fragment key={item.id}>
+                {item.sectionHeader && (
+                  <Box sx={{ pt: 2, pb: 0.75, px: 1.25 }}>
+                    <Typography
+                      variant="overline"
+                      sx={{
+                        fontSize: "0.68rem",
+                        fontWeight: 800,
+                        letterSpacing: "0.08em",
+                        color: "primary.main",
+                        textTransform: "uppercase",
+                        display: "block",
+                        lineHeight: 1.2,
+                      }}
+                    >
+                      {item.sectionHeader}
+                    </Typography>
+                    <Divider sx={{ my: 0.5, borderColor: "divider", opacity: 0.8 }} />
+                  </Box>
+                )}
+                <ListItem disablePadding sx={{ mb: 0.5 }}>
                 <Tooltip
                   title={item.description || item.title}
                   placement="right"
@@ -397,8 +417,9 @@ export default function DualRailNavigation() {
                   </ListItemButton>
                 </Tooltip>
               </ListItem>
-            );
-          })}
+            </React.Fragment>
+          );
+        })}
         </List>
       </Box>
 
@@ -833,7 +854,27 @@ export default function DualRailNavigation() {
                           const isRoadmap = subItem.status === "ROADMAP";
 
                           return (
-                            <ListItem key={subItem.id} disablePadding sx={{ mb: 0.5 }}>
+                            <React.Fragment key={subItem.id}>
+                              {subItem.sectionHeader && (
+                                <Box sx={{ pt: 1.5, pb: 0.5, px: 1 }}>
+                                  <Typography
+                                    variant="overline"
+                                    sx={{
+                                      fontSize: "0.64rem",
+                                      fontWeight: 800,
+                                      letterSpacing: "0.07em",
+                                      color: "primary.main",
+                                      textTransform: "uppercase",
+                                      display: "block",
+                                      lineHeight: 1.2,
+                                    }}
+                                  >
+                                    {subItem.sectionHeader}
+                                  </Typography>
+                                  <Divider sx={{ my: 0.5, borderColor: "divider", opacity: 0.6 }} />
+                                </Box>
+                              )}
+                              <ListItem disablePadding sx={{ mb: 0.5 }}>
                               <ListItemButton
                                 selected={isSubActive}
                                 onClick={() => {
@@ -912,8 +953,9 @@ export default function DualRailNavigation() {
                                 />
                               </ListItemButton>
                             </ListItem>
-                          );
-                        })}
+                          </React.Fragment>
+                        );
+                      })}
                       </List>
                     </Collapse>
                   </Box>
