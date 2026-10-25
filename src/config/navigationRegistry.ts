@@ -139,19 +139,13 @@ export const ERP_DIRECTIONS: ErpDirection[] = [
       },
       {
         id: "com-service-orders",
-        title: "Órdenes de Servicio (Instalación)",
+        title: "Órdenes de Servicio",
         description: "Formalización contractual, actas de inicio e instalación de puestos",
-        status: "ROADMAP",
+        status: "ACTIVE",
+        path: "/commercial/service-orders",
         iconName: "AssignmentTurnedInOutlined",
-        roadmapDetails: {
-          overview: "Documento oficial de inicio de operaciones y promesa de servicio.",
-          keyPoints: [
-            "Detalle de puestos a cubrir y fecha de inicio de servicio pactada.",
-            "Firma digital del representante legal y disparador para Operaciones y Almacén.",
-            "Matriz de distribución a las 9 áreas involucradas.",
-          ],
-          dependencies: ["Propuestas Comerciales", "Firma Digital"],
-        },
+        permissions: ["commercial:settings:read"],
+        features: ["commercial"],
       },
       {
         id: "com-clients",

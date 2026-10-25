@@ -453,7 +453,7 @@ export default function DocumentSkinTab({
         {signers.length === 0 ? (
           <Box sx={{ p: 2.5, textAlign: "center", bgcolor: "neutral.50", borderRadius: 2, border: "1px dashed", borderColor: "divider" }}>
             <Typography variant="caption" color="text.secondary">
-              No hay firmantes registrados aún. Pulse "Agregar Firmante" para registrar al Representante Legal o Director Comercial.
+              No hay firmantes registrados aún. Pulse &quot;Agregar Firmante&quot; para registrar al Representante Legal o Director Comercial.
             </Typography>
           </Box>
         ) : (

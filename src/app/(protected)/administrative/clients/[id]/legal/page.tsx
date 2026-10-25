@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   Box,
   Typography,
@@ -17,7 +17,16 @@ import {
   IconButton,
   Chip,
   Tooltip,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  CircularProgress,
 } from "@mui/material";
+import ResponsiveFormDrawer from "@/components/common/ResponsiveFormDrawer";
+import TipTapRichEditor from "@/app/(protected)/commercial/proposals/components/TipTapRichEditor";
 import {
   EditRounded as EditIcon,
   SaveRounded as SaveIcon,
@@ -32,10 +41,64 @@ import {
   OpenInNew as OpenInNewIcon,
   CheckCircleRounded as CheckCircleIcon,
   PersonOutlineRounded as PersonIcon,
+  SecurityRounded as ShieldIcon,
+  ArticleRounded as DocIcon,
+  FactCheckRounded as AnsIcon,
 } from "@mui/icons-material";
 import { useClientDetail } from "../ClientContext";
 import { StorageApi, MediaTypeCategory } from "@/lib/api/storage";
 import { useNotification } from "@/providers/NotificationProvider";
+import {
+  commercialLegalApi,
+  InsurancePolicyDto,
+  ContractAddendumDto,
+  AnsCommitmentDto,
+  PolicyType,
+  PolicyStatus,
+  AnsCommitmentType,
+  AnsCommitmentStatus,
+} from "@/lib/api/commercial-legal";
+
+const POLICY_TYPE_LABELS: Record<PolicyType, string> = {
+  COMPLIANCE: "Cumplimiento",
+  WAGES_AND_BENEFITS: "Salarios y Prestaciones Sociales",
+  SERVICE_QUALITY: "Calidad del Servicio",
+  CIVIL_LIABILITY_PLO: "Resp. Civil Extracontractual (PLO)",
+  GLOBAL_THEFT: "Hurto Global y Fidelidad Comercial",
+};
+
+const POLICY_STATUS_CONFIG: Record<
+  PolicyStatus,
+  { label: string; color: "success" | "warning" | "error" | "default" }
+> = {
+  ACTIVE: { label: "Vigente", color: "success" },
+  EXPIRING_SOON: { label: "Por Vencer (<30d)", color: "warning" },
+  EXPIRED: { label: "Vencida", color: "error" },
+  CANCELLED: { label: "Cancelada", color: "default" },
+};
+
+const ANS_TYPE_LABELS: Record<AnsCommitmentType, string> = {
+  SECURITY_STUDY_DELIVERY: "Estudio de Seguridad",
+  PRIOR_TAKEOVER_EMPALME: "Acta de Empalme e Instalación",
+  FREE_GUARD_SUPPORT_12H: "Horas Apoyo Gratuito (12h)",
+  QUARTERLY_MANAGEMENT_REP: "Informe Trimestral Gestión",
+};
+
+const ANS_STATUS_CONFIG: Record<
+  AnsCommitmentStatus,
+  { label: string; color: "warning" | "success" | "error" }
+> = {
+  PENDING: { label: "Pendiente", color: "warning" },
+  FULFILLED: { label: "Cumplido", color: "success" },
+  BREACHED: { label: "Incumplido", color: "error" },
+};
+
+const formatCopCurrency = (amount: number) =>
+  new Intl.NumberFormat("es-CO", {
+    style: "currency",
+    currency: "COP",
+    maximumFractionDigits: 0,
+  }).format(amount || 0);
 
 interface DynamicContact {
   roleName: string;
@@ -202,6 +265,245 @@ export default function ClientLegalPage() {
       setCouncilMembers(cData.councilMembers || []);
     }
   }, [client]);
+
+  // Commercial Legal Portfolio state (SPEC-ADM-022)
+  const [policies, setPolicies] = useState<InsurancePolicyDto[]>([]);
+  const [loadingPolicies, setLoadingPolicies] = useState(false);
+  const [policyModalOpen, setPolicyModalOpen] = useState(false);
+  const [savingPolicy, setSavingPolicy] = useState(false);
+  const [policyForm, setPolicyForm] = useState({
+    policyType: "CIVIL_LIABILITY_PLO" as PolicyType,
+    insuranceCompanyName: "",
+    policyCertificateNumber: "",
+    insuredAmount: 0,
+    effectiveStartDate: "",
+    effectiveEndDate: "",
+    status: "ACTIVE" as PolicyStatus,
+  });
+
+  const [addendums, setAddendums] = useState<ContractAddendumDto[]>([]);
+  const [loadingAddendums, setLoadingAddendums] = useState(false);
+  const [addendumModalOpen, setAddendumModalOpen] = useState(false);
+  const [savingAddendum, setSavingAddendum] = useState(false);
+  const [addendumForm, setAddendumForm] = useState({
+    addendumNumber: "",
+    title: "",
+    effectiveStartDate: "",
+    effectiveEndDate: "",
+    durationYears: 1,
+    reinvestmentAmountPact: 0,
+    disbursedAmount: 0,
+    disbursementDate: "",
+    description: "",
+  });
+
+  const [ansList, setAnsList] = useState<AnsCommitmentDto[]>([]);
+  const [loadingAns, setLoadingAns] = useState(false);
+  const [ansModalOpen, setAnsModalOpen] = useState(false);
+  const [savingAns, setSavingAns] = useState(false);
+  const [ansForm, setAnsForm] = useState({
+    commitmentType: "SECURITY_STUDY_DELIVERY" as AnsCommitmentType,
+    title: "",
+    dueDate: "",
+    deliveredDate: "",
+    status: "PENDING" as AnsCommitmentStatus,
+    evidenceNotes: "",
+  });
+
+  const fetchPolicies = useCallback(async () => {
+    if (!clientId) return;
+    setLoadingPolicies(true);
+    try {
+      const data = await commercialLegalApi.getPoliciesByClient(clientId);
+      setPolicies(data);
+    } catch (err: any) {
+      showError(err.message || "Error al cargar pólizas de seguro");
+    } finally {
+      setLoadingPolicies(false);
+    }
+  }, [clientId, showError]);
+
+  const fetchAddendums = useCallback(async () => {
+    if (!clientId) return;
+    setLoadingAddendums(true);
+    try {
+      const data = await commercialLegalApi.getAddendumsByClient(clientId);
+      setAddendums(data);
+    } catch (err: any) {
+      showError(err.message || "Error al cargar otrosíes contractuales");
+    } finally {
+      setLoadingAddendums(false);
+    }
+  }, [clientId, showError]);
+
+  const fetchAns = useCallback(async () => {
+    if (!clientId) return;
+    setLoadingAns(true);
+    try {
+      const data = await commercialLegalApi.getAnsByClient(clientId);
+      setAnsList(data);
+    } catch (err: any) {
+      showError(err.message || "Error al cargar compromisos ANS");
+    } finally {
+      setLoadingAns(false);
+    }
+  }, [clientId, showError]);
+
+  useEffect(() => {
+    if (clientId) {
+      fetchPolicies();
+      fetchAddendums();
+      fetchAns();
+    }
+  }, [clientId, fetchPolicies, fetchAddendums, fetchAns]);
+
+  const handleCreatePolicy = async () => {
+    if (!policyForm.insuranceCompanyName || !policyForm.policyCertificateNumber) {
+      showError("Por favor ingrese la aseguradora y el número de póliza");
+      return;
+    }
+    setSavingPolicy(true);
+    try {
+      await commercialLegalApi.createPolicy({
+        ...policyForm,
+        clientId,
+        insuredAmount: Number(policyForm.insuredAmount) || 0,
+        effectiveStartDate: policyForm.effectiveStartDate || new Date().toISOString(),
+        effectiveEndDate: policyForm.effectiveEndDate || new Date().toISOString(),
+      });
+      showSuccess("Póliza registrada exitosamente");
+      setPolicyModalOpen(false);
+      setPolicyForm({
+        policyType: "CIVIL_LIABILITY_PLO",
+        insuranceCompanyName: "",
+        policyCertificateNumber: "",
+        insuredAmount: 0,
+        effectiveStartDate: "",
+        effectiveEndDate: "",
+        status: "ACTIVE",
+      });
+      await fetchPolicies();
+    } catch (err: any) {
+      showError(err.message || "Error al registrar póliza");
+    } finally {
+      setSavingPolicy(false);
+    }
+  };
+
+  const handleDeletePolicy = async (id: string) => {
+    if (!confirm("¿Está seguro de eliminar esta póliza?")) return;
+    try {
+      await commercialLegalApi.deletePolicy(id);
+      showSuccess("Póliza eliminada");
+      await fetchPolicies();
+    } catch (err: any) {
+      showError(err.message || "Error al eliminar póliza");
+    }
+  };
+
+  const handleCreateAddendum = async () => {
+    if (!addendumForm.addendumNumber || !addendumForm.title) {
+      showError("Por favor ingrese el número y título del otrosí");
+      return;
+    }
+    setSavingAddendum(true);
+    try {
+      await commercialLegalApi.createAddendum({
+        ...addendumForm,
+        clientId,
+        durationYears: Number(addendumForm.durationYears) || 1,
+        reinvestmentAmountPact: Number(addendumForm.reinvestmentAmountPact) || 0,
+        disbursedAmount: Number(addendumForm.disbursedAmount) || 0,
+        effectiveStartDate: addendumForm.effectiveStartDate || new Date().toISOString(),
+        effectiveEndDate: addendumForm.effectiveEndDate || new Date().toISOString(),
+        disbursementDate: addendumForm.disbursementDate || undefined,
+      });
+      showSuccess("Otrosí contractual registrado exitosamente");
+      setAddendumModalOpen(false);
+      setAddendumForm({
+        addendumNumber: "",
+        title: "",
+        effectiveStartDate: "",
+        effectiveEndDate: "",
+        durationYears: 1,
+        reinvestmentAmountPact: 0,
+        disbursedAmount: 0,
+        disbursementDate: "",
+        description: "",
+      });
+      await fetchAddendums();
+    } catch (err: any) {
+      showError(err.message || "Error al registrar otrosí");
+    } finally {
+      setSavingAddendum(false);
+    }
+  };
+
+  const handleDeleteAddendum = async (id: string) => {
+    if (!confirm("¿Está seguro de eliminar este otrosí?")) return;
+    try {
+      await commercialLegalApi.deleteAddendum(id);
+      showSuccess("Otrosí eliminado");
+      await fetchAddendums();
+    } catch (err: any) {
+      showError(err.message || "Error al eliminar otrosí");
+    }
+  };
+
+  const handleCreateAns = async () => {
+    if (!ansForm.title || !ansForm.dueDate) {
+      showError("Por favor ingrese el título y la fecha límite del compromiso ANS");
+      return;
+    }
+    setSavingAns(true);
+    try {
+      await commercialLegalApi.createAns({
+        ...ansForm,
+        clientId,
+        deliveredDate: ansForm.deliveredDate || undefined,
+      });
+      showSuccess("Compromiso ANS registrado exitosamente");
+      setAnsModalOpen(false);
+      setAnsForm({
+        commitmentType: "SECURITY_STUDY_DELIVERY",
+        title: "",
+        dueDate: "",
+        deliveredDate: "",
+        status: "PENDING",
+        evidenceNotes: "",
+      });
+      await fetchAns();
+    } catch (err: any) {
+      showError(err.message || "Error al registrar compromiso ANS");
+    } finally {
+      setSavingAns(false);
+    }
+  };
+
+  const handleToggleAnsStatus = async (item: AnsCommitmentDto) => {
+    const nextStatus: AnsCommitmentStatus = item.status === "PENDING" ? "FULFILLED" : "PENDING";
+    try {
+      await commercialLegalApi.updateAns(item.id, {
+        status: nextStatus,
+        deliveredDate: nextStatus === "FULFILLED" ? new Date().toISOString().split("T")[0] : null,
+      });
+      showSuccess(`Compromiso marcado como ${ANS_STATUS_CONFIG[nextStatus].label}`);
+      await fetchAns();
+    } catch (err: any) {
+      showError(err.message || "Error al actualizar estado del compromiso ANS");
+    }
+  };
+
+  const handleDeleteAns = async (id: string) => {
+    if (!confirm("¿Está seguro de eliminar este compromiso ANS?")) return;
+    try {
+      await commercialLegalApi.deleteAns(id);
+      showSuccess("Compromiso ANS eliminado");
+      await fetchAns();
+    } catch (err: any) {
+      showError(err.message || "Error al eliminar compromiso ANS");
+    }
+  };
 
   // Upload handler for contractual documents
   const triggerDocUpload = (docKey: string) => {
@@ -1639,6 +1941,752 @@ export default function ClientLegalPage() {
           </Box>
         )}
       </Paper>
+
+      {/* SECTION 1: PÓLIZAS CONTRACTUALES DE SEGURO */}
+      <Paper sx={{ p: 3, mb: 3, borderRadius: 3, boxShadow: 1 }}>
+        <Box
+          sx={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            mb: 2.5,
+          }}
+        >
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+            <ShieldIcon color="primary" />
+            <Typography variant="h6" fontWeight={700}>
+              PÓLIZAS CONTRACTUALES DE SEGURO
+            </Typography>
+            <Chip
+              size="small"
+              label={`${policies.length} Póliza${policies.length === 1 ? "" : "s"}`}
+              color="primary"
+              variant="outlined"
+            />
+          </Box>
+          <Button
+            variant="contained"
+            size="small"
+            startIcon={<AddIcon />}
+            onClick={() => setPolicyModalOpen(true)}
+            sx={{ borderRadius: 2, textTransform: "none", fontWeight: 600 }}
+          >
+            Nueva Póliza
+          </Button>
+        </Box>
+
+        {loadingPolicies ? (
+          <Box sx={{ display: "flex", justifyContent: "center", py: 4 }}>
+            <CircularProgress size={28} />
+          </Box>
+        ) : policies.length === 0 ? (
+          <Paper
+            variant="outlined"
+            sx={{
+              p: 3,
+              textAlign: "center",
+              borderRadius: 2,
+              bgcolor: "background.default",
+            }}
+          >
+            <Typography variant="body2" color="text.secondary">
+              No hay pólizas registradas para este cliente. Haga clic en "Nueva Póliza" para registrar la primera.
+            </Typography>
+          </Paper>
+        ) : (
+          <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 2 }}>
+            <Table size="small">
+              <TableHead sx={{ bgcolor: "action.hover" }}>
+                <TableRow>
+                  <TableCell sx={{ fontWeight: 700 }}>Tipo de Póliza</TableCell>
+                  <TableCell sx={{ fontWeight: 700 }}>Aseguradora</TableCell>
+                  <TableCell sx={{ fontWeight: 700 }}>N° Póliza / Certificado</TableCell>
+                  <TableCell sx={{ fontWeight: 700 }} align="right">Valor Asegurado</TableCell>
+                  <TableCell sx={{ fontWeight: 700 }}>Vigencia</TableCell>
+                  <TableCell sx={{ fontWeight: 700 }} align="center">Estado</TableCell>
+                  <TableCell sx={{ fontWeight: 700 }} align="right">Acciones</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {policies.map((p) => {
+                  const statusCfg = POLICY_STATUS_CONFIG[p.status] || {
+                    label: p.status,
+                    color: "default",
+                  };
+                  return (
+                    <TableRow key={p.id} hover>
+                      <TableCell sx={{ fontWeight: 600 }}>
+                        {POLICY_TYPE_LABELS[p.policyType] || p.policyType}
+                      </TableCell>
+                      <TableCell>{p.insuranceCompanyName}</TableCell>
+                      <TableCell sx={{ fontFamily: "monospace", fontSize: "0.85rem" }}>
+                        {p.policyCertificateNumber}
+                      </TableCell>
+                      <TableCell align="right" sx={{ fontWeight: 600 }}>
+                        {formatCopCurrency(p.insuredAmount)}
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant="caption" display="block">
+                          Desde: {p.effectiveStartDate ? p.effectiveStartDate.split("T")[0] : "-"}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary" display="block">
+                          Hasta: {p.effectiveEndDate ? p.effectiveEndDate.split("T")[0] : "-"}
+                        </Typography>
+                      </TableCell>
+                      <TableCell align="center">
+                        <Chip
+                          size="small"
+                          label={statusCfg.label}
+                          color={statusCfg.color}
+                          variant="filled"
+                        />
+                      </TableCell>
+                      <TableCell align="right">
+                        <Tooltip title="Eliminar Póliza">
+                          <IconButton
+                            size="small"
+                            color="error"
+                            onClick={() => handleDeletePolicy(p.id)}
+                          >
+                            <DeleteIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        )}
+      </Paper>
+
+      {/* SECTION 2: OTROSÍES Y ADICIONES CONTRACTUALES (OSI) */}
+      <Paper sx={{ p: 3, mb: 3, borderRadius: 3, boxShadow: 1 }}>
+        <Box
+          sx={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            mb: 2.5,
+          }}
+        >
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+            <DocIcon color="primary" />
+            <Typography variant="h6" fontWeight={700}>
+              OTROSÍES Y ADICIONES CONTRACTUALES (OSI)
+            </Typography>
+            <Chip
+              size="small"
+              label={`${addendums.length} Otrosí${addendums.length === 1 ? "" : "s"}`}
+              color="primary"
+              variant="outlined"
+            />
+          </Box>
+          <Button
+            variant="contained"
+            size="small"
+            startIcon={<AddIcon />}
+            onClick={() => setAddendumModalOpen(true)}
+            sx={{ borderRadius: 2, textTransform: "none", fontWeight: 600 }}
+          >
+            Nuevo Otrosí
+          </Button>
+        </Box>
+
+        {loadingAddendums ? (
+          <Box sx={{ display: "flex", justifyContent: "center", py: 4 }}>
+            <CircularProgress size={28} />
+          </Box>
+        ) : addendums.length === 0 ? (
+          <Paper
+            variant="outlined"
+            sx={{
+              p: 3,
+              textAlign: "center",
+              borderRadius: 2,
+              bgcolor: "background.default",
+            }}
+          >
+            <Typography variant="body2" color="text.secondary">
+              No hay otrosíes registrados para este cliente. Haga clic en "Nuevo Otrosí" para registrar adiciones de reinversión o prórrogas.
+            </Typography>
+          </Paper>
+        ) : (
+          <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 2 }}>
+            <Table size="small">
+              <TableHead sx={{ bgcolor: "action.hover" }}>
+                <TableRow>
+                  <TableCell sx={{ fontWeight: 700 }}>N° Otrosí</TableCell>
+                  <TableCell sx={{ fontWeight: 700 }}>Título / Objeto</TableCell>
+                  <TableCell sx={{ fontWeight: 700 }}>Vigencia / Plazo</TableCell>
+                  <TableCell sx={{ fontWeight: 700 }} align="right">Reinversión Pactada</TableCell>
+                  <TableCell sx={{ fontWeight: 700 }} align="right">Desembolsado</TableCell>
+                  <TableCell sx={{ fontWeight: 700 }}>Fecha Desembolso</TableCell>
+                  <TableCell sx={{ fontWeight: 700 }} align="right">Acciones</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {addendums.map((a) => (
+                  <TableRow key={a.id} hover>
+                    <TableCell sx={{ fontWeight: 700, fontFamily: "monospace" }}>
+                      {a.addendumNumber}
+                    </TableCell>
+                    <TableCell>
+                      <Typography variant="body2" fontWeight={600}>
+                        {a.title}
+                      </Typography>
+                      {a.description && (
+                        <Typography variant="caption" color="text.secondary" display="block">
+                          {a.description}
+                        </Typography>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <Typography variant="caption" display="block">
+                        {a.effectiveStartDate ? a.effectiveStartDate.split("T")[0] : "-"} al{" "}
+                        {a.effectiveEndDate ? a.effectiveEndDate.split("T")[0] : "-"}
+                      </Typography>
+                      <Chip
+                        size="small"
+                        label={`${a.durationYears} año${a.durationYears === 1 ? "" : "s"}`}
+                        variant="outlined"
+                        sx={{ mt: 0.5, height: 20, fontSize: "0.7rem" }}
+                      />
+                    </TableCell>
+                    <TableCell align="right" sx={{ fontWeight: 600 }}>
+                      {formatCopCurrency(a.reinvestmentAmountPact)}
+                    </TableCell>
+                    <TableCell align="right" sx={{ fontWeight: 600, color: "success.main" }}>
+                      {formatCopCurrency(a.disbursedAmount)}
+                    </TableCell>
+                    <TableCell>
+                      {a.disbursementDate ? a.disbursementDate.split("T")[0] : "Pendiente"}
+                    </TableCell>
+                    <TableCell align="right">
+                      <Tooltip title="Eliminar Otrosí">
+                        <IconButton
+                          size="small"
+                          color="error"
+                          onClick={() => handleDeleteAddendum(a.id)}
+                        >
+                          <DeleteIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        )}
+      </Paper>
+
+      {/* SECTION 3: COMPROMISOS DE NIVELES DE SERVICIO (ANS) */}
+      <Paper sx={{ p: 3, mb: 3, borderRadius: 3, boxShadow: 1 }}>
+        <Box
+          sx={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            mb: 2.5,
+          }}
+        >
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+            <AnsIcon color="primary" />
+            <Typography variant="h6" fontWeight={700}>
+              COMPROMISOS DE NIVELES DE SERVICIO (ANS)
+            </Typography>
+            <Chip
+              size="small"
+              label={`${ansList.length} Compromiso${ansList.length === 1 ? "" : "s"}`}
+              color="primary"
+              variant="outlined"
+            />
+          </Box>
+          <Button
+            variant="contained"
+            size="small"
+            startIcon={<AddIcon />}
+            onClick={() => setAnsModalOpen(true)}
+            sx={{ borderRadius: 2, textTransform: "none", fontWeight: 600 }}
+          >
+            Nuevo Compromiso ANS
+          </Button>
+        </Box>
+
+        {loadingAns ? (
+          <Box sx={{ display: "flex", justifyContent: "center", py: 4 }}>
+            <CircularProgress size={28} />
+          </Box>
+        ) : ansList.length === 0 ? (
+          <Paper
+            variant="outlined"
+            sx={{
+              p: 3,
+              textAlign: "center",
+              borderRadius: 2,
+              bgcolor: "background.default",
+            }}
+          >
+            <Typography variant="body2" color="text.secondary">
+              No hay compromisos ANS pactados para este cliente. Haga clic en "Nuevo Compromiso ANS" para registrar entregables de seguridad o informes.
+            </Typography>
+          </Paper>
+        ) : (
+          <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 2 }}>
+            <Table size="small">
+              <TableHead sx={{ bgcolor: "action.hover" }}>
+                <TableRow>
+                  <TableCell sx={{ fontWeight: 700 }}>Tipo de Compromiso</TableCell>
+                  <TableCell sx={{ fontWeight: 700 }}>Título / Entregable</TableCell>
+                  <TableCell sx={{ fontWeight: 700 }}>Fecha Límite</TableCell>
+                  <TableCell sx={{ fontWeight: 700 }}>Fecha Cumplimiento</TableCell>
+                  <TableCell sx={{ fontWeight: 700 }} align="center">Estado ANS</TableCell>
+                  <TableCell sx={{ fontWeight: 700 }} align="right">Acciones</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {ansList.map((ans) => {
+                  const statusCfg = ANS_STATUS_CONFIG[ans.status] || {
+                    label: ans.status,
+                    color: "warning",
+                  };
+                  return (
+                    <TableRow key={ans.id} hover>
+                      <TableCell sx={{ fontWeight: 600 }}>
+                        {ANS_TYPE_LABELS[ans.commitmentType] || ans.commitmentType}
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant="body2" fontWeight={600}>
+                          {ans.title}
+                        </Typography>
+                        {ans.evidenceNotes && (
+                          <Typography variant="caption" color="text.secondary" display="block">
+                            Evidencia: {ans.evidenceNotes}
+                          </Typography>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {ans.dueDate ? ans.dueDate.split("T")[0] : "-"}
+                      </TableCell>
+                      <TableCell>
+                        {ans.deliveredDate ? ans.deliveredDate.split("T")[0] : "Pendiente"}
+                      </TableCell>
+                      <TableCell align="center">
+                        <Chip
+                          size="small"
+                          label={statusCfg.label}
+                          color={statusCfg.color}
+                          variant="filled"
+                          onClick={() => handleToggleAnsStatus(ans)}
+                          sx={{ cursor: "pointer" }}
+                        />
+                      </TableCell>
+                      <TableCell align="right">
+                        <Tooltip title="Eliminar Compromiso">
+                          <IconButton
+                            size="small"
+                            color="error"
+                            onClick={() => handleDeleteAns(ans.id)}
+                          >
+                            <DeleteIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        )}
+      </Paper>
+
+      {/* DRAWER: NUEVA PÓLIZA */}
+      <ResponsiveFormDrawer
+        open={policyModalOpen}
+        onClose={() => !savingPolicy && setPolicyModalOpen(false)}
+        title="Registrar Póliza de Seguro Contractual"
+        subtitle="Cumplimiento, Salarios, Calidad del Servicio y Responsabilidad Civil"
+        isSubmitting={savingPolicy}
+        submitButtonText="Guardar Póliza"
+        formId="create-policy-form"
+      >
+        <Box
+          component="form"
+          id="create-policy-form"
+          onSubmit={(e) => {
+            e.preventDefault();
+            handleCreatePolicy();
+          }}
+        >
+          <Grid container spacing={2.5}>
+            <Grid size={{ xs: 12 }}>
+              <TextField
+                select
+                fullWidth
+                size="small"
+                label="Tipo de Póliza *"
+                value={policyForm.policyType}
+                onChange={(e) =>
+                  setPolicyForm({ ...policyForm, policyType: e.target.value as PolicyType })
+                }
+              >
+                {Object.entries(POLICY_TYPE_LABELS).map(([k, label]) => (
+                  <MenuItem key={k} value={k}>
+                    {label}
+                  </MenuItem>
+                ))}
+              </TextField>
+            </Grid>
+            <Grid size={{ xs: 12, sm: 6 }}>
+              <TextField
+                fullWidth
+                size="small"
+                label="Aseguradora *"
+                placeholder="ej. Seguros Bolívar, SURA, Seguros del Estado"
+                value={policyForm.insuranceCompanyName}
+                onChange={(e) =>
+                  setPolicyForm({ ...policyForm, insuranceCompanyName: e.target.value })
+                }
+                required
+              />
+            </Grid>
+            <Grid size={{ xs: 12, sm: 6 }}>
+              <TextField
+                fullWidth
+                size="small"
+                label="N° Póliza / Certificado *"
+                placeholder="ej. POL-2026-99882"
+                value={policyForm.policyCertificateNumber}
+                onChange={(e) =>
+                  setPolicyForm({ ...policyForm, policyCertificateNumber: e.target.value })
+                }
+                required
+              />
+            </Grid>
+            <Grid size={{ xs: 12, sm: 6 }}>
+              <TextField
+                fullWidth
+                size="small"
+                type="number"
+                label="Valor Asegurado (COP) *"
+                value={policyForm.insuredAmount}
+                onChange={(e) =>
+                  setPolicyForm({ ...policyForm, insuredAmount: Number(e.target.value) })
+                }
+                required
+              />
+            </Grid>
+            <Grid size={{ xs: 12, sm: 6 }}>
+              <TextField
+                select
+                fullWidth
+                size="small"
+                label="Estado *"
+                value={policyForm.status}
+                onChange={(e) =>
+                  setPolicyForm({ ...policyForm, status: e.target.value as PolicyStatus })
+                }
+              >
+                {Object.entries(POLICY_STATUS_CONFIG).map(([k, cfg]) => (
+                  <MenuItem key={k} value={k}>
+                    {cfg.label}
+                  </MenuItem>
+                ))}
+              </TextField>
+            </Grid>
+            <Grid size={{ xs: 12, sm: 6 }}>
+              <TextField
+                fullWidth
+                size="small"
+                type="date"
+                label="Fecha de Inicio"
+                InputLabelProps={{ shrink: true }}
+                value={policyForm.effectiveStartDate}
+                onChange={(e) =>
+                  setPolicyForm({ ...policyForm, effectiveStartDate: e.target.value })
+                }
+              />
+            </Grid>
+            <Grid size={{ xs: 12, sm: 6 }}>
+              <TextField
+                fullWidth
+                size="small"
+                type="date"
+                label="Fecha de Fin / Vencimiento"
+                InputLabelProps={{ shrink: true }}
+                value={policyForm.effectiveEndDate}
+                onChange={(e) =>
+                  setPolicyForm({ ...policyForm, effectiveEndDate: e.target.value })
+                }
+              />
+            </Grid>
+          </Grid>
+        </Box>
+      </ResponsiveFormDrawer>
+
+      {/* DRAWER: NUEVO OTROSÍ */}
+      <ResponsiveFormDrawer
+        open={addendumModalOpen}
+        onClose={() => !savingAddendum && setAddendumModalOpen(false)}
+        title="Registrar Otrosí / Adición Contractual"
+        subtitle="Modificaciones de plazo, valor, puestos y reinversión pactada"
+        isSubmitting={savingAddendum}
+        submitButtonText="Guardar Otrosí"
+        formId="create-addendum-form"
+      >
+        <Box
+          component="form"
+          id="create-addendum-form"
+          onSubmit={(e) => {
+            e.preventDefault();
+            handleCreateAddendum();
+          }}
+        >
+          <Grid container spacing={2.5}>
+            <Grid size={{ xs: 12, sm: 6 }}>
+              <TextField
+                fullWidth
+                size="small"
+                label="N° Otrosí *"
+                placeholder="ej. OSI-2026-001"
+                value={addendumForm.addendumNumber}
+                onChange={(e) =>
+                  setAddendumForm({ ...addendumForm, addendumNumber: e.target.value })
+                }
+                required
+              />
+            </Grid>
+            <Grid size={{ xs: 12, sm: 6 }}>
+              <TextField
+                fullWidth
+                size="small"
+                type="number"
+                label="Duración (Años) *"
+                value={addendumForm.durationYears}
+                onChange={(e) =>
+                  setAddendumForm({ ...addendumForm, durationYears: Number(e.target.value) })
+                }
+                required
+              />
+            </Grid>
+            <Grid size={{ xs: 12 }}>
+              <TextField
+                fullWidth
+                size="small"
+                label="Título / Objeto *"
+                placeholder="ej. Adición Presupuestal y Cámaras PTZ"
+                value={addendumForm.title}
+                onChange={(e) =>
+                  setAddendumForm({ ...addendumForm, title: e.target.value })
+                }
+                required
+              />
+            </Grid>
+            <Grid size={{ xs: 12, sm: 6 }}>
+              <TextField
+                fullWidth
+                size="small"
+                type="number"
+                label="Reinversión Pactada (COP) *"
+                value={addendumForm.reinvestmentAmountPact}
+                onChange={(e) =>
+                  setAddendumForm({
+                    ...addendumForm,
+                    reinvestmentAmountPact: Number(e.target.value),
+                  })
+                }
+                required
+              />
+            </Grid>
+            <Grid size={{ xs: 12, sm: 6 }}>
+              <TextField
+                fullWidth
+                size="small"
+                type="number"
+                label="Monto Desembolsado (COP)"
+                value={addendumForm.disbursedAmount}
+                onChange={(e) =>
+                  setAddendumForm({
+                    ...addendumForm,
+                    disbursedAmount: Number(e.target.value),
+                  })
+                }
+              />
+            </Grid>
+            <Grid size={{ xs: 12, sm: 6 }}>
+              <TextField
+                fullWidth
+                size="small"
+                type="date"
+                label="Fecha de Inicio"
+                InputLabelProps={{ shrink: true }}
+                value={addendumForm.effectiveStartDate}
+                onChange={(e) =>
+                  setAddendumForm({ ...addendumForm, effectiveStartDate: e.target.value })
+                }
+              />
+            </Grid>
+            <Grid size={{ xs: 12, sm: 6 }}>
+              <TextField
+                fullWidth
+                size="small"
+                type="date"
+                label="Fecha de Fin"
+                InputLabelProps={{ shrink: true }}
+                value={addendumForm.effectiveEndDate}
+                onChange={(e) =>
+                  setAddendumForm({ ...addendumForm, effectiveEndDate: e.target.value })
+                }
+              />
+            </Grid>
+            <Grid size={{ xs: 12, sm: 6 }}>
+              <TextField
+                fullWidth
+                size="small"
+                type="date"
+                label="Fecha de Desembolso"
+                InputLabelProps={{ shrink: true }}
+                value={addendumForm.disbursementDate}
+                onChange={(e) =>
+                  setAddendumForm({ ...addendumForm, disbursementDate: e.target.value })
+                }
+              />
+            </Grid>
+            <Grid size={{ xs: 12 }}>
+              <Typography variant="caption" fontWeight={600} color="text.secondary" sx={{ mb: 1, display: "block" }}>
+                CLÁUSULAS CONTRACTUALES Y ESPECIFICACIONES TÉCNICAS (EDITOR ENRIQUECIDO)
+              </Typography>
+              <TipTapRichEditor
+                value={addendumForm.description || ""}
+                onChange={(html) =>
+                  setAddendumForm({ ...addendumForm, description: html })
+                }
+                placeholder="Redacte aquí las cláusulas especiales, equipamiento o compromisos de reinversión en el puesto..."
+              />
+            </Grid>
+          </Grid>
+        </Box>
+      </ResponsiveFormDrawer>
+
+      {/* DRAWER: NUEVO COMPROMISO ANS */}
+      <ResponsiveFormDrawer
+        open={ansModalOpen}
+        onClose={() => !savingAns && setAnsModalOpen(false)}
+        title="Registrar Compromiso de Niveles de Servicio (ANS)"
+        subtitle="Estudios de seguridad, actas de empalme, refuerzos y reportes trimestrales"
+        isSubmitting={savingAns}
+        submitButtonText="Guardar Compromiso ANS"
+        formId="create-ans-form"
+      >
+        <Box
+          component="form"
+          id="create-ans-form"
+          onSubmit={(e) => {
+            e.preventDefault();
+            handleCreateAns();
+          }}
+        >
+          <Grid container spacing={2.5}>
+            <Grid size={{ xs: 12 }}>
+              <TextField
+                select
+                fullWidth
+                size="small"
+                label="Tipo de Compromiso *"
+                value={ansForm.commitmentType}
+                onChange={(e) =>
+                  setAnsForm({
+                    ...ansForm,
+                    commitmentType: e.target.value as AnsCommitmentType,
+                  })
+                }
+              >
+                {Object.entries(ANS_TYPE_LABELS).map(([k, label]) => (
+                  <MenuItem key={k} value={k}>
+                    {label}
+                  </MenuItem>
+                ))}
+              </TextField>
+            </Grid>
+            <Grid size={{ xs: 12 }}>
+              <TextField
+                fullWidth
+                size="small"
+                label="Título / Entregable *"
+                placeholder="ej. Entrega de Estudio de Seguridad con Matriz de Riesgos"
+                value={ansForm.title}
+                onChange={(e) =>
+                  setAnsForm({ ...ansForm, title: e.target.value })
+                }
+                required
+              />
+            </Grid>
+            <Grid size={{ xs: 12, sm: 6 }}>
+              <TextField
+                fullWidth
+                size="small"
+                type="date"
+                label="Fecha Límite Pactada *"
+                InputLabelProps={{ shrink: true }}
+                value={ansForm.dueDate}
+                onChange={(e) =>
+                  setAnsForm({ ...ansForm, dueDate: e.target.value })
+                }
+                required
+              />
+            </Grid>
+            <Grid size={{ xs: 12, sm: 6 }}>
+              <TextField
+                select
+                fullWidth
+                size="small"
+                label="Estado Inicial *"
+                value={ansForm.status}
+                onChange={(e) =>
+                  setAnsForm({
+                    ...ansForm,
+                    status: e.target.value as AnsCommitmentStatus,
+                  })
+                }
+              >
+                {Object.entries(ANS_STATUS_CONFIG).map(([k, cfg]) => (
+                  <MenuItem key={k} value={k}>
+                    {cfg.label}
+                  </MenuItem>
+                ))}
+              </TextField>
+            </Grid>
+            <Grid size={{ xs: 12, sm: 6 }}>
+              <TextField
+                fullWidth
+                size="small"
+                type="date"
+                label="Fecha de Entrega (Opcional)"
+                InputLabelProps={{ shrink: true }}
+                value={ansForm.deliveredDate}
+                onChange={(e) =>
+                  setAnsForm({ ...ansForm, deliveredDate: e.target.value })
+                }
+              />
+            </Grid>
+            <Grid size={{ xs: 12 }}>
+              <Typography variant="caption" fontWeight={600} color="text.secondary" sx={{ mb: 1, display: "block" }}>
+                NOTAS DE EVIDENCIA, RADICADOS Y ACUERDOS TÉCNICOS (EDITOR ENRIQUECIDO)
+              </Typography>
+              <TipTapRichEditor
+                value={ansForm.evidenceNotes || ""}
+                onChange={(html) =>
+                  setAnsForm({ ...ansForm, evidenceNotes: html })
+                }
+                placeholder="Especifique los radicados de acta, número de entrega o detalles de cumplimiento técnico..."
+              />
+            </Grid>
+          </Grid>
+        </Box>
+      </ResponsiveFormDrawer>
     </Box>
   );
 }

@@ -1,0 +1,25 @@
+# Frontend Architectural Decisions & Implementation Log
+
+[2026-10-25] ZERO-DIALOG POLICY, TIPTAP RICH TEXT INTEGRATION, LIVE COMMERCIAL PROPOSALS (P&L) & SERVICE ORDERS DISPATCH (FRONTEND-STYLE-GUIDE, SPEC-ADM-020, SPEC-ADM-021, SPEC-ADM-022):
+1. Regla de Oro / Guía de Estilo Noxia (.specs/00-general-rules/frontend-noxia-style-guide.md):
+   - Prohibición categórica de `<Dialog>` en la aplicación.
+   - Adopción universal de `ResponsiveFormDrawer` (Right Drawer en Desktop con sticky footer, Bottom Sheet gestual en Mobile con drag handle).
+2. Cartera Legal de Clientes (src/app/(protected)/administrative/clients/[id]/legal/page.tsx):
+   - Erradicación del 100% de modales en Pólizas de Seguro, Otrosíes Contractuales (OSI) y Compromisos ANS.
+   - Sustitución por tres ResponsiveFormDrawer dedicados.
+   - Integración de `TipTapRichEditor` para redacción de cláusulas contractuales y notas técnicas.
+3. Propuestas Comerciales y P&L en Vivo (src/app/(protected)/commercial/proposals/components/SplitScreenProposalWorkspace.tsx):
+   - Reemplazo de Dialog fullscreen por Drawer completo (anchor="right", w-100vw).
+   - Conexión con ClientAutocomplete para búsqueda y selección de clientes reales.
+   - Gestión reactiva de Puestos de Vigilancia y Valores Agregados (VAGs).
+   - Simulación reactiva de P&L (`commercialProposalsApi.simulatePnl`) con semáforo en vivo (🟢 >=15%, 🟡 8-14.99%, 🔴 <8%).
+   - Carga dinámica de firmantes autorizados (`DocumentEngineApi.getSigners`).
+   - Interpolación dinámica de snippets de texto dentro del editor TipTap.
+   - Creación persistente llamando a la API real (`commercialProposalsApi.createProposal`), eliminando mocks y timeouts estáticos.
+4. Órdenes de Servicio (src/app/(protected)/commercial/service-orders/page.tsx):
+   - Habilitación del botón "+ Nueva Orden de Servicio".
+   - Drawer de creación con selector dual: desde Propuesta WON (autollenado de cliente, puestos y montos) o Registro Directo con ClientAutocomplete.
+   - Captura del Perfil del Guarda Ideal (estatura en metros, libreta militar 1ra clase, experiencia en años, polígrafo, uniforme de gala, cursos especiales).
+   - Captura de Dotación de Almacén (radios, linternas, detectores de metales, botiquines, chalecos).
+   - Inspección 360° en Drawer y despacho real no bloqueante a los 9 departamentos corporativos vía `commercialServiceOrdersApi.dispatchOrder`.
+   - Compilación TypeScript 100% limpia (`tsc --noEmit` 0 errores).

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   Box,
   Typography,
@@ -22,6 +22,8 @@ import {
   TableRow,
   Paper,
   Tooltip,
+  CircularProgress,
+  Alert,
 } from "@mui/material";
 import {
   Add as AddIcon,
@@ -29,85 +31,122 @@ import {
   DescriptionOutlined,
   PictureAsPdf,
   EditOutlined,
-  Send,
-  CheckCircleOutline,
-  HourglassEmpty,
   TuneOutlined,
-  FilterList,
+  TrendingUp,
+  WarningAmber,
+  Block,
+  CheckCircle,
 } from "@mui/icons-material";
 import Link from "next/link";
 import SplitScreenProposalWorkspace from "./components/SplitScreenProposalWorkspace";
-import { noxiaPalette } from "@/theme/noxiaTheme";
-
-interface ProposalItem {
-  id: string;
-  code: string;
-  clientName: string;
-  clientNit: string;
-  date: string;
-  totalCop: number;
-  status: "DRAFT" | "SENT" | "ACCEPTED" | "REJECTED";
-  author: string;
-}
-
-const MOCK_PROPOSALS: ProposalItem[] = [
-  {
-    id: "prop-1",
-    code: "PROP-2026-0042",
-    clientName: "CONJUNTO RESIDENCIAL LOS ALPES P.H.",
-    clientNit: "901.442.189-3",
-    date: "2026-10-22",
-    totalCop: 17270787,
-    status: "SENT",
-    author: "Director Comercial",
-  },
-  {
-    id: "prop-2",
-    code: "PROP-2026-0041",
-    clientName: "CENTRO EMPRESARIAL CAPITAL TOWER",
-    clientNit: "900.812.339-1",
-    date: "2026-10-20",
-    totalCop: 34541574,
-    status: "ACCEPTED",
-    author: "Director Comercial",
-  },
-  {
-    id: "prop-3",
-    code: "PROP-2026-0040",
-    clientName: "PARQUE INDUSTRIAL METROPOLITANO",
-    clientNit: "900.111.456-8",
-    date: "2026-10-18",
-    totalCop: 51812361,
-    status: "DRAFT",
-    author: "Ejecutivo de Cuenta",
-  },
-];
+import {
+  commercialProposalsApi,
+  CommercialProposalDto,
+  ProposalStatus,
+  PnlHealthStatus,
+} from "@/lib/api/commercial-proposals";
 
 export default function ProposalsPage() {
   const [workspaceOpen, setWorkspaceOpen] = useState(false);
+  const [selectedProposal, setSelectedProposal] = useState<CommercialProposalDto | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
-  const [proposals, setProposals] = useState<ProposalItem[]>(MOCK_PROPOSALS);
+  const [proposals, setProposals] = useState<CommercialProposalDto[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const filteredProposals = proposals.filter((p) => {
-    const matchesSearch =
-      p.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      p.clientName.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === "ALL" || p.status === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
+  const fetchProposals = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const params: any = {};
+      if (searchTerm.trim()) params.search = searchTerm.trim();
+      if (statusFilter !== "ALL") params.status = statusFilter;
 
-  const getStatusChip = (status: ProposalItem["status"]) => {
+      const res = await commercialProposalsApi.getProposals(params);
+      setProposals(res.data || []);
+    } catch (err: any) {
+      setError(err.message || "Error al cargar las propuestas comerciales");
+    } finally {
+      setLoading(false);
+    }
+  }, [searchTerm, statusFilter]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      fetchProposals();
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [fetchProposals]);
+
+  const getStatusChip = (status: ProposalStatus) => {
     switch (status) {
-      case "ACCEPTED":
+      case "WON":
         return <Chip label="Aceptada (Ganada)" size="small" color="success" sx={{ fontWeight: 700, fontSize: "0.72rem" }} />;
-      case "SENT":
+      case "SENT_TO_CLIENT":
         return <Chip label="Enviada al Cliente" size="small" color="primary" sx={{ fontWeight: 700, fontSize: "0.72rem" }} />;
+      case "APPROVED_INTERNAL":
+        return <Chip label="Aprobada Internamente" size="small" color="info" sx={{ fontWeight: 700, fontSize: "0.72rem" }} />;
+      case "UNDER_REVIEW":
+        return <Chip label="En Revisión P&L" size="small" color="warning" sx={{ fontWeight: 700, fontSize: "0.72rem" }} />;
       case "DRAFT":
         return <Chip label="Borrador" size="small" variant="outlined" sx={{ fontWeight: 700, fontSize: "0.72rem" }} />;
-      case "REJECTED":
-        return <Chip label="Rechazada" size="small" color="error" sx={{ fontWeight: 700, fontSize: "0.72rem" }} />;
+      case "LOST":
+        return <Chip label="Perdida / Descartada" size="small" color="error" sx={{ fontWeight: 700, fontSize: "0.72rem" }} />;
+      case "VOIDED":
+        return <Chip label="Anulada" size="small" sx={{ fontWeight: 700, fontSize: "0.72rem", bgcolor: "neutral.200" }} />;
+      default:
+        return <Chip label={status} size="small" variant="outlined" />;
     }
+  };
+
+  const getPnlBadge = (status: PnlHealthStatus, marginPct: number) => {
+    switch (status) {
+      case "PROFITABLE":
+        return (
+          <Tooltip title="Margen Rentable (>= 15%)">
+            <Chip
+              icon={<TrendingUp fontSize="small" />}
+              label={`${Number(marginPct || 0).toFixed(1)}%`}
+              size="small"
+              color="success"
+              variant="outlined"
+              sx={{ fontWeight: 700, fontSize: "0.75rem" }}
+            />
+          </Tooltip>
+        );
+      case "WARNING_LOW_MARGIN":
+        return (
+          <Tooltip title="Margen Bajo (8% - 14.99%) - Requiere Aprobación">
+            <Chip
+              icon={<WarningAmber fontSize="small" />}
+              label={`${Number(marginPct || 0).toFixed(1)}%`}
+              size="small"
+              color="warning"
+              variant="outlined"
+              sx={{ fontWeight: 700, fontSize: "0.75rem" }}
+            />
+          </Tooltip>
+        );
+      case "DEFICIT_BLOCKED":
+        return (
+          <Tooltip title="Margen Deficitario (< 8%) - Emisión Bloqueada">
+            <Chip
+              icon={<Block fontSize="small" />}
+              label={`${Number(marginPct || 0).toFixed(1)}%`}
+              size="small"
+              color="error"
+              variant="filled"
+              sx={{ fontWeight: 700, fontSize: "0.75rem" }}
+            />
+          </Tooltip>
+        );
+    }
+  };
+
+  const handleOpenWorkspace = (proposal?: CommercialProposalDto) => {
+    setSelectedProposal(proposal || null);
+    setWorkspaceOpen(true);
   };
 
   return (
@@ -136,7 +175,7 @@ export default function ProposalsPage() {
             Propuestas y Cotizaciones Comerciales
           </Typography>
           <Typography variant="body2" color="text.secondary">
-            Generación automatizada de propuestas económicas, cotizaciones y seguimiento del embudo comercial.
+            Generación con semáforo P&L en vivo, cálculo estatutario SVSP y dossieres tácticos.
           </Typography>
         </Box>
 
@@ -148,7 +187,7 @@ export default function ProposalsPage() {
               startIcon={<TuneOutlined />}
               sx={{ borderRadius: 2 }}
             >
-              Configurar Identidad y Tarifas
+              Configurar Tarifas y Plantillas
             </Button>
           </Link>
 
@@ -157,7 +196,7 @@ export default function ProposalsPage() {
             size="medium"
             color="primary"
             startIcon={<AddIcon />}
-            onClick={() => setWorkspaceOpen(true)}
+            onClick={() => handleOpenWorkspace()}
             sx={{ borderRadius: 2, fontWeight: 700, px: 2.5 }}
           >
             Nueva Propuesta
@@ -171,13 +210,13 @@ export default function ProposalsPage() {
           <Card sx={{ borderRadius: 2.5, boxShadow: "0 2px 8px rgba(0,0,0,0.04)" }}>
             <CardContent sx={{ p: 2 }}>
               <Typography variant="caption" sx={{ fontWeight: 700, color: "text.secondary", textTransform: "uppercase" }}>
-                Total Propuestas Emitidas
+                Total Propuestas
               </Typography>
               <Typography variant="h4" sx={{ fontWeight: 800, color: "primary.main", my: 0.5 }}>
                 {proposals.length}
               </Typography>
               <Typography variant="caption" color="text.secondary">
-                Acumulado año fiscal 2026
+                Registradas en sistema
               </Typography>
             </CardContent>
           </Card>
@@ -187,10 +226,10 @@ export default function ProposalsPage() {
           <Card sx={{ borderRadius: 2.5, boxShadow: "0 2px 8px rgba(0,0,0,0.04)" }}>
             <CardContent sx={{ p: 2 }}>
               <Typography variant="caption" sx={{ fontWeight: 700, color: "text.secondary", textTransform: "uppercase" }}>
-                Enviadas en Negociación
+                Enviadas al Cliente
               </Typography>
               <Typography variant="h4" sx={{ fontWeight: 800, color: "#d97706", my: 0.5 }}>
-                {proposals.filter((p) => p.status === "SENT").length}
+                {proposals.filter((p) => p.status === "SENT_TO_CLIENT").length}
               </Typography>
               <Typography variant="caption" color="text.secondary">
                 Pendientes de firma o decisión
@@ -206,10 +245,10 @@ export default function ProposalsPage() {
                 Aceptadas / Ganadas
               </Typography>
               <Typography variant="h4" sx={{ fontWeight: 800, color: "success.main", my: 0.5 }}>
-                {proposals.filter((p) => p.status === "ACCEPTED").length}
+                {proposals.filter((p) => p.status === "WON").length}
               </Typography>
               <Typography variant="caption" color="text.secondary">
-                Listas para Orden de Servicio
+                Habilitadas para Orden de Servicio (OS)
               </Typography>
             </CardContent>
           </Card>
@@ -219,13 +258,13 @@ export default function ProposalsPage() {
           <Card sx={{ borderRadius: 2.5, boxShadow: "0 2px 8px rgba(0,0,0,0.04)" }}>
             <CardContent sx={{ p: 2 }}>
               <Typography variant="caption" sx={{ fontWeight: 700, color: "text.secondary", textTransform: "uppercase" }}>
-                Valor Total Pipeline (COP)
+                Pipeline Mensual (COP)
               </Typography>
               <Typography variant="h5" sx={{ fontWeight: 800, color: "text.primary", my: 0.75 }}>
-                $ {proposals.reduce((a, b) => a + b.totalCop, 0).toLocaleString("es-CO")}
+                $ {proposals.reduce((a, b) => a + Number(b.totalMonthlyWithTax || 0), 0).toLocaleString("es-CO")}
               </Typography>
               <Typography variant="caption" color="text.secondary">
-                Monto facturable mensual
+                Monto facturable mensual proyectado
               </Typography>
             </CardContent>
           </Card>
@@ -236,7 +275,7 @@ export default function ProposalsPage() {
       <Paper sx={{ p: 2, mb: 3, borderRadius: 2 }}>
         <Stack direction={{ xs: "column", sm: "row" }} spacing={2} justifyContent="space-between" alignItems="center">
           <TextField
-            placeholder="Buscar por cliente, consecutivo o NIT..."
+            placeholder="Buscar por consecutivo, cliente o NIT..."
             size="small"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
@@ -250,20 +289,33 @@ export default function ProposalsPage() {
             }}
           />
 
-          <Stack direction="row" spacing={1}>
-            {["ALL", "SENT", "ACCEPTED", "DRAFT"].map((st) => (
+          <Stack direction="row" spacing={1} flexWrap="wrap">
+            {[
+              { id: "ALL", label: "Todas" },
+              { id: "DRAFT", label: "Borradores" },
+              { id: "UNDER_REVIEW", label: "En Revisión" },
+              { id: "APPROVED_INTERNAL", label: "Aprobadas" },
+              { id: "SENT_TO_CLIENT", label: "Enviadas" },
+              { id: "WON", label: "Ganadas" },
+            ].map((st) => (
               <Chip
-                key={st}
-                label={st === "ALL" ? "Todas" : st === "SENT" ? "Enviadas" : st === "ACCEPTED" ? "Aceptadas" : "Borradores"}
-                onClick={() => setStatusFilter(st)}
-                color={statusFilter === st ? "primary" : "default"}
-                variant={statusFilter === st ? "filled" : "outlined"}
-                sx={{ fontWeight: 600, fontSize: "0.75rem" }}
+                key={st.id}
+                label={st.label}
+                onClick={() => setStatusFilter(st.id)}
+                color={statusFilter === st.id ? "primary" : "default"}
+                variant={statusFilter === st.id ? "filled" : "outlined"}
+                sx={{ fontWeight: 600, fontSize: "0.75rem", mb: { xs: 0.5, sm: 0 } }}
               />
             ))}
           </Stack>
         </Stack>
       </Paper>
+
+      {error && (
+        <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }}>
+          {error}
+        </Alert>
+      )}
 
       {/* Proposals Data Table */}
       <TableContainer component={Paper} sx={{ borderRadius: 2 }}>
@@ -272,49 +324,88 @@ export default function ProposalsPage() {
             <TableRow>
               <TableCell sx={{ fontWeight: 700 }}>Consecutivo</TableCell>
               <TableCell sx={{ fontWeight: 700 }}>Cliente / Razón Social</TableCell>
-              <TableCell sx={{ fontWeight: 700 }}>Fecha</TableCell>
               <TableCell align="right" sx={{ fontWeight: 700 }}>Valor Mensual (COP)</TableCell>
+              <TableCell align="center" sx={{ fontWeight: 700 }}>Semáforo P&L</TableCell>
               <TableCell align="center" sx={{ fontWeight: 700 }}>Estado</TableCell>
-              <TableCell sx={{ fontWeight: 700 }}>Elaborado Por</TableCell>
+              <TableCell sx={{ fontWeight: 700 }}>Fecha Creación</TableCell>
               <TableCell align="center" sx={{ fontWeight: 700 }}>Acciones</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
-            {filteredProposals.map((row) => (
-              <TableRow key={row.id} hover sx={{ "&:last-child td, &:last-child th": { border: 0 } }}>
-                <TableCell sx={{ fontWeight: 700, color: "primary.main", fontFamily: "monospace" }}>
-                  {row.code}
-                </TableCell>
-                <TableCell>
-                  <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                    {row.clientName}
+            {loading ? (
+              <TableRow>
+                <TableCell colSpan={7} align="center" sx={{ py: 6 }}>
+                  <CircularProgress size={32} />
+                  <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                    Consultando propuestas comerciales...
                   </Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    NIT: {row.clientNit}
-                  </Typography>
-                </TableCell>
-                <TableCell sx={{ fontSize: "0.85rem" }}>{row.date}</TableCell>
-                <TableCell align="right" sx={{ fontWeight: 700, fontSize: "0.88rem" }}>
-                  $ {row.totalCop.toLocaleString("es-CO")}
-                </TableCell>
-                <TableCell align="center">{getStatusChip(row.status)}</TableCell>
-                <TableCell sx={{ fontSize: "0.82rem", color: "text.secondary" }}>{row.author}</TableCell>
-                <TableCell align="center">
-                  <Stack direction="row" spacing={0.5} justifyContent="center">
-                    <Tooltip title="Abrir en Split-Screen">
-                      <IconButton size="small" color="primary" onClick={() => setWorkspaceOpen(true)}>
-                        <EditOutlined fontSize="small" />
-                      </IconButton>
-                    </Tooltip>
-                    <Tooltip title="Previsualizar Documento PDF">
-                      <IconButton size="small" color="default" onClick={() => setWorkspaceOpen(true)}>
-                        <PictureAsPdf fontSize="small" />
-                      </IconButton>
-                    </Tooltip>
-                  </Stack>
                 </TableCell>
               </TableRow>
-            ))}
+            ) : proposals.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={7} align="center" sx={{ py: 6 }}>
+                  <DescriptionOutlined sx={{ fontSize: 48, color: "text.disabled", mb: 1 }} />
+                  <Typography variant="body1" sx={{ fontWeight: 600 }}>
+                    No hay propuestas registradas
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Haga clic en &quot;Nueva Propuesta&quot; para iniciar una cotización con semáforo P&L en vivo.
+                  </Typography>
+                </TableCell>
+              </TableRow>
+            ) : (
+              proposals.map((row) => (
+                <TableRow key={row.id} hover sx={{ "&:last-child td, &:last-child th": { border: 0 } }}>
+                  <TableCell sx={{ fontWeight: 700, color: "primary.main", fontFamily: "monospace" }}>
+                    {row.proposalFolioCode}
+                    <Typography component="span" variant="caption" color="text.secondary" sx={{ ml: 0.5 }}>
+                      v{row.versionNumber}
+                    </Typography>
+                  </TableCell>
+                  <TableCell>
+                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                      {row.client?.name || "Cliente Sin Asignar"}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      NIT: {row.client?.nit || "N/A"}
+                      {row.client?.stratum ? ` • Estrato ${row.client.stratum}` : ""}
+                    </Typography>
+                  </TableCell>
+                  <TableCell align="right" sx={{ fontWeight: 700, fontSize: "0.88rem" }}>
+                    $ {Number(row.totalMonthlyWithTax || 0).toLocaleString("es-CO")}
+                  </TableCell>
+                  <TableCell align="center">
+                    {getPnlBadge(row.pnlStatus, row.netMarginPercentage)}
+                  </TableCell>
+                  <TableCell align="center">{getStatusChip(row.status)}</TableCell>
+                  <TableCell sx={{ fontSize: "0.85rem" }}>
+                    {new Date(row.createdAt).toLocaleDateString("es-CO")}
+                  </TableCell>
+                  <TableCell align="center">
+                    <Stack direction="row" spacing={0.5} justifyContent="center">
+                      <Tooltip title="Abrir en Workspace">
+                        <IconButton
+                          size="small"
+                          color="primary"
+                          onClick={() => handleOpenWorkspace(row)}
+                        >
+                          <EditOutlined fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                      <Tooltip title="Ver Detalle Documento">
+                        <IconButton
+                          size="small"
+                          color="default"
+                          onClick={() => handleOpenWorkspace(row)}
+                        >
+                          <PictureAsPdf fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                    </Stack>
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
           </TableBody>
         </Table>
       </TableContainer>
@@ -322,7 +413,11 @@ export default function ProposalsPage() {
       {/* Split-Screen Workspace Modal */}
       <SplitScreenProposalWorkspace
         open={workspaceOpen}
-        onClose={() => setWorkspaceOpen(false)}
+        onClose={() => {
+          setWorkspaceOpen(false);
+          fetchProposals();
+        }}
+        initialProposal={selectedProposal}
       />
     </Box>
   );
