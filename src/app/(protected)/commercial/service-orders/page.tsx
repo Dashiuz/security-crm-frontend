@@ -631,7 +631,7 @@ export default function ServiceOrdersPage() {
                     No hay órdenes de servicio emitidas
                   </Typography>
                   <Typography variant="body2" color="text.secondary" sx={{ maxWidth: 450, mx: "auto", mt: 0.5 }}>
-                    Haga clic en "+ Nueva Orden de Servicio" para crear una orden a partir de una propuesta ganada o registrar un puesto directamente.
+                    Haga clic en &quot;+ Nueva Orden de Servicio&quot; para crear una orden a partir de una propuesta ganada o registrar un puesto directamente.
                   </Typography>
                 </TableCell>
               </TableRow>

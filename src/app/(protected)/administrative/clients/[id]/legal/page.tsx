@@ -1990,7 +1990,7 @@ export default function ClientLegalPage() {
             }}
           >
             <Typography variant="body2" color="text.secondary">
-              No hay pólizas registradas para este cliente. Haga clic en "Nueva Póliza" para registrar la primera.
+              No hay pólizas registradas para este cliente. Haga clic en &quot;Nueva Póliza&quot; para registrar la primera.
             </Typography>
           </Paper>
         ) : (
@@ -2109,7 +2109,7 @@ export default function ClientLegalPage() {
             }}
           >
             <Typography variant="body2" color="text.secondary">
-              No hay otrosíes registrados para este cliente. Haga clic en "Nuevo Otrosí" para registrar adiciones de reinversión o prórrogas.
+              No hay otrosíes registrados para este cliente. Haga clic en &quot;Nuevo Otrosí&quot; para registrar adiciones de reinversión o prórrogas.
             </Typography>
           </Paper>
         ) : (
@@ -2230,7 +2230,7 @@ export default function ClientLegalPage() {
             }}
           >
             <Typography variant="body2" color="text.secondary">
-              No hay compromisos ANS pactados para este cliente. Haga clic en "Nuevo Compromiso ANS" para registrar entregables de seguridad o informes.
+              No hay compromisos ANS pactados para este cliente. Haga clic en &quot;Nuevo Compromiso ANS&quot; para registrar entregables de seguridad o informes.
             </Typography>
           </Paper>
         ) : (

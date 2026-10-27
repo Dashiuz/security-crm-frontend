@@ -1554,7 +1554,7 @@ export default function ProspectDetailPage() {
                   No hay interacciones registradas aún
                 </Typography>
                 <Typography variant="body2" color="text.secondary" sx={{ maxWidth: 480, mx: "auto", mt: 0.5 }}>
-                  Utilice el botón "Registrar Interacción" para documentar llamadas telefónicas, visitas técnicas o reuniones con el consejo o administración.
+                  Utilice el botón &quot;Registrar Interacción&quot; para documentar llamadas telefónicas, visitas técnicas o reuniones con el consejo o administración.
                 </Typography>
               </Paper>
             ) : (

@@ -56,7 +56,7 @@ export interface CreateProposalPayload {
   draftSnapshotJson?: any;
 }
 
-export interface UpdateProposalPayload extends Partial<CreateProposalPayload> {}
+export type UpdateProposalPayload = Partial<CreateProposalPayload>;
 
 export interface SimulatePnlPayload {
   contractDurationMonths: number;
