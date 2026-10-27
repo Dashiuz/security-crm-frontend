@@ -26,6 +26,7 @@ import {
   FormatPaint,
   VerifiedUser,
 } from "@mui/icons-material";
+import { useRouter } from "next/navigation";
 import {
   TenantDocumentSkin,
   DocumentTextSnippet,
@@ -34,13 +35,13 @@ import {
   AuthorizedSigner,
   DocumentEngineApi,
 } from "@/lib/api/commercial-settings";
-import SnippetEditorDrawer from "../drawers/SnippetEditorDrawer";
 import AuthorizedSignerDrawer from "../drawers/AuthorizedSignerDrawer";
 import BrandColorPicker from "../BrandColorPicker";
 import HeaderLayoutPreviewCard from "../widgets/HeaderLayoutPreviewCard";
 import PromptConfirmDialog from "@/components/common/PromptConfirmDialog";
 import { useNotification } from "@/providers/NotificationProvider";
 import { noxiaPalette } from "@/theme/noxiaTheme";
+import { DescriptionOutlined } from "@mui/icons-material";
 
 interface DocumentSkinTabProps {
   documentSkin?: TenantDocumentSkin | null;
@@ -53,6 +54,7 @@ export default function DocumentSkinTab({
   snippets,
   onRefresh,
 }: DocumentSkinTabProps) {
+  const router = useRouter();
   const { showSuccess, showError } = useNotification();
   const [isSavingSkin, setIsSavingSkin] = useState(false);
 
@@ -501,120 +503,43 @@ export default function DocumentSkinTab({
         )}
       </Card>
 
-      {/* 2. Plantillas de Texto Dinámicas */}
+      {/* 2. Plantillas de Texto Dinámicas & Formatos */}
       <Box>
-        <Box
+        <Paper
+          variant="outlined"
           sx={{
+            p: 3,
+            borderRadius: 2.5,
+            bgcolor: "#F8FAFC",
+            border: "1.5px dashed #CBD5E1",
             display: "flex",
             flexDirection: { xs: "column", sm: "row" },
+            alignItems: { sm: "center" },
             justifyContent: "space-between",
-            alignItems: { xs: "flex-start", sm: "center" },
-            gap: { xs: 1.5, sm: 2 },
-            mb: 2.5,
+            gap: 2,
           }}
         >
           <Box sx={{ flex: 1 }}>
-            <Typography variant="subtitle1" sx={{ fontWeight: 700, color: noxiaPalette.secondary.main }}>
-              Cláusulas y Plantillas Dinámicas ({snippets.length})
-            </Typography>
-            <Typography variant="caption" sx={{ color: "text.secondary", display: "block" }}>
-              Cartas de presentación, notas aclaratorias de bienestar y párrafos estándar de propuesta
+            <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 0.5 }}>
+              <DescriptionOutlined sx={{ color: "primary.main" }} />
+              <Typography variant="subtitle1" sx={{ fontWeight: 800, color: "#0F172A" }}>
+                Motor Universal de Formatos & Variables Dinámicas
+              </Typography>
+            </Stack>
+            <Typography variant="body2" sx={{ color: "#64748B" }}>
+              Las plantillas de documentos, minutas y variables ahora se gestionan de forma transversal e institucional en el módulo central de formatos, con soporte completo para tablas de Word/Excel y variables por usuario.
             </Typography>
           </Box>
           <Button
             variant="contained"
-            size="small"
-            startIcon={<AddIcon />}
-            onClick={handleCreateSnippet}
-            sx={{
-              bgcolor: noxiaPalette.primary.main,
-              "&:hover": {
-                bgcolor: noxiaPalette.primary.dark,
-                boxShadow: "0 4px 12px rgba(124, 58, 237, 0.35)",
-              },
-              borderRadius: 2,
-              textTransform: "none",
-              fontWeight: 600,
-              fontSize: "0.82rem",
-              px: 2.2,
-              height: 36,
-              whiteSpace: "nowrap",
-              flexShrink: 0,
-              boxShadow: "0 2px 6px rgba(124, 58, 237, 0.2)",
-            }}
+            color="primary"
+            onClick={() => router.push("/tools/formats")}
+            sx={{ fontWeight: 700, borderRadius: 2, textTransform: "none", px: 2.5, whiteSpace: "nowrap" }}
           >
-            Nueva Plantilla
+            Abrir Elaboración de Formatos
           </Button>
-        </Box>
-
-        <Grid container spacing={2}>
-          {snippets.map((s) => (
-            <Grid size={{ xs: 12, md: 6 }} key={s.id}>
-              <Card
-                elevation={0}
-                sx={{
-                  borderRadius: 2.5,
-                  border: "1px solid rgba(0,0,0,0.08)",
-                  p: 2,
-                  display: "flex",
-                  flexDirection: "column",
-                  justifyContent: "space-between",
-                  height: "100%",
-                  transition: "all 0.2s ease",
-                  "&:hover": { borderColor: noxiaPalette.primary.light },
-                }}
-              >
-                <Box>
-                  <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", mb: 1 }}>
-                    <Stack direction="row" spacing={1} alignItems="center">
-                      <Chip label={s.category} size="small" sx={{ fontSize: "0.65rem", fontWeight: 700 }} />
-                      <Typography variant="caption" sx={{ fontWeight: 600, color: "text.secondary" }}>
-                        {s.key}
-                      </Typography>
-                    </Stack>
-                    <Stack direction="row" spacing={0.5}>
-                      <IconButton size="small" onClick={() => handleEditSnippet(s)}>
-                        <EditOutlined fontSize="small" />
-                      </IconButton>
-                      <IconButton size="small" color="error" onClick={() => handleDeleteSnippetClick(s)}>
-                        <DeleteOutline fontSize="small" />
-                      </IconButton>
-                    </Stack>
-                  </Box>
-
-                  <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>
-                    {s.title}
-                  </Typography>
-
-                  <Typography
-                    variant="caption"
-                    sx={{
-                      color: "text.secondary",
-                      display: "-webkit-box",
-                      WebkitLineClamp: 3,
-                      WebkitBoxOrient: "vertical",
-                      overflow: "hidden",
-                      bgcolor: "rgba(0,0,0,0.02)",
-                      p: 1.5,
-                      borderRadius: 1.5,
-                    }}
-                  >
-                    {s.bodyTemplate}
-                  </Typography>
-                </Box>
-              </Card>
-            </Grid>
-          ))}
-        </Grid>
+        </Paper>
       </Box>
-
-      {/* Drawer Snippets */}
-      <SnippetEditorDrawer
-        open={drawerOpen}
-        onClose={() => setDrawerOpen(false)}
-        snippet={selectedSnippet}
-        onSuccess={onRefresh}
-      />
 
       {/* Drawer Firmantes */}
       <AuthorizedSignerDrawer
@@ -622,19 +547,6 @@ export default function DocumentSkinTab({
         onClose={() => setSignerDrawerOpen(false)}
         signer={selectedSigner}
         onSuccess={loadSigners}
-      />
-
-      {/* Confirmación Eliminación Snippet */}
-      <PromptConfirmDialog
-        open={deleteConfirmOpen}
-        title="Eliminar Plantilla de Texto"
-        description={`Para confirmar la eliminación de la plantilla "${snippetToDelete?.title}", escriba ELIMINAR:`}
-        expectedValue="ELIMINAR"
-        inputLabel="Confirmación"
-        confirmButtonText="Eliminar Plantilla"
-        confirmColor="error"
-        onConfirm={handleConfirmDeleteSnippet}
-        onClose={() => setDeleteConfirmOpen(false)}
       />
 
       {/* Confirmación Eliminación Firmante */}

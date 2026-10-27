@@ -33,6 +33,7 @@ interface TipTapRichEditorProps {
   onChange: (html: string) => void;
   placeholder?: string;
   availableVariables?: { key: string; label: string }[];
+  minHeight?: number;
 }
 
 const DEFAULT_VARIABLES = [
@@ -50,6 +51,7 @@ export default function TipTapRichEditor({
   onChange,
   placeholder = "Redacte aquí la cláusula, minuta o propuesta comercial...",
   availableVariables = DEFAULT_VARIABLES,
+  minHeight = 220,
 }: TipTapRichEditorProps) {
   const editor = useEditor({
     extensions: [
@@ -251,7 +253,7 @@ export default function TipTapRichEditor({
           {availableVariables.map((v) => (
             <Chip
               key={v.key}
-              label={`+ {{${v.key}}}`}
+              label={`{{${v.key}}}`}
               size="small"
               onClick={() => insertVariable(v.key)}
               sx={{
@@ -277,13 +279,13 @@ export default function TipTapRichEditor({
       <Box
         sx={{
           p: 2,
-          minHeight: 220,
+          minHeight,
           maxHeight: 480,
           overflowY: "auto",
           fontFamily: "inherit",
           "& .ProseMirror": {
             outline: "none",
-            minHeight: 180,
+            minHeight: Math.max(80, minHeight - 40),
             fontSize: "0.92rem",
             lineHeight: 1.6,
             "& p.is-editor-empty:first-of-type::before": {

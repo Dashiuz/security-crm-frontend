@@ -52,9 +52,9 @@ export default function ValueAddedDrawer({
         name: item.name,
         category: item.category,
         description: item.description || "",
-        internalReferenceCost: item.internalReferenceCost,
+        internalReferenceCost: Number(item.internalReferenceCost) || 0,
         isStandardBenefit: item.isStandardBenefit,
-        defaultQuantity: item.defaultQuantity,
+        defaultQuantity: Number(item.defaultQuantity) || 1,
       });
     } else {
       setFormData({
@@ -72,11 +72,16 @@ export default function ValueAddedDrawer({
     e.preventDefault();
     try {
       setIsSubmitting(true);
+      const payload = {
+        ...formData,
+        internalReferenceCost: Number(formData.internalReferenceCost) || 0,
+        defaultQuantity: Number(formData.defaultQuantity) || 1,
+      };
       if (item?.id) {
-        await CommercialSettingsApi.updateValueAdded(item.id, formData);
+        await CommercialSettingsApi.updateValueAdded(item.id, payload);
         showSuccess("Valor agregado actualizado");
       } else {
-        await CommercialSettingsApi.createValueAdded(formData);
+        await CommercialSettingsApi.createValueAdded(payload);
         showSuccess("Valor agregado registrado");
       }
       onSuccess();

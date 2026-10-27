@@ -330,6 +330,9 @@ export const CommercialSettingsApi = {
   upsertSalaryMatrix: (items: PositionSalaryMatrixItem[]) =>
     HttpClient.put<PositionSalaryMatrixItem[]>("/commercial/settings/salary-matrix", { items }),
 
+  deleteSalaryMatrix: (id: string) =>
+    HttpClient.delete<{ success: boolean; message: string }>(`/commercial/settings/salary-matrix/${id}`),
+
   getValueAddedCatalog: () =>
     HttpClient.get<ValueAddedCatalogItem[]>("/commercial/settings/value-added"),
 
@@ -392,16 +395,28 @@ export interface AuthorizedSigner {
   isActive: boolean;
 }
 
+export interface SystemUserSigner {
+  id: string;
+  fullName: string;
+  document: string;
+  position?: string;
+  department?: string;
+  signatureUrl?: string;
+  signatureMethod?: string;
+  hasSignature: boolean;
+}
+
 export const DocumentEngineApi = {
-  getSigners: () => HttpClient.get<AuthorizedSigner[]>("/commercial/document-engine/signers"),
+  getSigners: () => HttpClient.get<AuthorizedSigner[]>("/commercial/settings/signers"),
+  getSystemUsersAsSigners: () => HttpClient.get<SystemUserSigner[]>("/commercial/settings/signers/system-users"),
   createSigner: (data: Partial<AuthorizedSigner>) =>
-    HttpClient.post<AuthorizedSigner>("/commercial/document-engine/signers", data),
+    HttpClient.post<AuthorizedSigner>("/commercial/settings/signers", data),
   updateSigner: (id: string, data: Partial<AuthorizedSigner>) =>
-    HttpClient.patch<AuthorizedSigner>(`/commercial/document-engine/signers/${id}`, data),
+    HttpClient.patch<AuthorizedSigner>(`/commercial/settings/signers/${id}`, data),
   deleteSigner: (id: string) =>
-    HttpClient.delete<{ success: boolean; message: string }>(`/commercial/document-engine/signers/${id}`),
+    HttpClient.delete<{ success: boolean; message: string }>(`/commercial/settings/signers/${id}`),
   reorderSigners: (order: { id: string; priorityOrder: number }[]) =>
-    HttpClient.put<AuthorizedSigner[]>("/commercial/document-engine/signers/reorder", { order }),
+    HttpClient.put<AuthorizedSigner[]>("/commercial/settings/signers/reorder", { order }),
   getPreviewConfig: () =>
     HttpClient.get<{ skin: TenantDocumentSkin; signers: AuthorizedSigner[] }>("/commercial/document-engine/preview-config"),
   interpolatePreview: (data: { template: string; variables?: Record<string, any> }) =>

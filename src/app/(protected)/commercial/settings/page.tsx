@@ -171,7 +171,11 @@ export default function CommercialSettingsPage() {
               </AccordionSummary>
               <AccordionDetails>
                 {activeTab === 2 && (
-                  <SalaryMatrixTab salaryMatrix={settings.salaryMatrix || []} onRefresh={refresh} />
+                  <SalaryMatrixTab
+                    salaryMatrix={settings.salaryMatrix || []}
+                    tariffPeriods={settings.tariffPeriods || []}
+                    onRefresh={refresh}
+                  />
                 )}
               </AccordionDetails>
             </Accordion>
@@ -304,7 +308,11 @@ export default function CommercialSettingsPage() {
                 <ServiceCatalogTab services={settings.serviceCatalog || []} onRefresh={refresh} />
               )}
               {desktopTabValue === 2 && (
-                <SalaryMatrixTab salaryMatrix={settings.salaryMatrix || []} onRefresh={refresh} />
+                <SalaryMatrixTab
+                  salaryMatrix={settings.salaryMatrix || []}
+                  tariffPeriods={settings.tariffPeriods || []}
+                  onRefresh={refresh}
+                />
               )}
               {desktopTabValue === 3 && (
                 <ValueAddedTab settings={settings} onRefresh={refresh} />

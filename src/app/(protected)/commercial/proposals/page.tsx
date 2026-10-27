@@ -24,6 +24,9 @@ import {
   Tooltip,
   CircularProgress,
   Alert,
+  Dialog,
+  DialogTitle,
+  DialogContent,
 } from "@mui/material";
 import {
   Add as AddIcon,
@@ -35,10 +38,12 @@ import {
   TrendingUp,
   WarningAmber,
   Block,
-  CheckCircle,
+  Close as CloseIcon,
+  Print as PrintIcon,
 } from "@mui/icons-material";
 import Link from "next/link";
-import SplitScreenProposalWorkspace from "./components/SplitScreenProposalWorkspace";
+import { useRouter } from "next/navigation";
+import ChameleonPdfPreview from "./components/ChameleonPdfPreview";
 import {
   commercialProposalsApi,
   CommercialProposalDto,
@@ -47,8 +52,8 @@ import {
 } from "@/lib/api/commercial-proposals";
 
 export default function ProposalsPage() {
-  const [workspaceOpen, setWorkspaceOpen] = useState(false);
-  const [selectedProposal, setSelectedProposal] = useState<CommercialProposalDto | null>(null);
+  const router = useRouter();
+  const [previewProposal, setPreviewProposal] = useState<CommercialProposalDto | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
   const [proposals, setProposals] = useState<CommercialProposalDto[]>([]);
@@ -141,12 +146,9 @@ export default function ProposalsPage() {
             />
           </Tooltip>
         );
+      default:
+        return null;
     }
-  };
-
-  const handleOpenWorkspace = (proposal?: CommercialProposalDto) => {
-    setSelectedProposal(proposal || null);
-    setWorkspaceOpen(true);
   };
 
   return (
@@ -196,7 +198,7 @@ export default function ProposalsPage() {
             size="medium"
             color="primary"
             startIcon={<AddIcon />}
-            onClick={() => handleOpenWorkspace()}
+            onClick={() => router.push("/commercial/proposals/new")}
             sx={{ borderRadius: 2, fontWeight: 700, px: 2.5 }}
           >
             Nueva Propuesta
@@ -204,10 +206,20 @@ export default function ProposalsPage() {
         </Stack>
       </Box>
 
-      {/* KPI Cards */}
+      {/* Interactive KPI Cards */}
       <Grid container spacing={2} sx={{ mb: 3 }}>
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-          <Card sx={{ borderRadius: 2.5, boxShadow: "0 2px 8px rgba(0,0,0,0.04)" }}>
+          <Card
+            onClick={() => setStatusFilter("ALL")}
+            sx={{
+              borderRadius: 2.5,
+              cursor: "pointer",
+              boxShadow: statusFilter === "ALL" ? "0 0 0 2px #4F46E5, 0 4px 12px rgba(79, 70, 229, 0.15)" : "0 2px 8px rgba(0,0,0,0.04)",
+              transition: "all 0.15s ease",
+              "&:hover": { transform: "translateY(-2px)", boxShadow: "0 6px 16px rgba(0,0,0,0.08)" },
+              "&:active": { transform: "scale(0.98)" },
+            }}
+          >
             <CardContent sx={{ p: 2 }}>
               <Typography variant="caption" sx={{ fontWeight: 700, color: "text.secondary", textTransform: "uppercase" }}>
                 Total Propuestas
@@ -216,14 +228,24 @@ export default function ProposalsPage() {
                 {proposals.length}
               </Typography>
               <Typography variant="caption" color="text.secondary">
-                Registradas en sistema
+                Registradas en sistema (clic para ver todas)
               </Typography>
             </CardContent>
           </Card>
         </Grid>
 
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-          <Card sx={{ borderRadius: 2.5, boxShadow: "0 2px 8px rgba(0,0,0,0.04)" }}>
+          <Card
+            onClick={() => setStatusFilter("SENT_TO_CLIENT")}
+            sx={{
+              borderRadius: 2.5,
+              cursor: "pointer",
+              boxShadow: statusFilter === "SENT_TO_CLIENT" ? "0 0 0 2px #d97706, 0 4px 12px rgba(217, 119, 6, 0.15)" : "0 2px 8px rgba(0,0,0,0.04)",
+              transition: "all 0.15s ease",
+              "&:hover": { transform: "translateY(-2px)", boxShadow: "0 6px 16px rgba(0,0,0,0.08)" },
+              "&:active": { transform: "scale(0.98)" },
+            }}
+          >
             <CardContent sx={{ p: 2 }}>
               <Typography variant="caption" sx={{ fontWeight: 700, color: "text.secondary", textTransform: "uppercase" }}>
                 Enviadas al Cliente
@@ -239,7 +261,17 @@ export default function ProposalsPage() {
         </Grid>
 
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-          <Card sx={{ borderRadius: 2.5, boxShadow: "0 2px 8px rgba(0,0,0,0.04)" }}>
+          <Card
+            onClick={() => setStatusFilter("WON")}
+            sx={{
+              borderRadius: 2.5,
+              cursor: "pointer",
+              boxShadow: statusFilter === "WON" ? "0 0 0 2px #059669, 0 4px 12px rgba(5, 150, 105, 0.15)" : "0 2px 8px rgba(0,0,0,0.04)",
+              transition: "all 0.15s ease",
+              "&:hover": { transform: "translateY(-2px)", boxShadow: "0 6px 16px rgba(0,0,0,0.08)" },
+              "&:active": { transform: "scale(0.98)" },
+            }}
+          >
             <CardContent sx={{ p: 2 }}>
               <Typography variant="caption" sx={{ fontWeight: 700, color: "text.secondary", textTransform: "uppercase" }}>
                 Aceptadas / Ganadas
@@ -255,7 +287,12 @@ export default function ProposalsPage() {
         </Grid>
 
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-          <Card sx={{ borderRadius: 2.5, boxShadow: "0 2px 8px rgba(0,0,0,0.04)" }}>
+          <Card
+            sx={{
+              borderRadius: 2.5,
+              boxShadow: "0 2px 8px rgba(0,0,0,0.04)",
+            }}
+          >
             <CardContent sx={{ p: 2 }}>
               <Typography variant="caption" sx={{ fontWeight: 700, color: "text.secondary", textTransform: "uppercase" }}>
                 Pipeline Mensual (COP)
@@ -304,7 +341,7 @@ export default function ProposalsPage() {
                 onClick={() => setStatusFilter(st.id)}
                 color={statusFilter === st.id ? "primary" : "default"}
                 variant={statusFilter === st.id ? "filled" : "outlined"}
-                sx={{ fontWeight: 600, fontSize: "0.75rem", mb: { xs: 0.5, sm: 0 } }}
+                sx={{ fontWeight: 600, fontSize: "0.75rem", mb: { xs: 0.5, sm: 0 }, cursor: "pointer" }}
               />
             ))}
           </Stack>
@@ -383,20 +420,20 @@ export default function ProposalsPage() {
                   </TableCell>
                   <TableCell align="center">
                     <Stack direction="row" spacing={0.5} justifyContent="center">
-                      <Tooltip title="Abrir en Workspace">
+                      <Tooltip title="Editar Propuesta (Canvas)">
                         <IconButton
                           size="small"
                           color="primary"
-                          onClick={() => handleOpenWorkspace(row)}
+                          onClick={() => router.push(`/commercial/proposals/${row.id}/edit`)}
                         >
                           <EditOutlined fontSize="small" />
                         </IconButton>
                       </Tooltip>
-                      <Tooltip title="Ver Detalle Documento">
+                      <Tooltip title="Ver Vista Previa PDF">
                         <IconButton
                           size="small"
                           color="default"
-                          onClick={() => handleOpenWorkspace(row)}
+                          onClick={() => setPreviewProposal(row)}
                         >
                           <PictureAsPdf fontSize="small" />
                         </IconButton>
@@ -410,15 +447,97 @@ export default function ProposalsPage() {
         </Table>
       </TableContainer>
 
-      {/* Split-Screen Workspace Modal */}
-      <SplitScreenProposalWorkspace
-        open={workspaceOpen}
-        onClose={() => {
-          setWorkspaceOpen(false);
-          fetchProposals();
-        }}
-        initialProposal={selectedProposal}
-      />
+      {/* Light PDF Preview Dialog without Hydration Warnings */}
+      <Dialog
+        open={Boolean(previewProposal)}
+        onClose={() => setPreviewProposal(null)}
+        maxWidth="md"
+        fullWidth
+        PaperProps={{ sx: { borderRadius: 2.5, overflow: "hidden" } }}
+      >
+        <DialogTitle
+          component="div"
+          sx={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            px: 3,
+            py: 2,
+            borderBottom: "1px solid #E2E8F0",
+            bgcolor: "#F8FAFC",
+          }}
+        >
+          <Stack direction="row" spacing={1.5} alignItems="center">
+            <Typography variant="subtitle1" sx={{ fontWeight: 800, color: "#0F172A" }}>
+              Vista Previa: {previewProposal?.proposalFolioCode}
+            </Typography>
+            {previewProposal && getStatusChip(previewProposal.status)}
+          </Stack>
+          <Stack direction="row" spacing={1} alignItems="center">
+            <Button
+              size="small"
+              variant="outlined"
+              startIcon={<PrintIcon />}
+              onClick={() => window.print()}
+            >
+              Imprimir
+            </Button>
+            <Button
+              size="small"
+              variant="contained"
+              startIcon={<EditOutlined />}
+              onClick={() => {
+                const id = previewProposal?.id;
+                setPreviewProposal(null);
+                if (id) router.push(`/commercial/proposals/${id}/edit`);
+              }}
+            >
+              Editar en Canvas
+            </Button>
+            <IconButton size="small" onClick={() => setPreviewProposal(null)}>
+              <CloseIcon />
+            </IconButton>
+          </Stack>
+        </DialogTitle>
+        <DialogContent sx={{ bgcolor: "#F1F5F9", p: 3, display: "flex", justifyContent: "center" }}>
+          {previewProposal && (
+            <Box sx={{ width: "100%", maxWidth: "794px" }}>
+              <ChameleonPdfPreview
+                clientName={previewProposal.client?.name}
+                clientNit={previewProposal.client?.nit}
+                proposalNumber={previewProposal.proposalFolioCode}
+                date={new Date(previewProposal.createdAt).toLocaleDateString("es-CO", {
+                  year: "numeric",
+                  month: "long",
+                  day: "numeric",
+                })}
+                bodyHtml={
+                  previewProposal.draftSnapshotJson?.clauseBlocks
+                    ? previewProposal.draftSnapshotJson.clauseBlocks
+                        .map((b: any) => `<h3>${b.title || ""}</h3>${b.content}`)
+                        .join("<br/>")
+                    : "<p>Propuesta técnica y económica generada.</p>"
+                }
+                serviceItems={previewProposal.items?.map((it: any) => ({
+                  name: it.positionTitle,
+                  modality: it.weaponModality,
+                  hours: it.scheduleType,
+                  postsCount: it.quantity,
+                  monthlyTotal: it.unitMonthlyBilledPrice * it.quantity,
+                }))}
+                valueAddedItems={previewProposal.valueAddedItems?.map((v: any) => ({
+                  itemName: v.itemName,
+                  quantity: v.quantity,
+                  periodicity: v.periodicity,
+                  itemInternalCost: v.itemInternalCost,
+                  notes: v.notes,
+                }))}
+                signers={previewProposal.signers}
+              />
+            </Box>
+          )}
+        </DialogContent>
+      </Dialog>
     </Box>
   );
 }

@@ -131,7 +131,10 @@ export interface CommercialProposalDto {
     city?: string;
     email?: string;
     phone?: string;
+    clientStatus?: string;
   };
+  draftSnapshotJson?: any;
+  signers?: any[];
   tariffPeriod?: any;
   items?: any[];
   valueAddedItems?: any[];

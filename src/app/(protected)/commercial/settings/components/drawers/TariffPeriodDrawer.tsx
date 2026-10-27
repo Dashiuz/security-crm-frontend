@@ -46,17 +46,17 @@ export default function TariffPeriodDrawer({
   useEffect(() => {
     if (period) {
       setFormData({
-        year: period.year,
+        year: Number(period.year) || 2026,
         label: period.label,
         startDate: period.startDate ? period.startDate.split("T")[0] : "2026-01-01",
         endDate: period.endDate ? period.endDate.split("T")[0] : "2026-12-31",
-        smmlv: period.smmlv,
-        monthlyTransportAux: period.monthlyTransportAux,
-        dailyTransportAux: period.dailyTransportAux,
-        statutoryWeeklyHours: period.statutoryWeeklyHours,
-        commercialMultiplier: period.commercialMultiplier,
-        strata46Multiplier: period.strata46Multiplier,
-        strata13Multiplier: period.strata13Multiplier,
+        smmlv: Number(period.smmlv) || 1750905,
+        monthlyTransportAux: Number(period.monthlyTransportAux) || 249095,
+        dailyTransportAux: Number(period.dailyTransportAux) || 8303.17,
+        statutoryWeeklyHours: Number(period.statutoryWeeklyHours) || 44,
+        commercialMultiplier: Number(period.commercialMultiplier) || 8.8,
+        strata46Multiplier: Number(period.strata46Multiplier) || 8.6,
+        strata13Multiplier: Number(period.strata13Multiplier) || 7.66376105,
       });
     } else {
       setFormData({
@@ -83,11 +83,22 @@ export default function TariffPeriodDrawer({
     e.preventDefault();
     try {
       setIsSubmitting(true);
+      const payload = {
+        ...formData,
+        year: Number(formData.year) || 2026,
+        smmlv: Number(formData.smmlv) || 0,
+        monthlyTransportAux: Number(formData.monthlyTransportAux) || 0,
+        dailyTransportAux: Number(formData.dailyTransportAux) || 0,
+        statutoryWeeklyHours: Number(formData.statutoryWeeklyHours) || 44,
+        commercialMultiplier: Number(formData.commercialMultiplier) || 0,
+        strata46Multiplier: Number(formData.strata46Multiplier) || 0,
+        strata13Multiplier: Number(formData.strata13Multiplier) || 0,
+      };
       if (period?.id) {
-        await CommercialSettingsApi.updateTariffPeriod(period.id, formData);
+        await CommercialSettingsApi.updateTariffPeriod(period.id, payload);
         showSuccess("Tramo tarifario actualizado correctamente");
       } else {
-        await CommercialSettingsApi.createTariffPeriod(formData);
+        await CommercialSettingsApi.createTariffPeriod(payload);
         showSuccess("Vigencia tarifaria registrada exitosamente");
       }
       onSuccess();

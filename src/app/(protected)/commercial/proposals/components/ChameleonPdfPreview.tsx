@@ -37,6 +37,12 @@ interface ChameleonPdfPreviewProps {
   proposalNumber?: string;
   date?: string;
   bodyHtml?: string;
+  blocks?: Array<{
+    id?: string;
+    type: string;
+    title?: string;
+    content: string;
+  }>;
   serviceItems?: Array<{
     name: string;
     modality: string;
@@ -44,8 +50,32 @@ interface ChameleonPdfPreviewProps {
     postsCount: number;
     monthlyTotal: number;
   }>;
-  signers?: AuthorizedSigner[];
+  valueAddedItems?: Array<{
+    itemName: string;
+    quantity: number;
+    periodicity: string;
+    itemInternalCost: number;
+    notes?: string;
+  }>;
+  signers?: Array<
+    | AuthorizedSigner
+    | {
+        id: string;
+        fullName: string;
+        jobTitle: string;
+        professionalCardNum?: string;
+        signatureUrl?: string;
+      }
+  >;
+  showSignatures?: boolean;
 }
+
+type PreviewDocItem =
+  | { kind: "block"; block: { id?: string; type: string; title?: string; content: string }; estimatedHeight: number }
+  | { kind: "html"; html: string; estimatedHeight: number }
+  | { kind: "economic"; estimatedHeight: number }
+  | { kind: "vag"; estimatedHeight: number }
+  | { kind: "signatures"; estimatedHeight: number };
 
 export default function ChameleonPdfPreview({
   skin,
@@ -56,6 +86,7 @@ export default function ChameleonPdfPreview({
   proposalNumber = "PROP-2026-0042",
   date = new Date().toLocaleDateString("es-CO", { year: "numeric", month: "long", day: "numeric" }),
   bodyHtml = "<p>Por medio de la presente, nos complace presentarles nuestra propuesta formal de servicios de vigilancia y seguridad privada armada y no armada...</p>",
+  blocks,
   serviceItems = [
     {
       name: "Vigilancia Física 24 Horas",
@@ -65,13 +96,98 @@ export default function ChameleonPdfPreview({
       monthlyTotal: 17270787,
     },
   ],
+  valueAddedItems = [],
   signers = [],
+  showSignatures = true,
 }: ChameleonPdfPreviewProps) {
   const primaryColor = skin?.primaryBrandColorHex || "#1E1B4B";
   const accentColor = skin?.accentBrandColorHex || "#7C3AED";
   const companyName = skin?.companyLegalName || "NOXIA SEGURIDAD PRIVADA S.A.S.";
   const companyNit = skin?.companyNit || "NIT: 900.000.000-1";
   const svspLic = skin?.supervigilanciaLicense || "Resolución SVSP No. 004921";
+
+  // Dynamic pagination packing
+  const paginatedPages = React.useMemo(() => {
+    const items: PreviewDocItem[] = [];
+
+    if (blocks && blocks.length > 0) {
+      for (const b of blocks) {
+        const bType = (b.type || "").toUpperCase();
+        if (bType === "TABLE_ECONOMIC") {
+          items.push({ kind: "economic", estimatedHeight: 280 + serviceItems.length * 28 });
+        } else if (bType === "TABLE_VAG") {
+          if (valueAddedItems.length > 0) {
+            items.push({ kind: "vag", estimatedHeight: 180 + valueAddedItems.length * 24 });
+          }
+        } else if (bType === "SIGNATURE_ROW") {
+          if (showSignatures && signers.length > 0) {
+            items.push({ kind: "signatures", estimatedHeight: 180 });
+          }
+        } else {
+          const textLen = (b.content || "").replace(/<[^>]*>/g, "").length;
+          const estimatedLines = Math.max(1, Math.ceil(textLen / 85));
+          const estimatedH = (b.title ? 38 : 0) + estimatedLines * 24 + 40;
+          items.push({ kind: "block", block: b, estimatedHeight: Math.min(650, estimatedH) });
+        }
+      }
+
+      const hasEconomic = blocks.some((b) => (b.type || "").toUpperCase() === "TABLE_ECONOMIC");
+      const hasVags = blocks.some((b) => (b.type || "").toUpperCase() === "TABLE_VAG");
+      const hasSignatures = blocks.some((b) => (b.type || "").toUpperCase() === "SIGNATURE_ROW");
+
+      if (!hasEconomic && serviceItems.length > 0) {
+        items.push({ kind: "economic", estimatedHeight: 280 + serviceItems.length * 28 });
+      }
+      if (!hasVags && valueAddedItems.length > 0) {
+        items.push({ kind: "vag", estimatedHeight: 180 + valueAddedItems.length * 24 });
+      }
+      if (!hasSignatures && showSignatures && signers.length > 0) {
+        items.push({ kind: "signatures", estimatedHeight: 180 });
+      }
+    } else {
+      const textLen = (bodyHtml || "").replace(/<[^>]*>/g, "").length;
+      const estimatedLines = Math.max(1, Math.ceil(textLen / 85));
+      const estimatedH = estimatedLines * 24 + 40;
+      items.push({ kind: "html", html: bodyHtml, estimatedHeight: Math.min(650, estimatedH) });
+
+      if (serviceItems.length > 0) {
+        items.push({ kind: "economic", estimatedHeight: 280 + serviceItems.length * 28 });
+      }
+      if (valueAddedItems.length > 0) {
+        items.push({ kind: "vag", estimatedHeight: 180 + valueAddedItems.length * 24 });
+      }
+      if (showSignatures && signers.length > 0) {
+        items.push({ kind: "signatures", estimatedHeight: 180 });
+      }
+    }
+
+    const PAGE_1_CAPACITY = 710;
+    const PAGE_N_CAPACITY = 850;
+
+    const pages: PreviewDocItem[][] = [];
+    let currentPage: PreviewDocItem[] = [];
+    let currentHeight = 0;
+
+    for (const item of items) {
+      const pageCap = pages.length === 0 ? PAGE_1_CAPACITY : PAGE_N_CAPACITY;
+      if (currentPage.length > 0 && currentHeight + item.estimatedHeight > pageCap) {
+        pages.push(currentPage);
+        currentPage = [item];
+        currentHeight = item.estimatedHeight;
+      } else {
+        currentPage.push(item);
+        currentHeight += item.estimatedHeight;
+      }
+    }
+
+    if (currentPage.length > 0 || pages.length === 0) {
+      pages.push(currentPage);
+    }
+
+    return pages;
+  }, [blocks, bodyHtml, serviceItems, valueAddedItems, signers, showSignatures]);
+
+  const totalPages = paginatedPages.length;
 
   // Total calculation
   const subtotal = serviceItems.reduce((acc, curr) => acc + curr.monthlyTotal, 0);
@@ -169,109 +285,37 @@ export default function ChameleonPdfPreview({
       case DocumentHeaderLayout.MODERN_MINIMALIST:
       default:
         return (
-          <Box sx={{ mb: 3 }}>
+          <Box sx={{ mb: 2.5, pb: 2, borderBottom: "1px solid #E2E8F0" }}>
             <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-              <Box sx={{ display: "flex", gap: 1.5, alignItems: "center" }}>
-                <Box sx={{ width: 4, height: 44, bgcolor: primaryColor, borderRadius: 1 }} />
-                <Box>
-                  <Typography variant="h6" sx={{ fontWeight: 800, color: primaryColor, lineHeight: 1.1 }}>
-                    {companyName}
-                  </Typography>
-                  <Typography variant="caption" sx={{ color: "text.secondary" }}>
-                    {companyNit} • {svspLic}
-                  </Typography>
-                </Box>
+              <Box>
+                <Typography variant="overline" sx={{ fontWeight: 800, letterSpacing: "0.1em", color: primaryColor, display: "block" }}>
+                  OFERTA TÉCNICO-COMERCIAL DE SEGURIDAD PRIVADA
+                </Typography>
+                <Typography variant="caption" sx={{ color: "text.secondary" }}>
+                  Régimen Especial SVSP • Ley 356 de 1994
+                </Typography>
               </Box>
               <Box sx={{ textAlign: "right" }}>
-                <Typography variant="caption" sx={{ color: "text.secondary", display: "block" }}>
-                  Número Consecutivo
+                <Typography variant="caption" sx={{ color: "text.secondary", display: "block", fontSize: "0.7rem" }}>
+                  Referencia / Consecutivo
                 </Typography>
-                <Typography variant="subtitle2" sx={{ fontWeight: 800, color: accentColor }}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 800, color: accentColor, letterSpacing: "0.02em" }}>
                   {proposalNumber}
                 </Typography>
               </Box>
             </Box>
-            <Divider sx={{ mt: 1.5, borderColor: "divider" }} />
           </Box>
         );
     }
   };
 
-  return (
-    <Paper
-      elevation={3}
-      sx={{
-        width: "100%",
-        maxWidth: 720,
-        mx: "auto",
-        p: 4,
-        bgcolor: "#ffffff",
-        color: "#1e293b",
-        fontFamily: "'Inter', sans-serif",
-        borderRadius: 2,
-        border: "1px solid",
-        borderColor: "divider",
-        position: "relative",
-      }}
-    >
-      {/* Header */}
-      {renderHeader()}
-
-      {/* Meta Destinatario */}
-      <Box
-        sx={{
-          mb: 3,
-          p: 2,
-          bgcolor: "rgba(241, 245, 249, 0.6)",
-          borderRadius: 1.5,
-          borderLeft: `4px solid ${primaryColor}`,
-        }}
-      >
-        <Grid container spacing={1.5}>
-          <Grid size={{ xs: 12, sm: 7 }}>
-            <Typography variant="caption" sx={{ color: "text.secondary", display: "block" }}>
-              Señores / Razón Social:
-            </Typography>
-            <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
-              {clientName}
-            </Typography>
-            <Typography variant="caption" color="text.secondary">
-              NIT: {clientNit} • {clientCity}
-            </Typography>
-          </Grid>
-          <Grid size={{ xs: 12, sm: 5 }} sx={{ textAlign: { xs: "left", sm: "right" } }}>
-            <Typography variant="caption" sx={{ color: "text.secondary", display: "block" }}>
-              Fecha de Emisión:
-            </Typography>
-            <Typography variant="body2" sx={{ fontWeight: 600 }}>
-              {date}
-            </Typography>
-            <Typography variant="caption" color="text.secondary">
-              Validez: 15 Días Calendario
-            </Typography>
-          </Grid>
-        </Grid>
-      </Box>
-
-      {/* Cuerpo de la Propuesta (TipTap render) */}
-      <Box
-        sx={{
-          mb: 3,
-          lineHeight: 1.6,
-          fontSize: "0.88rem",
-          "& p": { mb: 1.25 },
-          "& h1, & h2, & h3": { color: primaryColor, mt: 2, mb: 1 },
-          "& ul, & ol": { pl: 3, mb: 1.25 },
-        }}
-        dangerouslySetInnerHTML={{ __html: bodyHtml }}
-      />
-
-      {/* Tabla Económica Homologada SVSP */}
-      <Typography variant="subtitle2" sx={{ fontWeight: 800, color: primaryColor, mb: 1, textTransform: "uppercase" }}>
+  const renderEconomicTable = () => (
+    <Box sx={{ mb: 3 }}>
+      <Typography variant="subtitle2" sx={{ fontWeight: 800, color: primaryColor, mb: 1, textTransform: "uppercase", fontSize: "0.82rem" }}>
         Estructura Económica y Tarifas Mensuales (Decreto Ley SVSP 2026)
       </Typography>
 
-      <TableContainer component={Box} sx={{ mb: 3, border: "1px solid", borderColor: "divider", borderRadius: 1 }}>
+      <TableContainer component={Box} sx={{ border: "1px solid", borderColor: "divider", borderRadius: 1 }}>
         <Table size="small">
           <TableHead sx={{ bgcolor: primaryColor }}>
             <TableRow>
@@ -321,71 +365,352 @@ export default function ChameleonPdfPreview({
           </TableBody>
         </Table>
       </TableContainer>
+    </Box>
+  );
 
-      {/* Bloque de Firmas Autorizadas */}
-      <Box sx={{ mt: 4, pt: 2, borderTop: "1px dashed", borderColor: "divider" }}>
-        <Typography variant="caption" sx={{ fontWeight: 700, color: "text.secondary", display: "block", mb: 2, textTransform: "uppercase" }}>
-          Representación y Suscripción Formal
-        </Typography>
-        <Stack direction={{ xs: "column", sm: "row" }} spacing={4} justifyContent="space-around">
-          {signers.length > 0 ? (
-            signers.map((s) => (
-              <Box key={s.id} sx={{ textAlign: "center", minWidth: 200 }}>
-                {s.signatureUrl ? (
+  const renderVagTable = () => (
+    <Box sx={{ mb: 3 }}>
+      <Typography
+        variant="subtitle2"
+        sx={{ fontWeight: 800, color: primaryColor, mb: 1, textTransform: "uppercase", fontSize: "0.82rem" }}
+      >
+        Valores Agregados y Beneficios en Especie (100% Bonificados / Cortesía Comercial)
+      </Typography>
+      <TableContainer component={Box} sx={{ border: "1px solid", borderColor: "divider", borderRadius: 1 }}>
+        <Table size="small">
+          <TableHead sx={{ bgcolor: "#F8FAFC" }}>
+            <TableRow>
+              <TableCell sx={{ fontWeight: 700, fontSize: "0.75rem", color: "#475569" }}>Beneficio / Comodato Institucional</TableCell>
+              <TableCell align="center" sx={{ fontWeight: 700, fontSize: "0.75rem", color: "#475569" }}>Cantidad</TableCell>
+              <TableCell sx={{ fontWeight: 700, fontSize: "0.75rem", color: "#475569" }}>Periodicidad</TableCell>
+              <TableCell align="right" sx={{ fontWeight: 700, fontSize: "0.75rem", color: "#475569" }}>Valor de Referencia</TableCell>
+              <TableCell align="right" sx={{ fontWeight: 700, fontSize: "0.75rem", color: "#059669" }}>Facturado al Cliente</TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {valueAddedItems.map((vag, idx) => (
+              <TableRow key={idx} sx={{ "&:hover": { bgcolor: "#F8FAFC" } }}>
+                <TableCell sx={{ fontSize: "0.8rem", fontWeight: 600 }}>
+                  {vag.itemName}
+                  {vag.notes && (
+                    <Typography variant="caption" sx={{ color: "text.secondary", display: "block", fontSize: "0.7rem" }}>
+                      {vag.notes}
+                    </Typography>
+                  )}
+                </TableCell>
+                <TableCell align="center" sx={{ fontSize: "0.8rem" }}>{vag.quantity}</TableCell>
+                <TableCell sx={{ fontSize: "0.78rem", color: "text.secondary" }}>
+                  {vag.periodicity === "MONTHLY_RECURRING" ? "Mensual Recurrente" : vag.periodicity === "ANNUAL_RENEWAL" ? "Anual (Renovación)" : "Única Vez (Instalación)"}
+                </TableCell>
+                <TableCell align="right" sx={{ fontSize: "0.78rem", color: "text.secondary", textDecoration: "line-through" }}>
+                  $ {Number(vag.itemInternalCost || 0).toLocaleString("es-CO")}
+                </TableCell>
+                <TableCell align="right" sx={{ fontWeight: 800, fontSize: "0.82rem", color: "#059669" }}>
+                  $ 0 COP (CORTESÍA)
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </TableContainer>
+    </Box>
+  );
+
+  const renderSigners = () => (
+    <Box sx={{ mt: "auto", pt: 2, borderTop: "1px dashed", borderColor: "divider" }}>
+      <Typography variant="caption" sx={{ fontWeight: 700, color: "text.secondary", display: "block", mb: 2, textTransform: "uppercase" }}>
+        Representación y Suscripción Formal
+      </Typography>
+      <Stack direction={{ xs: "column", sm: "row" }} spacing={4} justifyContent="space-around">
+        {signers.map((s) => (
+          <Box key={s.id} sx={{ textAlign: "center", minWidth: 200 }}>
+            {s.signatureUrl ? (
+              <Box
+                component="img"
+                src={s.signatureUrl}
+                alt={s.fullName}
+                sx={{ height: 48, objectFit: "contain", mx: "auto", mb: 0.5 }}
+              />
+            ) : (
+              <Box sx={{ height: 48, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <Typography variant="caption" sx={{ color: "text.disabled", fontStyle: "italic" }}>
+                  [Firma Digital Registrada]
+                </Typography>
+              </Box>
+            )}
+            <Divider sx={{ borderColor: primaryColor, mb: 0.5 }} />
+            <Typography variant="body2" sx={{ fontWeight: 700, fontSize: "0.82rem" }}>
+              {s.fullName}
+            </Typography>
+            <Typography variant="caption" sx={{ color: "text.secondary", display: "block" }}>
+              {s.jobTitle}
+            </Typography>
+            {s.professionalCardNum && (
+              <Typography variant="caption" sx={{ fontSize: "0.68rem", color: "text.secondary" }}>
+                T.P. {s.professionalCardNum}
+              </Typography>
+            )}
+          </Box>
+        ))}
+      </Stack>
+    </Box>
+  );
+
+  return (
+    <Box
+      sx={{
+        width: "100%",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        gap: 3,
+        "@media print": {
+          gap: 0,
+          p: 0,
+          bgcolor: "transparent",
+        },
+      }}
+    >
+      {paginatedPages.map((pageItems, pageIdx) => {
+        const isFirstPage = pageIdx === 0;
+        const isLastPage = pageIdx === totalPages - 1;
+
+        return (
+          <React.Fragment key={`page-${pageIdx}`}>
+            {/* Separador Visual entre Páginas (Oculto al imprimir) */}
+            {pageIdx > 0 && (
+              <Divider
+                sx={{
+                  width: "100%",
+                  maxWidth: 780,
+                  my: 0.5,
+                  borderColor: "rgba(255,255,255,0.15)",
+                  "@media print": { display: "none" },
+                }}
+              >
+                <Chip
+                  label={`PÁGINA ${pageIdx + 1} DE ${totalPages} • CONTINUACIÓN DOCUMENTO A4`}
+                  size="small"
+                  sx={{
+                    bgcolor: "#0F172A",
+                    color: "#94A3B8",
+                    fontWeight: 800,
+                    fontSize: "0.7rem",
+                    letterSpacing: "0.05em",
+                    border: "1px solid rgba(255,255,255,0.12)",
+                  }}
+                />
+              </Divider>
+            )}
+
+            <Paper
+              elevation={4}
+              className="a4-print-page"
+              sx={{
+                width: "100%",
+                maxWidth: 780,
+                minHeight: 1040,
+                p: { xs: 3, sm: 4.5 },
+                bgcolor: "#ffffff",
+                color: "#1e293b",
+                fontFamily: "'Inter', sans-serif",
+                borderRadius: 2,
+                border: "1px solid #E2E8F0",
+                boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.3), 0 8px 10px -6px rgba(0, 0, 0, 0.2)",
+                display: "flex",
+                flexDirection: "column",
+                position: "relative",
+                "@media print": {
+                  boxShadow: "none",
+                  border: "none",
+                  borderRadius: 0,
+                  p: 4,
+                  pageBreakAfter: !isLastPage ? "always" : "auto",
+                },
+              }}
+            >
+              {/* Header según posición de la página */}
+              {isFirstPage ? (
+                <>
+                  {renderHeader()}
+                  {/* Meta Destinatario */}
                   <Box
-                    component="img"
-                    src={s.signatureUrl}
-                    alt={s.fullName}
-                    sx={{ height: 48, objectFit: "contain", mx: "auto", mb: 0.5 }}
-                  />
-                ) : (
-                  <Box sx={{ height: 48, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    <Typography variant="caption" sx={{ color: "text.disabled", fontStyle: "italic" }}>
-                      [Firma Digital Registrada]
+                    sx={{
+                      mb: 3,
+                      p: 2,
+                      bgcolor: "rgba(241, 245, 249, 0.7)",
+                      borderRadius: 1.5,
+                      borderLeft: `4px solid ${primaryColor}`,
+                    }}
+                  >
+                    <Grid container spacing={1.5}>
+                      <Grid size={{ xs: 12, sm: 7 }}>
+                        <Typography variant="caption" sx={{ color: "text.secondary", display: "block" }}>
+                          Señores / Razón Social:
+                        </Typography>
+                        <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                          {clientName}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          NIT: {clientNit} • {clientCity}
+                        </Typography>
+                      </Grid>
+                      <Grid size={{ xs: 12, sm: 5 }} sx={{ textAlign: { xs: "left", sm: "right" } }}>
+                        <Typography variant="caption" sx={{ color: "text.secondary", display: "block" }}>
+                          Fecha de Emisión:
+                        </Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                          {date}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          Validez: 15 Días Calendario
+                        </Typography>
+                      </Grid>
+                    </Grid>
+                  </Box>
+                </>
+              ) : (
+                /* Cabecera Páginas Continuación */
+                <Box
+                  sx={{
+                    mb: 2.5,
+                    pb: 1.5,
+                    borderBottom: "1.5px solid #E2E8F0",
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                  }}
+                >
+                  <Box>
+                    <Typography variant="overline" sx={{ fontWeight: 800, color: primaryColor, letterSpacing: "0.08em", lineHeight: 1, display: "block" }}>
+                      {pageItems.some((it) => it.kind === "economic" || it.kind === "vag")
+                        ? "ANEXO ECONÓMICO Y ESPECIFICACIONES"
+                        : `CONTINUACIÓN PROPUESTA COMERCIAL • PÁGINA ${pageIdx + 1}`}
+                    </Typography>
+                    <Typography variant="caption" sx={{ color: "text.secondary", fontSize: "0.72rem" }}>
+                      Propuesta Técnico-Comercial SVSP • {clientName}
                     </Typography>
                   </Box>
-                )}
-                <Divider sx={{ borderColor: primaryColor, mb: 0.5 }} />
-                <Typography variant="body2" sx={{ fontWeight: 700, fontSize: "0.82rem" }}>
-                  {s.fullName}
-                </Typography>
-                <Typography variant="caption" sx={{ color: "text.secondary", display: "block" }}>
-                  {s.jobTitle}
-                </Typography>
-                {s.professionalCardNum && (
-                  <Typography variant="caption" sx={{ fontSize: "0.68rem", color: "text.secondary" }}>
-                    T.P. {s.professionalCardNum}
-                  </Typography>
-                )}
-              </Box>
-            ))
-          ) : (
-            <Box sx={{ textAlign: "center", minWidth: 220 }}>
-              <Box sx={{ height: 40 }} />
-              <Divider sx={{ borderColor: primaryColor, mb: 0.5 }} />
-              <Typography variant="body2" sx={{ fontWeight: 700, fontSize: "0.82rem" }}>
-                Dirección Comercial / Representante Legal
-              </Typography>
-              <Typography variant="caption" sx={{ color: "text.secondary", display: "block" }}>
-                {companyName}
-              </Typography>
-            </Box>
-          )}
-        </Stack>
-      </Box>
+                  <Box sx={{ textAlign: "right" }}>
+                    <Typography variant="caption" sx={{ color: "text.secondary", display: "block", fontSize: "0.68rem" }}>
+                      Consecutivo
+                    </Typography>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 800, color: accentColor, letterSpacing: "0.02em" }}>
+                      {proposalNumber}
+                    </Typography>
+                  </Box>
+                </Box>
+              )}
 
-      {/* Footer Forense Criptográfico (Ley 527 de 1999) */}
-      <Box sx={{ mt: 4, pt: 1.5, borderTop: "1px solid", borderColor: "divider", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <Stack direction="row" spacing={0.5} alignItems="center">
-          <Lock sx={{ fontSize: 13, color: "text.secondary" }} />
-          <Typography variant="caption" sx={{ fontSize: "0.65rem", color: "text.secondary" }}>
-            Documento emitido bajo Ley 527 de 1999 • Firma Digital y Trazabilidad Forense
-          </Typography>
-        </Stack>
-        <Typography variant="caption" sx={{ fontSize: "0.65rem", color: "text.secondary", fontFamily: "monospace" }}>
-          SHA-256: 7f8a9...b4c2
-        </Typography>
-      </Box>
-    </Paper>
+              {/* Contenido dinámico empaquetado para esta página */}
+              <Box sx={{ flex: 1 }}>
+                {pageItems.map((item, itemIdx) => {
+                  if (item.kind === "block") {
+                    return (
+                      <Box key={item.block.id || `preview-block-${itemIdx}`} sx={{ mb: 2 }}>
+                        {item.block.title && (
+                          <Typography
+                            variant="subtitle2"
+                            sx={{ fontWeight: 800, color: primaryColor, mb: 0.75, textTransform: "uppercase", fontSize: "0.85rem" }}
+                          >
+                            {item.block.title}
+                          </Typography>
+                        )}
+                        <Box
+                          sx={{
+                            lineHeight: 1.6,
+                            fontSize: "0.88rem",
+                            color: "#1E293B",
+                            "& p": { mb: 1.25 },
+                            "& ul, & ol": { pl: 3, mb: 1.25 },
+                          }}
+                          dangerouslySetInnerHTML={{ __html: item.block.content }}
+                        />
+                      </Box>
+                    );
+                  }
+
+                  if (item.kind === "html") {
+                    return (
+                      <Box
+                        key="body-html-content"
+                        sx={{
+                          mb: 3,
+                          lineHeight: 1.6,
+                          fontSize: "0.88rem",
+                          "& p": { mb: 1.25 },
+                          "& h1, & h2, & h3": { color: primaryColor, mt: 2, mb: 1 },
+                          "& ul, & ol": { pl: 3, mb: 1.25 },
+                        }}
+                        dangerouslySetInnerHTML={{ __html: item.html }}
+                      />
+                    );
+                  }
+
+                  if (item.kind === "economic") {
+                    return <React.Fragment key="item-economic">{renderEconomicTable()}</React.Fragment>;
+                  }
+
+                  if (item.kind === "vag") {
+                    return <React.Fragment key="item-vag">{renderVagTable()}</React.Fragment>;
+                  }
+
+                  if (item.kind === "signatures") {
+                    return <React.Fragment key="item-signatures">{renderSigners()}</React.Fragment>;
+                  }
+
+                  return null;
+                })}
+              </Box>
+
+              {/* Pie de página A4 */}
+              {isLastPage ? (
+                /* Footer Forense Criptográfico (Ley 527 de 1999) + Legal Credentials */
+                <Box sx={{ mt: "auto", pt: 2, borderTop: "1px solid #E2E8F0" }}>
+                  <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 0.5 }}>
+                    <Typography variant="caption" sx={{ fontSize: "0.68rem", fontWeight: 700, color: "#64748B" }}>
+                      {companyName} • {companyNit} • {svspLic}
+                    </Typography>
+                    <Typography variant="caption" sx={{ fontSize: "0.65rem", color: "#94A3B8", fontFamily: "monospace" }}>
+                      SHA-256: 7f8a9...b4c2
+                    </Typography>
+                  </Box>
+                  <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <Stack direction="row" spacing={0.5} alignItems="center">
+                      <Lock sx={{ fontSize: 11, color: "#94A3B8" }} />
+                      <Typography variant="caption" sx={{ fontSize: "0.62rem", color: "#94A3B8" }}>
+                        Documento emitido bajo Ley 527 de 1999 • Firma Digital y Trazabilidad Forense • Copia Oficial
+                      </Typography>
+                    </Stack>
+                    <Typography variant="caption" sx={{ fontSize: "0.7rem", color: "#94A3B8", fontWeight: 700 }}>
+                      Página {pageIdx + 1} de {totalPages} • Fin del Documento
+                    </Typography>
+                  </Box>
+                </Box>
+              ) : (
+                /* Footer Páginas Intermedias */
+                <Box
+                  sx={{
+                    mt: "auto",
+                    pt: 2,
+                    borderTop: "1px solid #E2E8F0",
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                  }}
+                >
+                  <Typography variant="caption" sx={{ fontSize: "0.7rem", color: "#64748B", fontWeight: 600 }}>
+                    {companyName} • {companyNit} • {svspLic}
+                  </Typography>
+                  <Typography variant="caption" sx={{ fontSize: "0.7rem", color: "#94A3B8", fontWeight: 700 }}>
+                    Página {pageIdx + 1} de {totalPages} • No. {proposalNumber}
+                  </Typography>
+                </Box>
+              )}
+            </Paper>
+          </React.Fragment>
+        );
+      })}
+    </Box>
   );
 }

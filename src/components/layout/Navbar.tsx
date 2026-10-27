@@ -22,22 +22,40 @@ import {
   Person as PersonIcon,
   Logout as LogoutIcon,
   Search as SearchIcon,
+  BuildOutlined as ToolboxIcon,
+  DrawOutlined as DrawIcon,
 } from "@mui/icons-material";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/AuthContext";
 import { AuthService } from "@/lib/api/auth";
 import { useState } from "react";
 import { useTenant } from "@/providers/TenantProvider";
+import { useNavigation } from "@/providers/NavigationContext";
+import { HttpClient } from "@/lib/api/client";
+import UserSignatureDrawer, { SignatureCreationMode } from "@/components/signatures/UserSignatureDrawer";
 import NotificationBell from "./NotificationBell";
 
 interface NavbarProps {
   onMenuClick: () => void;
   onSearchClick?: () => void;
+  hasSubmenu?: boolean;
 }
 
-export default function Navbar({ onMenuClick, onSearchClick }: NavbarProps) {
+export default function Navbar({
+  onMenuClick,
+  onSearchClick,
+  hasSubmenu = false,
+}: NavbarProps) {
+  const router = useRouter();
   const { session, logout } = useAuth();
   const { tenant } = useTenant();
+  const { setToolsDrawerOpen } = useNavigation();
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
+  const [signatureDrawerOpen, setSignatureDrawerOpen] = useState(false);
+
+  const handleSaveUserSignature = async (dataUrl: string, method: SignatureCreationMode) => {
+    await HttpClient.post("/users/me/signature", { signatureDataUrl: dataUrl, method });
+  };
 
   const handleMenu = (event: React.MouseEvent<HTMLElement>) => {
     setAnchorEl(event.currentTarget);
@@ -69,10 +87,16 @@ export default function Navbar({ onMenuClick, onSearchClick }: NavbarProps) {
       <Toolbar>
         <IconButton
           color="inherit"
-          aria-label="open drawer"
+          aria-label="alternar submenú"
           edge="start"
           onClick={onMenuClick}
-          sx={{ mr: 2 }}
+          sx={{
+            mr: 2,
+            display: {
+              xs: "inline-flex",
+              md: hasSubmenu ? "inline-flex" : "none",
+            },
+          }}
         >
           <MenuIcon />
         </IconButton>
@@ -387,7 +411,10 @@ export default function Navbar({ onMenuClick, onSearchClick }: NavbarProps) {
                 {/* Menu Items */}
                 <Box sx={{ py: 1 }}>
                   <MenuItem
-                    onClick={handleClose}
+                    onClick={() => {
+                      handleClose();
+                      router.push("/administrative/users");
+                    }}
                     sx={{
                       py: 1.25,
                       px: 2.5,
@@ -399,7 +426,45 @@ export default function Navbar({ onMenuClick, onSearchClick }: NavbarProps) {
                     }}
                   >
                     <PersonIcon sx={{ fontSize: 20, color: "text.secondary" }} />
-                    Mi Perfil
+                    Mi Perfil / Mi Cuenta
+                  </MenuItem>
+
+                  <MenuItem
+                    onClick={() => {
+                      handleClose();
+                      setToolsDrawerOpen(true);
+                    }}
+                    sx={{
+                      py: 1.25,
+                      px: 2.5,
+                      fontSize: "0.875rem",
+                      fontWeight: 500,
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 1.5,
+                    }}
+                  >
+                    <ToolboxIcon sx={{ fontSize: 20, color: "text.secondary" }} />
+                    Herramientas Generales
+                  </MenuItem>
+
+                  <MenuItem
+                    onClick={() => {
+                      handleClose();
+                      setSignatureDrawerOpen(true);
+                    }}
+                    sx={{
+                      py: 1.25,
+                      px: 2.5,
+                      fontSize: "0.875rem",
+                      fontWeight: 500,
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 1.5,
+                    }}
+                  >
+                    <DrawIcon sx={{ fontSize: 20, color: "text.secondary" }} />
+                    Mi Firma Digital
                   </MenuItem>
 
                   <Divider sx={{ my: 0.5 }} />
@@ -429,6 +494,14 @@ export default function Navbar({ onMenuClick, onSearchClick }: NavbarProps) {
           );
         })()}
       </Toolbar>
+
+      {/* User Digital Signature Drawer */}
+      <UserSignatureDrawer
+        open={signatureDrawerOpen}
+        onClose={() => setSignatureDrawerOpen(false)}
+        onSave={handleSaveUserSignature}
+        initialName={session?.user?.fullName || ""}
+      />
     </AppBar>
   );
 }

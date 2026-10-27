@@ -782,8 +782,12 @@ export const GENERAL_TOOLS: GeneralToolItem[] = [
     description: "Generador de contratos, actas de entrega de dotación, minutas y otrosí",
     iconName: "DescriptionOutlined",
     category: "documents",
-    actionType: "MODAL",
-    status: "ROADMAP",
+    actionType: "LINK",
+    targetPath: "/tools/formats",
+    status: "ACTIVE",
+
+
+
     roadmapDetails: {
       overview: "Centro de plantillas dinámicas con inyección de variables.",
       keyPoints: [

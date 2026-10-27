@@ -9,6 +9,7 @@ import {
   Typography,
   Avatar,
   Stack,
+  Popper,
 } from "@mui/material";
 import { PersonSearchOutlined } from "@mui/icons-material";
 import { HttpClient } from "@/lib/api/client";
@@ -130,6 +131,19 @@ export default function EmployeeAutocompleteSearch({
       inputValue={inputValue}
       onInputChange={(_, newInputValue) => {
         setInputValue(newInputValue);
+      }}
+      PopperComponent={(props) => (
+        <Popper
+          {...props}
+          style={{ ...props.style, zIndex: 99999 }}
+          sx={{ zIndex: 99999 }}
+        />
+      )}
+      slotProps={{
+        popper: {
+          style: { zIndex: 99999 },
+          sx: { zIndex: 99999 },
+        },
       }}
       onChange={(_, selectedOption) => {
         if (selectedOption && typeof selectedOption !== "string") {

@@ -23,3 +23,18 @@
    - Captura de Dotación de Almacén (radios, linternas, detectores de metales, botiquines, chalecos).
    - Inspección 360° en Drawer y despacho real no bloqueante a los 9 departamentos corporativos vía `commercialServiceOrdersApi.dispatchOrder`.
    - Compilación TypeScript 100% limpia (`tsc --noEmit` 0 errores).
+
+[2026-10-25] SPEC-UI-004 / SPEC-CORE-010: MOTOR UNIVERSAL DE FORMATOS, VARIABLES DINÁMICAS (ATAJOS), TABLAS TIPTAP Y ARQUITECTURA PARSE & DROP (ZERO-S3):
+1. Arquitectura Parse & Drop (Zero-S3):
+   - Zona de arrastre para Word (.docx) y Excel (.xlsx) con conversión en RAM a HTML semántico y descarte inmediato del buffer (0 bytes en S3).
+   - Edición web instantánea en TipTap con tablas y celdas combinadas.
+2. Suite de Tablas TipTap (MIT Open Source - $0.00 USD):
+   - `@tiptap/extension-table` y extensiones de fila/celda.
+   - Soporte nativo para copiar y pegar desde Excel/Word (Ctrl+V).
+   - Tokens dinámicos resaltados en rojo vivo y negrita (#DC2626) dentro de cualquier celda.
+3. Diccionario Masivo de Datos (Modelo Oracle Reports):
+   - Árbol de atributos en cascada de BD (Empresa, Cliente, Empleado, Solicitudes de Vacaciones/Dotación/Armamento, Financiero con monto_en_letras).
+4. Arquitectura Modular "Piezas de Lego":
+   - Desglose en 7 bloques configurables con toggles (Membrete, Credenciales SuperVigilancia automáticas de BD o manuales, Sellos de Calidad, Cuerpo TipTap con Tablas, Matriz Económica, Firmantes, Footer).
+   - Reubicación transversal en Herramientas Generales (`/tools/formats`).
+   - Selector inicial en Commercial y otros módulos: "Elegir Formato" vs "En Blanco".

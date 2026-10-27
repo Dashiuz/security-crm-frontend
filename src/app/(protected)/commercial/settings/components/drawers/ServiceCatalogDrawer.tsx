@@ -57,19 +57,24 @@ export default function ServiceCatalogDrawer({
 
   useEffect(() => {
     if (serviceItem) {
+      const rawPct = Number(serviceItem.adminSupervisionPct);
       setFormData({
-        serviceCode: serviceItem.serviceCode,
-        name: serviceItem.name,
-        targetPosition: serviceItem.targetPosition,
+        serviceCode: Number(serviceItem.serviceCode) || 1,
+        name: serviceItem.name || "",
+        targetPosition: serviceItem.targetPosition || "",
         sector: serviceItem.sector,
         weaponModality: serviceItem.weaponModality,
         scheduleType: serviceItem.scheduleType,
         daysModality: serviceItem.daysModality,
-        dailyTotalHours: serviceItem.dailyTotalHours,
-        dayHours: serviceItem.dayHours,
-        nightHours: serviceItem.nightHours,
-        billableDaysPerMonth: serviceItem.billableDaysPerMonth,
-        adminSupervisionPct: serviceItem.adminSupervisionPct,
+        dailyTotalHours: Number(serviceItem.dailyTotalHours) || 24,
+        dayHours: Number(serviceItem.dayHours) || 15,
+        nightHours: Number(serviceItem.nightHours) || 9,
+        billableDaysPerMonth: Number(serviceItem.billableDaysPerMonth) || 30,
+        adminSupervisionPct: isNaN(rawPct)
+          ? 0.10
+          : rawPct > 1
+          ? rawPct / 100
+          : rawPct,
       });
     } else {
       setFormData({
@@ -97,11 +102,28 @@ export default function ServiceCatalogDrawer({
     e.preventDefault();
     try {
       setIsSubmitting(true);
+      const rawAdminPct = Number(formData.adminSupervisionPct);
+      const sanitizedAdminPct = isNaN(rawAdminPct)
+        ? 0.10
+        : rawAdminPct > 1
+        ? rawAdminPct / 100
+        : rawAdminPct;
+
+      const payload = {
+        ...formData,
+        serviceCode: Number(formData.serviceCode) || 1,
+        dailyTotalHours: Number(formData.dailyTotalHours) || 24,
+        dayHours: Number(formData.dayHours) || 0,
+        nightHours: Number(formData.nightHours) || 0,
+        billableDaysPerMonth: Number(formData.billableDaysPerMonth) || 30,
+        adminSupervisionPct: sanitizedAdminPct,
+      };
+
       if (serviceItem?.id) {
-        await CommercialSettingsApi.updateServiceCatalog(serviceItem.id, formData);
+        await CommercialSettingsApi.updateServiceCatalog(serviceItem.id, payload);
         showSuccess("Servicio actualizado correctamente");
       } else {
-        await CommercialSettingsApi.createServiceCatalog(formData);
+        await CommercialSettingsApi.createServiceCatalog(payload);
         showSuccess("Nuevo servicio agregado al catálogo");
       }
       onSuccess();
@@ -300,8 +322,20 @@ export default function ServiceCatalogDrawer({
           size="small"
           type="number"
           label="% A&S (Administración y Supervisión)"
-          value={formData.adminSupervisionPct * 100}
-          onChange={(e) => handleChange("adminSupervisionPct", (parseFloat(e.target.value) || 0) / 100)}
+          value={
+            formData.adminSupervisionPct !== undefined && formData.adminSupervisionPct !== null
+              ? Math.round(Number(formData.adminSupervisionPct) * 100)
+              : ""
+          }
+          onChange={(e) => {
+            const raw = e.target.value;
+            if (raw === "") {
+              handleChange("adminSupervisionPct", 0);
+            } else {
+              const val = parseFloat(raw);
+              handleChange("adminSupervisionPct", isNaN(val) ? 0 : val / 100);
+            }
+          }}
           helperText="Generalmente 8%, 10% u 11%"
           inputProps={{ min: 0, max: 50, step: 1 }}
         />
