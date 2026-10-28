@@ -30,6 +30,7 @@ import {
   ApartmentRounded as ApartmentIcon,
   ArrowForwardIosRounded as ArrowForwardIcon,
   SupervisorAccountRounded as SupervisorAccountIcon,
+  ReceiptLongRounded as ReceiptLongIcon,
 } from "@mui/icons-material";
 import { ClientProvider, useClientDetail } from "./ClientContext";
 
@@ -57,6 +58,14 @@ function ClientLayoutContent({ children }: { children: React.ReactNode }) {
       icon: <DashboardIcon fontSize="small" />,
       description: "Datos básicos, ubicación y cuadrante policial",
       visible: permissions.canReadGeneral,
+    },
+    {
+      id: "commercial",
+      label: "Historial Comercial",
+      pathSuffix: "commercial",
+      icon: <ReceiptLongIcon fontSize="small" />,
+      description: "Hoja de vida: cotizaciones, propuestas y órdenes de servicio",
+      visible: true,
     },
     {
       id: "operations",

@@ -29,6 +29,7 @@ export interface NavigationSubItem {
   status: ModuleStatus;
   path?: string;
   iconName: string;
+  sectionHeader?: string;
   permissions?: string[];
   features?: string[];
   bulletColor?: string;
@@ -116,126 +117,56 @@ export const ERP_DIRECTIONS: ErpDirection[] = [
     iconName: "BusinessCenterOutlined",
     items: [
       {
-        id: "com-services",
-        title: "Servicios Ofrecidos",
-        description: "Catálogo institucional de servicios y modalidades de vigilancia",
-        status: "ROADMAP",
-        iconName: "ListAltOutlined",
-        roadmapDetails: {
-          overview: "Catálogo centralizado de modalidades de vigilancia física, canina, escolta y monitoreo.",
-          keyPoints: [
-            "Matriz de tarifas homologadas según la Superintendencia de Vigilancia.",
-            "Especificaciones técnicas de turnos diurnos, nocturnos y supervisión motorizada.",
-          ],
-          dependencies: ["Tarifas Base de Tenant", "Normativa SuperVigilancia"],
-        },
-      },
-      {
         id: "com-prospects",
-        title: "Captar Clientes (Prospectos)",
-        description: "Gestión de oportunidades y embudo de conversión",
+        title: "Prospectos y Seguimiento",
+        description: "Captación, pipeline de ventas y seguimiento comercial",
         status: "ACTIVE",
-        path: "/administrative/prospects",
+        path: "/commercial/prospects",
         iconName: "PersonSearchOutlined",
+        sectionHeader: "EMBUDO Y GESTIÓN",
         permissions: ["client:manage", "client:read"],
         features: ["client"],
       },
       {
-        id: "com-clients",
-        title: "Listado de Clientes",
-        description: "Directorio de sedes contratadas, conjuntos residenciales y corporativos",
+        id: "com-proposals",
+        title: "Propuestas y Cotizaciones",
+        description: "Emisión de propuestas económicas, cotizaciones, editor y visor PDF",
         status: "ACTIVE",
-        path: "/administrative/clients",
-        iconName: "BusinessOutlined",
-        permissions: ["client:manage", "client:read"],
-        features: ["client"],
-      },
-      {
-        id: "com-economic-proposal",
-        title: "Propuesta Económica",
-        description: "Generación de cotización formal con número consecutivo y envío por email",
-        status: "ROADMAP",
+        path: "/commercial/proposals",
         iconName: "ReceiptLongOutlined",
-        roadmapDetails: {
-          overview: "Motor automatizado de emisión de propuestas económicas membretadas.",
-          keyPoints: [
-            "Consecutivo único oficial por propuesta (ej. PROP-2026-0042).",
-            "Plantilla PDF oficial generada al instante con envío directo al correo del prospecto.",
-            "Trazabilidad de apertura y aceptación del cliente.",
-          ],
-          dependencies: ["MailService", "Consecutivos Transaccionales"],
-        },
-      },
-      {
-        id: "com-pnl",
-        title: "Pérdidas y Ganancias del Contrato (P&L)",
-        description: "Análisis financiero predictivo de rentabilidad y margen operativo",
-        status: "ROADMAP",
-        iconName: "TrendingUpOutlined",
-        roadmapDetails: {
-          overview: "Calculadora de viabilidad económica antes de firmar la orden de servicio.",
-          keyPoints: [
-            "Cruce de costos laborales (nómina de guardias, ARL, dotación) vs ingresos del cliente.",
-            "Cálculo de margen bruto y EBITDA por sede o conjunto residencial.",
-          ],
-          dependencies: ["Costos de Dotación Almacén", "Costos Salariales RRHH"],
-        },
-      },
-      {
-        id: "com-quotations",
-        title: "Cotizaciones Comerciales",
-        description: "Histórico y cotizador ágil de puestos de vigilancia",
-        status: "ROADMAP",
-        iconName: "RequestQuoteOutlined",
-        roadmapDetails: {
-          overview: "Gestión ágil de cotizaciones estándar y personalizadas.",
-          keyPoints: [
-            "Cotizador rápido por número de puestos 24h, 12h y refuerzos.",
-            "Conversión automática a Orden de Servicio al ser aceptada por el cliente.",
-          ],
-        },
+        permissions: ["commercial:settings:read"],
+        features: ["commercial"],
       },
       {
         id: "com-service-orders",
-        title: "Orden de Servicio (Promesa de Compra)",
-        description: "Formalización contractual al aceptar la propuesta comercial",
-        status: "ROADMAP",
+        title: "Órdenes de Servicio",
+        description: "Formalización contractual, actas de inicio e instalación de puestos",
+        status: "ACTIVE",
+        path: "/commercial/service-orders",
         iconName: "AssignmentTurnedInOutlined",
-        roadmapDetails: {
-          overview: "Documento oficial de inicio de operaciones y promesa de servicio.",
-          keyPoints: [
-            "Detalle de puestos a cubrir y fecha de inicio de servicio pactada.",
-            "Firma digital del representante legal y disparador para Programación y Almacén.",
-          ],
-        },
+        permissions: ["commercial:settings:read"],
+        features: ["commercial"],
       },
       {
-        id: "com-sla",
-        title: "Acuerdos ANS (SLA)",
-        description: "Matriz de compromisos, tiempos de reacción y niveles de servicio",
-        status: "ROADMAP",
-        iconName: "GavelOutlined",
-        roadmapDetails: {
-          overview: "Definición de Acuerdos de Nivel de Servicio pactados con el cliente.",
-          keyPoints: [
-            "Tiempos máximos de reemplazo por indisposición de guardia (< 45 min).",
-            "Frecuencia de rondas nocturnas y supervisión motorizada.",
-          ],
-        },
+        id: "com-clients",
+        title: "Cartera de Clientes",
+        description: "Directorio de sedes contratadas, conjuntos residenciales y corporativos",
+        status: "ACTIVE",
+        path: "/commercial/clients",
+        iconName: "BusinessOutlined",
+        sectionHeader: "CARTERA Y ADMINISTRACIÓN",
+        permissions: ["client:manage", "client:read"],
+        features: ["client"],
       },
       {
-        id: "com-guard-profile",
-        title: "Perfil del Guarda Ideal",
-        description: "Recolección de parámetros requeridos para el puesto del cliente",
-        status: "ROADMAP",
-        iconName: "PsychologyOutlined",
-        roadmapDetails: {
-          overview: "Ficha de requerimientos del cliente para el puesto de vigilancia.",
-          keyPoints: [
-            "Parámetros: Curso canino, estatura, experiencia residencial, manejo de sistemas, etc.",
-            "Alimenta el algoritmo de emparejamiento automático en el módulo de Programación.",
-          ],
-        },
+        id: "com-settings",
+        title: "Catálogo y Configuración",
+        description: "Motor tarifario SVSP, catálogo de servicios, salarios, identidad visual y firmantes",
+        status: "ACTIVE",
+        path: "/commercial/settings",
+        iconName: "TuneOutlined",
+        permissions: ["commercial:settings:read", "commercial:settings:manage"],
+        features: ["commercial"],
       },
     ],
   },
@@ -715,7 +646,6 @@ export const ERP_DIRECTIONS: ErpDirection[] = [
     shortTitle: "Finanzas",
     description: "Tesorería, facturación de puestos contratados, nómina y contabilidad NIIF",
     iconName: "AccountBalanceOutlined",
-    badge: "Fase 2",
     items: [
       {
         id: "fin-treasury",
@@ -782,7 +712,7 @@ export const ERP_DIRECTIONS: ErpDirection[] = [
       },
       {
         id: "cfg-roles",
-        title: "Control de Roles (RBAC)",
+        title: "Control de Roles",
         description: "Matriz granular de permisos y asignación de privilegios",
         status: "ACTIVE",
         path: "/administrative/roles",
@@ -852,8 +782,12 @@ export const GENERAL_TOOLS: GeneralToolItem[] = [
     description: "Generador de contratos, actas de entrega de dotación, minutas y otrosí",
     iconName: "DescriptionOutlined",
     category: "documents",
-    actionType: "MODAL",
-    status: "ROADMAP",
+    actionType: "LINK",
+    targetPath: "/tools/formats",
+    status: "ACTIVE",
+
+
+
     roadmapDetails: {
       overview: "Centro de plantillas dinámicas con inyección de variables.",
       keyPoints: [

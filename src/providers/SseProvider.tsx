@@ -4,6 +4,7 @@ import React, { createContext, useContext, useEffect, useRef, useState } from "r
 import { useAuth } from "@/components/AuthContext";
 import { useNotification } from "./NotificationProvider";
 import { tokenStore } from "@/lib/api/token-store";
+import { HttpClient } from "@/lib/api/client";
 import { soundManager } from "@/utils/notification-sound";
 
 interface SseContextType {
@@ -37,8 +38,22 @@ export const SseProvider: React.FC<{ children: React.ReactNode }> = ({
       return;
     }
 
-    const connectSse = () => {
-      const token = tokenStore.getToken();
+    const connectSse = async (retryWithRefresh = false) => {
+      let token = tokenStore.getToken();
+
+      // Si se solicita reconexión tras fallo, refrescar token proactivamente
+      if (!token || retryWithRefresh) {
+        try {
+          const refreshed = await HttpClient.handleRefresh();
+          if (refreshed) {
+            token = refreshed;
+          }
+        } catch {
+          // Si el refresco falla, no continuar martillando el backend
+          return;
+        }
+      }
+
       if (!token) return;
 
       const sseUrl = `${API_BASE_URL}/notifications/sse?token=${encodeURIComponent(
@@ -46,6 +61,11 @@ export const SseProvider: React.FC<{ children: React.ReactNode }> = ({
       )}`;
 
       try {
+        if (eventSourceRef.current) {
+          eventSourceRef.current.close();
+          eventSourceRef.current = null;
+        }
+
         const es = new EventSource(sseUrl);
         eventSourceRef.current = es;
 
@@ -114,13 +134,13 @@ export const SseProvider: React.FC<{ children: React.ReactNode }> = ({
           es.close();
           eventSourceRef.current = null;
           setIsConnected(false);
-          // Reintentar reconexión en 8 segundos
+          // Reintentar reconexión en 8 segundos solicitando refresco de token
           if (reconnectTimeoutRef.current) {
             clearTimeout(reconnectTimeoutRef.current);
           }
-          reconnectTimeoutRef.current = setTimeout(() => {
+          reconnectTimeoutRef.current = setTimeout(async () => {
             if (session?.user) {
-              connectSse();
+              await connectSse(true);
             }
           }, 8000);
         };

@@ -26,13 +26,10 @@ import {
 import {
   ChevronLeft as ChevronLeftIcon,
   ChevronRight as ChevronRightIcon,
-  Search as SearchIcon,
   BuildOutlined as ToolboxIcon,
   SettingsOutlined as SettingsIcon,
   Logout as LogoutIcon,
-  Person as PersonIcon,
   Shield as ShieldIcon,
-  DrawOutlined as DrawIcon,
   ExpandLess,
   ExpandMore,
   Close as CloseIcon,
@@ -48,12 +45,10 @@ import {
   GeneralToolItem,
   filterAccessibleDirections,
 } from "@/config/navigationRegistry";
-import { HttpClient } from "@/lib/api/client";
 import NavigationIcon from "./NavigationIcon";
 import RoadmapFeatureDialog from "./RoadmapFeatureDialog";
 import GeneralToolsDrawer from "./GeneralToolsDrawer";
 import GlobalCommandPalette from "./GlobalCommandPalette";
-import UserSignatureDrawer, { SignatureCreationMode } from "@/components/signatures/UserSignatureDrawer";
 
 export const RAIL_WIDTH = 68;
 export const SUBMENU_WIDTH = 250;
@@ -82,14 +77,6 @@ export default function DualRailNavigation() {
     openRoadmapDialog,
     closeRoadmapDialog,
   } = useNavigation();
-
-  // Profile menu
-  const [userMenuAnchor, setUserMenuAnchor] = React.useState<null | HTMLElement>(null);
-  const [signatureDrawerOpen, setSignatureDrawerOpen] = useState(false);
-
-  const handleSaveUserSignature = async (dataUrl: string, method: SignatureCreationMode) => {
-    await HttpClient.post("/users/me/signature", { signatureDataUrl: dataUrl, method });
-  };
 
   // Accordion expanded state for mobile drawer (keyed by direction ID)
   const [mobileExpandedDirections, setMobileExpandedDirections] = useState<Record<string, boolean>>({});
@@ -152,7 +139,10 @@ export default function DualRailNavigation() {
     if (pathname.startsWith("/administrative/employees")) {
       return "employees";
     }
-    if (pathname.startsWith("/administrative/prospects")) {
+    if (
+      pathname.startsWith("/administrative/prospects") ||
+      pathname.startsWith("/commercial")
+    ) {
       return "commercial";
     }
     if (pathname.startsWith("/operation")) return "operations";
@@ -307,7 +297,27 @@ export default function DualRailNavigation() {
             const isRoadmap = item.status === "ROADMAP";
 
             return (
-              <ListItem key={item.id} disablePadding sx={{ mb: 0.5 }}>
+              <React.Fragment key={item.id}>
+                {item.sectionHeader && (
+                  <Box sx={{ pt: 2, pb: 0.75, px: 1.25 }}>
+                    <Typography
+                      variant="overline"
+                      sx={{
+                        fontSize: "0.68rem",
+                        fontWeight: 800,
+                        letterSpacing: "0.08em",
+                        color: "primary.main",
+                        textTransform: "uppercase",
+                        display: "block",
+                        lineHeight: 1.2,
+                      }}
+                    >
+                      {item.sectionHeader}
+                    </Typography>
+                    <Divider sx={{ my: 0.5, borderColor: "divider", opacity: 0.8 }} />
+                  </Box>
+                )}
+                <ListItem disablePadding sx={{ mb: 0.5 }}>
                 <Tooltip
                   title={item.description || item.title}
                   placement="right"
@@ -397,8 +407,9 @@ export default function DualRailNavigation() {
                   </ListItemButton>
                 </Tooltip>
               </ListItem>
-            );
-          })}
+            </React.Fragment>
+          );
+        })}
         </List>
       </Box>
 
@@ -455,27 +466,39 @@ export default function DualRailNavigation() {
             boxShadow: "2px 0 8px rgba(15, 23, 42, 0.15)",
           }}
         >
-          {/* Top Logo / Shield Isotype */}
-          <Box
-            sx={{
-              width: 44,
-              height: 44,
-              borderRadius: 2.5,
-              bgcolor: "primary.main",
-              color: "#ffffff",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              mb: 2,
-              boxShadow: "0 4px 12px rgba(124, 58, 237, 0.35)",
-              cursor: "pointer",
-              transition: "transform 0.15s ease",
-              "&:hover": { transform: "scale(1.05)" },
-            }}
-            onClick={() => router.push("/dashboard")}
-          >
-            <ShieldIcon fontSize="small" />
-          </Box>
+          {/* Top Logo / Shield Isotype (Funciona como botón del Dashboard) */}
+          <Tooltip title="Panel Principal (Dashboard)" placement="right" arrow>
+            <Box
+              sx={{
+                width: 44,
+                height: 44,
+                borderRadius: 2.5,
+                bgcolor: currentDirectionId === "dashboard" ? "primary.main" : "rgba(255, 255, 255, 0.15)",
+                color: "#ffffff",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                mb: 2,
+                boxShadow:
+                  currentDirectionId === "dashboard"
+                    ? "0 4px 12px rgba(124, 58, 237, 0.35)"
+                    : "none",
+                border:
+                  currentDirectionId === "dashboard"
+                    ? "1px solid rgba(255, 255, 255, 0.3)"
+                    : "1px solid transparent",
+                cursor: "pointer",
+                transition: "all 0.15s ease",
+                "&:hover": {
+                  transform: "scale(1.05)",
+                  bgcolor: currentDirectionId === "dashboard" ? "primary.dark" : "rgba(255, 255, 255, 0.25)",
+                },
+              }}
+              onClick={() => handleSelectDirection("dashboard")}
+            >
+              <ShieldIcon fontSize="small" />
+            </Box>
+          </Tooltip>
 
           <Divider sx={{ width: "60%", borderColor: "rgba(255, 255, 255, 0.1)", mb: 1.5 }} />
 
@@ -493,7 +516,9 @@ export default function DualRailNavigation() {
               "&::-webkit-scrollbar": { display: "none" },
             }}
           >
-            {accessibleDirections.map((dir) => {
+            {accessibleDirections
+              .filter((dir) => dir.id !== "settings" && dir.id !== "dashboard")
+              .map((dir) => {
               const isSelected = dir.id === currentDirectionId;
               const isEndOfMasterGroup = dir.id === "employees";
 
@@ -558,24 +583,8 @@ export default function DualRailNavigation() {
 
           <Divider sx={{ width: "60%", borderColor: "rgba(255, 255, 255, 0.1)", my: 1.5 }} />
 
-          {/* Bottom Utility Actions: Command Palette, Toolbox, Settings */}
+          {/* Bottom Utility Actions: Únicamente Herramientas Generales y Configuración (#10) anclada al final */}
           <Stack spacing={1} sx={{ alignItems: "center" }}>
-            {/* Command Palette Trigger */}
-            <Tooltip title="Búsqueda Global (Ctrl + K)" placement="right" arrow>
-              <IconButton
-                onClick={() => setCommandPaletteOpen(true)}
-                sx={{
-                  width: 44,
-                  height: 44,
-                  borderRadius: 2,
-                  color: "rgba(255, 255, 255, 0.75)",
-                  "&:hover": { bgcolor: "rgba(255, 255, 255, 0.15)", color: "#ffffff" },
-                }}
-              >
-                <SearchIcon />
-              </IconButton>
-            </Tooltip>
-
             {/* General Tools Trigger (#11) - Solo visible en modo ERP de Empresa */}
             {!isSystemMaster && (
               <Tooltip title="Herramientas Generales" placement="right" arrow>
@@ -594,7 +603,7 @@ export default function DualRailNavigation() {
               </Tooltip>
             )}
 
-            {/* Settings Trigger (#10) - Solo visible en modo ERP de Empresa */}
+            {/* Settings Trigger (#10) - Anclado fijamente al final del riel */}
             {!isSystemMaster && (
               <Tooltip title="Configuración del Sistema" placement="right" arrow>
                 <IconButton
@@ -612,28 +621,6 @@ export default function DualRailNavigation() {
                 </IconButton>
               </Tooltip>
             )}
-
-            {/* Profile Avatar */}
-            <Tooltip title={session?.user?.fullName || "Perfil"} placement="right" arrow>
-              <IconButton
-                onClick={(e) => setUserMenuAnchor(e.currentTarget)}
-                sx={{ p: 0.5, mt: 0.5 }}
-              >
-                <Avatar
-                  src={session?.user?.avatarUrl || undefined}
-                  sx={{
-                    width: 36,
-                    height: 36,
-                    bgcolor: "primary.main",
-                    fontSize: "0.85rem",
-                    fontWeight: 700,
-                    border: "2px solid rgba(255, 255, 255, 0.25)",
-                  }}
-                >
-                  {userInitials}
-                </Avatar>
-              </IconButton>
-            </Tooltip>
           </Stack>
         </Box>
 
@@ -833,7 +820,27 @@ export default function DualRailNavigation() {
                           const isRoadmap = subItem.status === "ROADMAP";
 
                           return (
-                            <ListItem key={subItem.id} disablePadding sx={{ mb: 0.5 }}>
+                            <React.Fragment key={subItem.id}>
+                              {subItem.sectionHeader && (
+                                <Box sx={{ pt: 1.5, pb: 0.5, px: 1 }}>
+                                  <Typography
+                                    variant="overline"
+                                    sx={{
+                                      fontSize: "0.64rem",
+                                      fontWeight: 800,
+                                      letterSpacing: "0.07em",
+                                      color: "primary.main",
+                                      textTransform: "uppercase",
+                                      display: "block",
+                                      lineHeight: 1.2,
+                                    }}
+                                  >
+                                    {subItem.sectionHeader}
+                                  </Typography>
+                                  <Divider sx={{ my: 0.5, borderColor: "divider", opacity: 0.6 }} />
+                                </Box>
+                              )}
+                              <ListItem disablePadding sx={{ mb: 0.5 }}>
                               <ListItemButton
                                 selected={isSubActive}
                                 onClick={() => {
@@ -912,8 +919,9 @@ export default function DualRailNavigation() {
                                 />
                               </ListItemButton>
                             </ListItem>
-                          );
-                        })}
+                          </React.Fragment>
+                        );
+                      })}
                       </List>
                     </Collapse>
                   </Box>
@@ -970,88 +978,6 @@ export default function DualRailNavigation() {
         </Box>
       </Drawer>
 
-      {/* Profile Popup Menu */}
-      <Menu
-        anchorEl={userMenuAnchor}
-        open={Boolean(userMenuAnchor)}
-        onClose={() => setUserMenuAnchor(null)}
-        slotProps={{
-          paper: {
-            sx: {
-              width: 240,
-              borderRadius: 2.5,
-              mt: 1,
-              boxShadow: "0 10px 15px -3px rgba(15, 23, 42, 0.15)",
-              border: "1px solid",
-              borderColor: "divider",
-            },
-          },
-        }}
-      >
-        <Box sx={{ px: 2, py: 1.5, borderBottom: "1px solid", borderColor: "divider" }}>
-          <Typography variant="subtitle2" sx={{ fontWeight: 700 }} noWrap>
-            {session?.user?.fullName || "Usuario"}
-          </Typography>
-          <Typography variant="caption" color="text.secondary" noWrap display="block">
-            {session?.user?.document || "Documento"} • {session?.user?.userType || "OPERATIVO"}
-          </Typography>
-        </Box>
-
-        <MenuItem
-          onClick={() => {
-            setUserMenuAnchor(null);
-            router.push("/administrative/users");
-          }}
-          sx={{ py: 1, fontSize: "0.85rem" }}
-        >
-          <ListItemIcon sx={{ minWidth: 32 }}>
-            <PersonIcon fontSize="small" />
-          </ListItemIcon>
-          Mi Cuenta
-        </MenuItem>
-
-        <MenuItem
-          onClick={() => {
-            setUserMenuAnchor(null);
-            setToolsDrawerOpen(true);
-          }}
-          sx={{ py: 1, fontSize: "0.85rem" }}
-        >
-          <ListItemIcon sx={{ minWidth: 32 }}>
-            <ToolboxIcon fontSize="small" />
-          </ListItemIcon>
-          Herramientas
-        </MenuItem>
-
-        <MenuItem
-          onClick={() => {
-            setUserMenuAnchor(null);
-            setSignatureDrawerOpen(true);
-          }}
-          sx={{ py: 1, fontSize: "0.85rem" }}
-        >
-          <ListItemIcon sx={{ minWidth: 32 }}>
-            <DrawIcon fontSize="small" />
-          </ListItemIcon>
-          Mi Firma Digital
-        </MenuItem>
-
-        <Divider />
-
-        <MenuItem
-          onClick={() => {
-            setUserMenuAnchor(null);
-            logout();
-          }}
-          sx={{ py: 1, fontSize: "0.85rem", color: "error.main" }}
-        >
-          <ListItemIcon sx={{ minWidth: 32, color: "error.main" }}>
-            <LogoutIcon fontSize="small" />
-          </ListItemIcon>
-          Cerrar Sesión
-        </MenuItem>
-      </Menu>
-
       {/* Dialog for Planned Roadmap Features */}
       <RoadmapFeatureDialog
         open={Boolean(roadmapItem)}
@@ -1078,14 +1004,6 @@ export default function DualRailNavigation() {
             accessibleDirections.find((d) => d.title === dirTitle) || null,
           );
         }}
-      />
-
-      {/* User Digital Signature Drawer */}
-      <UserSignatureDrawer
-        open={signatureDrawerOpen}
-        onClose={() => setSignatureDrawerOpen(false)}
-        onSave={handleSaveUserSignature}
-        initialName={session?.user?.fullName || ""}
       />
     </>
   );

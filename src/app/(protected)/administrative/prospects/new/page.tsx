@@ -66,6 +66,7 @@ export default function CreateProspectPage() {
     commune: "",
     neighborhood: "",
     city: "Bogotá",
+    stratum: 4 as number | string,
     cai: "",
     quadrant: "",
     quadrantPhone: "",
@@ -212,6 +213,7 @@ export default function CreateProspectPage() {
     try {
       const payload = {
         ...locationForm,
+        stratum: locationForm.stratum ? Number(locationForm.stratum) : null,
         structureConfig: {
           structureType,
           floorsAmount: Number(floorsAmount),
@@ -426,6 +428,30 @@ export default function CreateProspectPage() {
                     value={locationForm.city}
                     onChange={(e) => setLocationForm({ ...locationForm, city: e.target.value })}
                   />
+                </Grid>
+
+                <Grid size={{ xs: 12, sm: 4 }}>
+                  <TextField
+                    select
+                    fullWidth
+                    label="Estrato Socioeconómico"
+                    value={locationForm.stratum}
+                    onChange={(e) =>
+                      setLocationForm({
+                        ...locationForm,
+                        stratum: e.target.value,
+                      })
+                    }
+                    helperText="Requerido para cálculo tarifario SVSP"
+                  >
+                    <MenuItem value="">Sin especificar</MenuItem>
+                    <MenuItem value={1}>Estrato 1 (Bajo - Bajo)</MenuItem>
+                    <MenuItem value={2}>Estrato 2 (Bajo)</MenuItem>
+                    <MenuItem value={3}>Estrato 3 (Medio - Bajo)</MenuItem>
+                    <MenuItem value={4}>Estrato 4 (Medio)</MenuItem>
+                    <MenuItem value={5}>Estrato 5 (Medio - Alto)</MenuItem>
+                    <MenuItem value={6}>Estrato 6 (Alto)</MenuItem>
+                  </TextField>
                 </Grid>
 
                 <Grid size={{ xs: 12, sm: 4 }}>

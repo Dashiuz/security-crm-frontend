@@ -1,0 +1,40 @@
+# Frontend Architectural Decisions & Implementation Log
+
+[2026-10-25] ZERO-DIALOG POLICY, TIPTAP RICH TEXT INTEGRATION, LIVE COMMERCIAL PROPOSALS (P&L) & SERVICE ORDERS DISPATCH (FRONTEND-STYLE-GUIDE, SPEC-ADM-020, SPEC-ADM-021, SPEC-ADM-022):
+1. Regla de Oro / Guía de Estilo Noxia (.specs/00-general-rules/frontend-noxia-style-guide.md):
+   - Prohibición categórica de `<Dialog>` en la aplicación.
+   - Adopción universal de `ResponsiveFormDrawer` (Right Drawer en Desktop con sticky footer, Bottom Sheet gestual en Mobile con drag handle).
+2. Cartera Legal de Clientes (src/app/(protected)/administrative/clients/[id]/legal/page.tsx):
+   - Erradicación del 100% de modales en Pólizas de Seguro, Otrosíes Contractuales (OSI) y Compromisos ANS.
+   - Sustitución por tres ResponsiveFormDrawer dedicados.
+   - Integración de `TipTapRichEditor` para redacción de cláusulas contractuales y notas técnicas.
+3. Propuestas Comerciales y P&L en Vivo (src/app/(protected)/commercial/proposals/components/SplitScreenProposalWorkspace.tsx):
+   - Reemplazo de Dialog fullscreen por Drawer completo (anchor="right", w-100vw).
+   - Conexión con ClientAutocomplete para búsqueda y selección de clientes reales.
+   - Gestión reactiva de Puestos de Vigilancia y Valores Agregados (VAGs).
+   - Simulación reactiva de P&L (`commercialProposalsApi.simulatePnl`) con semáforo en vivo (🟢 >=15%, 🟡 8-14.99%, 🔴 <8%).
+   - Carga dinámica de firmantes autorizados (`DocumentEngineApi.getSigners`).
+   - Interpolación dinámica de snippets de texto dentro del editor TipTap.
+   - Creación persistente llamando a la API real (`commercialProposalsApi.createProposal`), eliminando mocks y timeouts estáticos.
+4. Órdenes de Servicio (src/app/(protected)/commercial/service-orders/page.tsx):
+   - Habilitación del botón "+ Nueva Orden de Servicio".
+   - Drawer de creación con selector dual: desde Propuesta WON (autollenado de cliente, puestos y montos) o Registro Directo con ClientAutocomplete.
+   - Captura del Perfil del Guarda Ideal (estatura en metros, libreta militar 1ra clase, experiencia en años, polígrafo, uniforme de gala, cursos especiales).
+   - Captura de Dotación de Almacén (radios, linternas, detectores de metales, botiquines, chalecos).
+   - Inspección 360° en Drawer y despacho real no bloqueante a los 9 departamentos corporativos vía `commercialServiceOrdersApi.dispatchOrder`.
+   - Compilación TypeScript 100% limpia (`tsc --noEmit` 0 errores).
+
+[2026-10-25] SPEC-UI-004 / SPEC-CORE-010: MOTOR UNIVERSAL DE FORMATOS, VARIABLES DINÁMICAS (ATAJOS), TABLAS TIPTAP Y ARQUITECTURA PARSE & DROP (ZERO-S3):
+1. Arquitectura Parse & Drop (Zero-S3):
+   - Zona de arrastre para Word (.docx) y Excel (.xlsx) con conversión en RAM a HTML semántico y descarte inmediato del buffer (0 bytes en S3).
+   - Edición web instantánea en TipTap con tablas y celdas combinadas.
+2. Suite de Tablas TipTap (MIT Open Source - $0.00 USD):
+   - `@tiptap/extension-table` y extensiones de fila/celda.
+   - Soporte nativo para copiar y pegar desde Excel/Word (Ctrl+V).
+   - Tokens dinámicos resaltados en rojo vivo y negrita (#DC2626) dentro de cualquier celda.
+3. Diccionario Masivo de Datos (Modelo Oracle Reports):
+   - Árbol de atributos en cascada de BD (Empresa, Cliente, Empleado, Solicitudes de Vacaciones/Dotación/Armamento, Financiero con monto_en_letras).
+4. Arquitectura Modular "Piezas de Lego":
+   - Desglose en 7 bloques configurables con toggles (Membrete, Credenciales SuperVigilancia automáticas de BD o manuales, Sellos de Calidad, Cuerpo TipTap con Tablas, Matriz Económica, Firmantes, Footer).
+   - Reubicación transversal en Herramientas Generales (`/tools/formats`).
+   - Selector inicial en Commercial y otros módulos: "Elegir Formato" vs "En Blanco".
