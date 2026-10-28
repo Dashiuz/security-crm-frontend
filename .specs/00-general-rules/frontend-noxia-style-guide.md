@@ -190,14 +190,20 @@ Diseñado para consolas operativas de alta velocidad y atención continua (ej. C
 
 ---
 
-### E. Arquetipo de Formularios y Asignación (Master-Detail Dialog & Drawer)
-Diseñado para la creación y edición de entidades complejas con pasos o relaciones muchos-a-muchos (ej. Onboarding de Cliente con Wizard [`WizardStepper`](file:///d:/projects/security-crm-frontend/src/components/common/WizardStepper.tsx) o Asignación de Guardias a Sedes [`EmployeeAssignClientDrawer`](file:///d:/projects/security-crm-frontend/src/app/(protected)/administrative/employees/EmployeeAssignClientDrawer.tsx)).
+### E. Arquetipo de Formularios y Asignación: "Zero-Dialog Policy" (CERO Modales)
+Diseñado para la creación y edición de entidades complejas, captura de datos, asignaciones y firmas (ej. Pólizas, Otrosíes, ANS, Órdenes de Servicio, Onboarding de Cliente o Asignación de Guardias).
 
-- **Componente Canónico**: [`ResponsiveFormDrawer`](file:///d:/projects/security-crm-frontend/src/components/common/ResponsiveFormDrawer.tsx).
+- **REGLA DE ORO DE MISIÓN CRÍTICA: PROHIBICIÓN ABSOLUTA DE VENTANAS MODALES (`<Dialog>`)**:
+  - **Queda estrictamente prohibido el uso del componente `<Dialog>` de Material UI en toda la aplicación Noxia.** Los modales centrados flotantes interrumpen el flujo visual del operador, tapan la información de fondo y degradan la experiencia móvil.
+  - **Componente Canónico Único y Obligatorio**: [`ResponsiveFormDrawer`](file:///d:/projects/security-crm-frontend/src/components/common/ResponsiveFormDrawer.tsx).
+- **Comportamiento Táctico**:
+  - **Desktop (`md+`)**: Se abre un **Cajón Lateral Derecho (Right Drawer)** con ancho predeterminado de `560px` a `720px` según la densidad de los campos, permitiendo consultar los datos de la pantalla subyacente.
+  - **Mobile (`xs/sm`)**: Se conmuta automáticamente a un **Bottom Sheet gestual** (`anchor="bottom"`) con `borderRadius: 20px` superior, agarrador táctil (*drag handle*) y botones de acción accesibles con una sola mano.
 - **Reglas del Formulario**:
-  - Barra de pie fija (`position: sticky`, `bottom: 0`, con fondo blanco y borde superior).
+  - Barra de pie fija (`position: sticky`, `bottom: 0`, con fondo blanco puro y separador superior nítido).
   - Botón `"Cancelar"` en texto neutral y botón `"Guardar"` en `contained` violeta con spinner integrado (`CircularProgress` de 16px) cuando `isSubmitting` esté activo.
   - En asignaciones duales (Master-Detail): Panel izquierdo con lista filtrable y panel derecho con matriz interactiva de chips de vinculación activa/inactiva.
+  - En generación documental y acuerdos jurídicos (Otrosíes, ANS, Minutas): Integración mandatoria de la **Herramienta de Edición de Texto Enriquecido (Rich Text Editor)** para redacción, personalización e interpolación dinámica de cláusulas.
 
 ---
 

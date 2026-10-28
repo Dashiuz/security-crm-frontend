@@ -63,10 +63,12 @@ import {
   QrCode2Outlined,
   DescriptionOutlined,
   ShoppingCartOutlined,
+  TuneOutlined,
   HelpOutline,
 } from "@mui/icons-material";
 
 const ICON_MAP: Record<string, React.ComponentType<{ sx?: any; fontSize?: "inherit" | "small" | "medium" | "large" }>> = {
+  TuneOutlined,
   DashboardOutlined,
   SpeedOutlined,
   BusinessCenterOutlined,

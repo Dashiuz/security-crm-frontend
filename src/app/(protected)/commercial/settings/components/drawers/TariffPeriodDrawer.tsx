@@ -1,0 +1,357 @@
+"use client";
+
+import React, { useState, useEffect } from "react";
+import {
+  Box,
+  TextField,
+  Grid,
+  Typography,
+  Divider,
+} from "@mui/material";
+import { CalendarMonthOutlined } from "@mui/icons-material";
+import ResponsiveFormDrawer from "@/components/common/ResponsiveFormDrawer";
+import { TariffPeriodConfig, CommercialSettingsApi } from "@/lib/api/commercial-settings";
+import { useNotification } from "@/providers/NotificationProvider";
+
+interface TariffPeriodDrawerProps {
+  open: boolean;
+  onClose: () => void;
+  period?: TariffPeriodConfig | null;
+  onSuccess: () => void;
+}
+
+export default function TariffPeriodDrawer({
+  open,
+  onClose,
+  period,
+  onSuccess,
+}: TariffPeriodDrawerProps) {
+  const { showSuccess, showError } = useNotification();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const [formData, setFormData] = useState({
+    year: 2026,
+    label: "Tarifa Vigencia Oficial SVSP 2026 (44 Horas)",
+    startDate: "2026-01-01",
+    endDate: "2026-12-31",
+    smmlv: 1750905,
+    monthlyTransportAux: 249095,
+    dailyTransportAux: 8303.17,
+    statutoryWeeklyHours: 44,
+    statutoryDayHours: 13,
+    statutoryNightHours: 11,
+    dayProportionFactor: 0.4759,
+    nightProportionFactor: 0.5241,
+    commercialMultiplier: 8.8,
+    strata46Multiplier: 9.77,
+    strata13Multiplier: 7.0,
+  });
+
+  useEffect(() => {
+    if (period) {
+      setFormData({
+        year: Number(period.year) || 2026,
+        label: period.label,
+        startDate: period.startDate ? period.startDate.split("T")[0] : "2026-01-01",
+        endDate: period.endDate ? period.endDate.split("T")[0] : "2026-12-31",
+        smmlv: Number(period.smmlv) || 1750905,
+        monthlyTransportAux: Number(period.monthlyTransportAux) || 249095,
+        dailyTransportAux: Number(period.dailyTransportAux) || 8303.17,
+        statutoryWeeklyHours: Number(period.statutoryWeeklyHours) || 44,
+        statutoryDayHours: Number(period.statutoryDayHours) || 13,
+        statutoryNightHours: Number(period.statutoryNightHours) || 11,
+        dayProportionFactor: Number(period.dayProportionFactor) || 0.4759,
+        nightProportionFactor: Number(period.nightProportionFactor) || 0.5241,
+        commercialMultiplier: Number(period.commercialMultiplier) || 8.8,
+        strata46Multiplier: Number(period.strata46Multiplier) || 9.77,
+        strata13Multiplier: Number(period.strata13Multiplier) || 7.0,
+      });
+    } else {
+      setFormData({
+        year: 2026,
+        label: "Tarifa Vigencia Oficial SVSP 2026 (44 Horas)",
+        startDate: "2026-01-01",
+        endDate: "2026-12-31",
+        smmlv: 1750905,
+        monthlyTransportAux: 249095,
+        dailyTransportAux: 8303.17,
+        statutoryWeeklyHours: 44,
+        statutoryDayHours: 13,
+        statutoryNightHours: 11,
+        dayProportionFactor: 0.4759,
+        nightProportionFactor: 0.5241,
+        commercialMultiplier: 8.8,
+        strata46Multiplier: 9.77,
+        strata13Multiplier: 7.0,
+      });
+    }
+  }, [period, open]);
+
+  const handleChange = (field: string, val: any) => {
+    setFormData((prev) => ({ ...prev, [field]: val }));
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      setIsSubmitting(true);
+      const payload = {
+        ...formData,
+        year: Number(formData.year) || 2026,
+        smmlv: Number(formData.smmlv) || 0,
+        monthlyTransportAux: Number(formData.monthlyTransportAux) || 0,
+        dailyTransportAux: Number(formData.dailyTransportAux) || 0,
+        statutoryWeeklyHours: Number(formData.statutoryWeeklyHours) || 44,
+        statutoryDayHours: Number(formData.statutoryDayHours) || 13,
+        statutoryNightHours: Number(formData.statutoryNightHours) || 11,
+        dayProportionFactor: Number(formData.dayProportionFactor) || 0.4759,
+        nightProportionFactor: Number(formData.nightProportionFactor) || 0.5241,
+        commercialMultiplier: Number(formData.commercialMultiplier) || 0,
+        strata46Multiplier: Number(formData.strata46Multiplier) || 0,
+        strata13Multiplier: Number(formData.strata13Multiplier) || 0,
+      };
+      if (period?.id) {
+        await CommercialSettingsApi.updateTariffPeriod(period.id, payload);
+        showSuccess("Tramo tarifario actualizado correctamente");
+      } else {
+        await CommercialSettingsApi.createTariffPeriod(payload);
+        showSuccess("Vigencia tarifaria registrada exitosamente");
+      }
+      onSuccess();
+      onClose();
+    } catch (err: any) {
+      showError(err?.message || "Error al guardar el tramo tarifario");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <ResponsiveFormDrawer
+      open={open}
+      onClose={onClose}
+      title={period ? "Editar Vigencia Tarifaria" : "Nueva Vigencia Tarifaria"}
+      subtitle="Parámetros macroeconómicos y jornada legal oficial"
+      headerIcon={<CalendarMonthOutlined />}
+      width={{ xs: "100%", sm: 540 }}
+      isSubmitting={isSubmitting}
+      submitButtonText={period ? "Actualizar Vigencia" : "Crear Vigencia"}
+      formId="tariff-period-form"
+    >
+      <Box component="form" id="tariff-period-form" onSubmit={handleSubmit} sx={{ display: "flex", flexDirection: "column", gap: 2.5, py: 1 }}>
+        <TextField
+          fullWidth
+          required
+          size="small"
+          label="Etiqueta Descriptiva"
+          value={formData.label}
+          onChange={(e) => handleChange("label", e.target.value)}
+          placeholder="Ej: Tarifa 01 Julio al 31 Diciembre 2026 (44 Horas)"
+        />
+
+        <Grid container spacing={2}>
+          <Grid size={{ xs: 12, sm: 4 }}>
+            <TextField
+              fullWidth
+              required
+              size="small"
+              type="number"
+              label="Año Fiscal"
+              value={formData.year}
+              onChange={(e) => handleChange("year", parseInt(e.target.value) || 2026)}
+            />
+          </Grid>
+          <Grid size={{ xs: 12, sm: 4 }}>
+            <TextField
+              fullWidth
+              required
+              size="small"
+              type="date"
+              label="Fecha Inicio"
+              slotProps={{ inputLabel: { shrink: true } }}
+              value={formData.startDate}
+              onChange={(e) => handleChange("startDate", e.target.value)}
+            />
+          </Grid>
+          <Grid size={{ xs: 12, sm: 4 }}>
+            <TextField
+              fullWidth
+              required
+              size="small"
+              type="date"
+              label="Fecha Fin"
+              slotProps={{ inputLabel: { shrink: true } }}
+              value={formData.endDate}
+              onChange={(e) => handleChange("endDate", e.target.value)}
+            />
+          </Grid>
+        </Grid>
+
+        <Divider />
+        <Typography variant="caption" sx={{ fontWeight: 700, color: "text.secondary", textTransform: "uppercase" }}>
+          Variables Macroeconómicas Oficiales (SuperVigilancia)
+        </Typography>
+
+        <Grid container spacing={2}>
+          <Grid size={{ xs: 12, sm: 6 }}>
+            <TextField
+              fullWidth
+              required
+              size="small"
+              type="number"
+              label="SMMLV (COP)"
+              placeholder="0"
+              value={formData.smmlv === 0 ? "" : (formData.smmlv ?? "")}
+              onChange={(e) => handleChange("smmlv", e.target.value === "" ? "" : (parseFloat(e.target.value) || 0))}
+            />
+          </Grid>
+          <Grid size={{ xs: 12, sm: 6 }}>
+            <TextField
+              fullWidth
+              required
+              size="small"
+              type="number"
+              label="Auxilio Transporte Mensual"
+              placeholder="0"
+              value={formData.monthlyTransportAux === 0 ? "" : (formData.monthlyTransportAux ?? "")}
+              onChange={(e) => handleChange("monthlyTransportAux", e.target.value === "" ? "" : (parseFloat(e.target.value) || 0))}
+            />
+          </Grid>
+          <Grid size={{ xs: 12, sm: 6 }}>
+            <TextField
+              fullWidth
+              required
+              size="small"
+              type="number"
+              label="Auxilio Transporte Diario"
+              placeholder="0"
+              value={formData.dailyTransportAux === 0 ? "" : (formData.dailyTransportAux ?? "")}
+              onChange={(e) => handleChange("dailyTransportAux", e.target.value === "" ? "" : (parseFloat(e.target.value) || 0))}
+            />
+          </Grid>
+          <Grid size={{ xs: 12, sm: 6 }}>
+            <TextField
+              fullWidth
+              required
+              size="small"
+              type="number"
+              label="Jornada Legal Semanal (Horas)"
+              placeholder="0"
+              value={formData.statutoryWeeklyHours === 0 ? "" : (formData.statutoryWeeklyHours ?? "")}
+              onChange={(e) => handleChange("statutoryWeeklyHours", e.target.value === "" ? "" : (parseInt(e.target.value) || 44))}
+              helperText="Ley 2101: 44h en 2026 (divisor 220h)"
+            />
+          </Grid>
+        </Grid>
+
+        <Divider />
+        <Typography variant="caption" sx={{ fontWeight: 700, color: "text.secondary", textTransform: "uppercase" }}>
+          Multiplicadores Sectoriales (En número de SMMLV)
+        </Typography>
+
+        <Grid container spacing={2}>
+          <Grid size={{ xs: 12, sm: 4 }}>
+            <TextField
+              fullWidth
+              required
+              size="small"
+              type="number"
+              label="Comercial y Público"
+              placeholder="0"
+              value={formData.commercialMultiplier === 0 ? "" : (formData.commercialMultiplier ?? "")}
+              onChange={(e) => handleChange("commercialMultiplier", e.target.value === "" ? "" : (parseFloat(e.target.value) || 0))}
+              inputProps={{ step: 0.1 }}
+              helperText="Oficial SVSP: 8.80 SMMLV"
+            />
+          </Grid>
+          <Grid size={{ xs: 12, sm: 4 }}>
+            <TextField
+              fullWidth
+              required
+              size="small"
+              type="number"
+              label="Residencial E4-6"
+              placeholder="0"
+              value={formData.strata46Multiplier === 0 ? "" : (formData.strata46Multiplier ?? "")}
+              onChange={(e) => handleChange("strata46Multiplier", e.target.value === "" ? "" : (parseFloat(e.target.value) || 0))}
+              inputProps={{ step: 0.01 }}
+              helperText="Oficial SVSP: 9.77 SMMLV"
+            />
+          </Grid>
+          <Grid size={{ xs: 12, sm: 4 }}>
+            <TextField
+              fullWidth
+              required
+              size="small"
+              type="number"
+              label="Residencial E1-3"
+              placeholder="0"
+              value={formData.strata13Multiplier === 0 ? "" : (formData.strata13Multiplier ?? "")}
+              onChange={(e) => handleChange("strata13Multiplier", e.target.value === "" ? "" : (parseFloat(e.target.value) || 0))}
+              inputProps={{ step: 0.01 }}
+              helperText="Tarifa Libre (Ref: 7.00)"
+            />
+          </Grid>
+        </Grid>
+
+        <Divider />
+        <Typography variant="caption" sx={{ fontWeight: 700, color: "text.secondary", textTransform: "uppercase" }}>
+          Franjas Horarias Oficiales SVSP (Ponderación 24h)
+        </Typography>
+
+        <Grid container spacing={2}>
+          <Grid size={{ xs: 6, sm: 3 }}>
+            <TextField
+              fullWidth
+              required
+              size="small"
+              type="number"
+              label="Horas Día de Ley"
+              value={formData.statutoryDayHours}
+              onChange={(e) => handleChange("statutoryDayHours", parseInt(e.target.value) || 13)}
+              helperText="2026: 13h (6am - 7pm)"
+            />
+          </Grid>
+          <Grid size={{ xs: 6, sm: 3 }}>
+            <TextField
+              fullWidth
+              required
+              size="small"
+              type="number"
+              label="Horas Noche de Ley"
+              value={formData.statutoryNightHours}
+              onChange={(e) => handleChange("statutoryNightHours", parseInt(e.target.value) || 11)}
+              helperText="2026: 11h (7pm - 6am)"
+            />
+          </Grid>
+          <Grid size={{ xs: 6, sm: 3 }}>
+            <TextField
+              fullWidth
+              required
+              size="small"
+              type="number"
+              label="Factor Prop. Día"
+              value={formData.dayProportionFactor}
+              onChange={(e) => handleChange("dayProportionFactor", parseFloat(e.target.value) || 0.4759)}
+              inputProps={{ step: 0.0001 }}
+              helperText="2026: 0.4759 (47.59%)"
+            />
+          </Grid>
+          <Grid size={{ xs: 6, sm: 3 }}>
+            <TextField
+              fullWidth
+              required
+              size="small"
+              type="number"
+              label="Factor Prop. Noche"
+              value={formData.nightProportionFactor}
+              onChange={(e) => handleChange("nightProportionFactor", parseFloat(e.target.value) || 0.5241)}
+              inputProps={{ step: 0.0001 }}
+              helperText="2026: 0.5241 (52.41%)"
+            />
+          </Grid>
+        </Grid>
+      </Box>
+    </ResponsiveFormDrawer>
+  );
+}

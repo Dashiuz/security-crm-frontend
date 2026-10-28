@@ -17,6 +17,7 @@ export interface ResponsiveDetailWrapperProps {
   title: string;
   children: React.ReactNode;
   actions?: React.ReactNode;
+  headerActions?: React.ReactNode;
 }
 
 export default function ResponsiveDetailWrapper({
@@ -25,6 +26,7 @@ export default function ResponsiveDetailWrapper({
   title,
   children,
   actions,
+  headerActions,
 }: ResponsiveDetailWrapperProps) {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("md"));
@@ -80,9 +82,12 @@ export default function ResponsiveDetailWrapper({
           <Typography variant="h6" sx={{ fontWeight: 700, fontSize: "1.1rem" }}>
             {title}
           </Typography>
-          <IconButton onClick={onClose} edge="end" size="small">
-            <CloseIcon />
-          </IconButton>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+            {headerActions}
+            <IconButton onClick={onClose} edge="end" size="small">
+              <CloseIcon />
+            </IconButton>
+          </Box>
         </Box>
 
         {/* Mobile Scrollable Body */}
@@ -150,9 +155,12 @@ export default function ResponsiveDetailWrapper({
         <Typography variant="h6" sx={{ fontWeight: 700 }}>
           {title}
         </Typography>
-        <IconButton onClick={onClose} edge="end" size="small">
-          <CloseIcon />
-        </IconButton>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+          {headerActions}
+          <IconButton onClick={onClose} edge="end" size="small">
+            <CloseIcon />
+          </IconButton>
+        </Box>
       </Box>
 
       <Box sx={{ p: 3, flex: 1, overflowY: "auto" }}>

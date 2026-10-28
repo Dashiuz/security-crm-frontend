@@ -75,6 +75,8 @@ export interface DataTableProps {
   hideStatusFilter?: boolean;
   extraHeaderActions?: React.ReactNode;
   renderMobile?: (rows: any[]) => React.ReactNode;
+  rowHeight?: number;
+  getRowHeight?: (params: any) => number | "auto";
 }
 
 export default function DataTable({
@@ -108,6 +110,8 @@ export default function DataTable({
   hideStatusFilter = false,
   extraHeaderActions,
   renderMobile,
+  rowHeight,
+  getRowHeight,
 }: DataTableProps) {
   const theme = useTheme();
   const isMobileMatch = useMediaQuery(theme.breakpoints.down("md"));
@@ -632,6 +636,8 @@ export default function DataTable({
             rows={filteredRows}
             columns={finalColumns}
             getRowId={getRowId}
+            rowHeight={rowHeight}
+            getRowHeight={getRowHeight}
             columnBufferPx={2000}
             initialState={{
               pagination: {

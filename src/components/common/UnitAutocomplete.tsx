@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo, useRef } from "react";
-import { Autocomplete, TextField, CircularProgress, Box, Typography } from "@mui/material";
+import { Autocomplete, TextField, CircularProgress, Box, Typography, Popper } from "@mui/material";
 import { HomeWork as HomeWorkIcon } from "@mui/icons-material";
 import { HttpClient } from "@/lib/api/client";
 
@@ -112,6 +112,19 @@ export default function UnitAutocomplete({
       disabled={disabled || !clientId}
       size={size}
       noOptionsText={clientId ? "No se encontraron unidades" : "Selecciona un conjunto primero"}
+      PopperComponent={(props) => (
+        <Popper
+          {...props}
+          style={{ ...props.style, zIndex: 99999 }}
+          sx={{ zIndex: 99999 }}
+        />
+      )}
+      slotProps={{
+        popper: {
+          style: { zIndex: 99999 },
+          sx: { zIndex: 99999 },
+        },
+      }}
       renderOption={(props, option) => {
         const { key, ...restProps } = props as any;
         return (

@@ -62,9 +62,13 @@ export default function GeneralToolsDrawer({
       onClose();
     } else if (tool.id === "tool-qr") {
       setQrModalOpen(true);
+    } else if (tool.id === "tool-templates") {
+      router.push("/tools/formats");
+      onClose();
     } else {
       onSelectRoadmapTool(tool);
     }
+
   };
 
   const handleCopyQr = () => {

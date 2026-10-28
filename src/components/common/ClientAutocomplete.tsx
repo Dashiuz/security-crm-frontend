@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useEffect, useMemo, useRef } from "react";
-import { Autocomplete, TextField, CircularProgress, Box, Typography } from "@mui/material";
-import { Business as BusinessIcon } from "@mui/icons-material";
+import { Autocomplete, TextField, CircularProgress, Box, Typography, Chip, Popper } from "@mui/material";
+import { Business as BusinessIcon, Star as StarIcon } from "@mui/icons-material";
 import { HttpClient } from "@/lib/api/client";
 
 export interface ClientOption {
@@ -10,6 +10,8 @@ export interface ClientOption {
   name: string;
   internalCode?: string;
   nit?: string;
+  clientStatus?: string;
+  isProspect?: boolean;
 }
 
 interface ClientAutocompleteProps {
@@ -24,6 +26,7 @@ interface ClientAutocompleteProps {
   error?: boolean;
   allowAllOption?: boolean;
   allOptionLabel?: string;
+  includeProspects?: boolean;
 }
 
 const ALL_CLIENTS_OPTION: ClientOption = {
@@ -43,6 +46,7 @@ export default function ClientAutocomplete({
   error = false,
   allowAllOption = false,
   allOptionLabel = "Todos los Clientes / Conjuntos",
+  includeProspects = false,
 }: ClientAutocompleteProps) {
   const [open, setOpen] = useState(false);
   const [options, setOptions] = useState<ClientOption[]>([]);
@@ -59,8 +63,9 @@ export default function ClientAutocomplete({
     timerRef.current = setTimeout(async () => {
       try {
         const queryParam = encodeURIComponent(searchQuery.trim());
+        const prospectParam = includeProspects ? "&includeProspects=true" : "";
         const data = await HttpClient.get<ClientOption[]>(
-          `/client/search/autocomplete?query=${queryParam}&limit=25`
+          `/client/search/autocomplete?query=${queryParam}&limit=25${prospectParam}`
         );
         setOptions(data || []);
       } catch {
@@ -73,7 +78,7 @@ export default function ClientAutocomplete({
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
     };
-  }, [searchQuery]);
+  }, [searchQuery, includeProspects]);
 
   const allOption: ClientOption = useMemo(
     () => ({ id: "", name: allOptionLabel }),
@@ -116,21 +121,7 @@ export default function ClientAutocomplete({
         }
       }}
       options={finalOptions}
-      filterOptions={(opts, state) => {
-        const query = state.inputValue.trim().toLowerCase();
-        if (!query || (allowAllOption && query === allOptionLabel.toLowerCase())) {
-          return opts;
-        }
-        return opts.filter((option) => {
-          if (allowAllOption && option.id === "") {
-            return true;
-          }
-          const name = option.name.toLowerCase();
-          const code = (option.internalCode || "").toLowerCase();
-          const nit = (option.nit || "").toLowerCase();
-          return name.includes(query) || code.includes(query) || nit.includes(query);
-        });
-      }}
+      filterOptions={(opts) => opts}
       getOptionLabel={(option) => {
         if (!option.id) return option.name;
         const code = option.internalCode || option.nit;
@@ -143,6 +134,19 @@ export default function ClientAutocomplete({
       loading={loading}
       disabled={disabled}
       noOptionsText={loading ? "Buscando..." : "No se encontraron clientes"}
+      PopperComponent={(props) => (
+        <Popper
+          {...props}
+          style={{ ...props.style, zIndex: 99999 }}
+          sx={{ zIndex: 99999 }}
+        />
+      )}
+      slotProps={{
+        popper: {
+          style: { zIndex: 99999 },
+          sx: { zIndex: 99999 },
+        },
+      }}
       renderInput={(params) => (
         <TextField
           {...params}
@@ -167,24 +171,49 @@ export default function ClientAutocomplete({
         const { key, ...optionProps } = props as any;
         const code = option.internalCode || option.nit;
         const isAll = !option.id;
+        const isProspect = option.clientStatus === "PROSPECT";
         return (
           <Box
             key={key || option.id || "all-clients"}
             component="li"
             {...optionProps}
-            sx={{ display: "flex", alignItems: "center", gap: 1.5, py: 1 }}
+            sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", py: 1, gap: 1.5 }}
           >
-            <BusinessIcon sx={{ color: isAll ? "secondary.main" : "primary.main", fontSize: 20 }} />
-            <Box>
-              <Typography variant="body2" sx={{ fontWeight: isAll ? 700 : 600, color: isAll ? "primary.main" : "text.primary" }}>
-                {option.name}
-              </Typography>
-              {code ? (
-                <Typography variant="caption" color="text.secondary">
-                  Código/Omega: {code}
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, minWidth: 0, flex: 1 }}>
+              <BusinessIcon sx={{ color: isAll ? "secondary.main" : isProspect ? "warning.main" : "primary.main", fontSize: 20, flexShrink: 0 }} />
+              <Box sx={{ minWidth: 0 }}>
+                <Typography variant="body2" sx={{ fontWeight: isAll ? 700 : 600, color: isAll ? "primary.main" : "text.primary" }} noWrap>
+                  {option.name}
                 </Typography>
-              ) : null}
+                {code ? (
+                  <Typography variant="caption" color="text.secondary">
+                    Código/Omega: {code}
+                  </Typography>
+                ) : null}
+              </Box>
             </Box>
+            {!isAll && (
+              <Box sx={{ flexShrink: 0, ml: 1 }}>
+                {isProspect ? (
+                  <Chip
+                    size="small"
+                    icon={<StarIcon sx={{ fontSize: "13px !important" }} />}
+                    label="Prospecto"
+                    color="warning"
+                    variant="outlined"
+                    sx={{ height: 20, fontSize: "0.7rem", fontWeight: 700 }}
+                  />
+                ) : (
+                  <Chip
+                    size="small"
+                    label="Cliente Activo"
+                    color="success"
+                    variant="outlined"
+                    sx={{ height: 20, fontSize: "0.7rem", fontWeight: 600 }}
+                  />
+                )}
+              </Box>
+            )}
           </Box>
         );
       }}

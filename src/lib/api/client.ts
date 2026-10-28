@@ -1,9 +1,16 @@
 import { tokenStore } from "./token-store";
 
-export interface ApiError {
-  message: string;
+export class ApiError extends Error {
   statusCode: number;
   error?: string;
+
+  constructor(message: string, statusCode: number, error?: string) {
+    super(message);
+    this.name = "ApiError";
+    this.statusCode = statusCode;
+    this.error = error;
+    Object.setPrototypeOf(this, ApiError.prototype);
+  }
 }
 
 const API_BASE_URL =
@@ -90,16 +97,22 @@ export class HttpClient {
       }
 
       if (!response.ok) {
-        let errorData: ApiError;
+        let errorBody: any = {};
         try {
-          errorData = await response.json();
+          errorBody = await response.json();
         } catch {
-          errorData = {
-            message: "An unexpected error occurred",
-            statusCode: response.status,
+          errorBody = {
+            message: `HTTP error ${response.status}: ${response.statusText}`,
           };
         }
-        throw errorData;
+        const message =
+          errorBody?.message ||
+          (response.status === 401
+            ? "Sesión expirada o no autorizada"
+            : response.status === 403
+            ? "Acceso denegado. Permisos insuficientes."
+            : `Solicitud fallida (${response.status})`);
+        throw new ApiError(message, response.status, errorBody?.error);
       }
 
       if (response.status === 204) {
@@ -108,13 +121,20 @@ export class HttpClient {
 
       return await response.json();
     } catch (error) {
-      if ((error as ApiError).statusCode) {
-        throw error as ApiError;
+      if (error instanceof ApiError) {
+        throw error;
       }
-      throw {
-        message: error instanceof Error ? error.message : "Network error",
-        statusCode: 500,
-      } as ApiError;
+      if ((error as any)?.statusCode) {
+        throw new ApiError(
+          (error as any).message || "Error en el servidor",
+          (error as any).statusCode,
+          (error as any).error
+        );
+      }
+      throw new ApiError(
+        error instanceof Error ? error.message : "Error de conexión con el servidor",
+        500
+      );
     }
   }
 
