@@ -139,9 +139,9 @@ export default function ValueAddedDrawer({
               required
               size="small"
               type="number"
-              label="Costo Interno P&L (COP)"
-              value={formData.internalReferenceCost}
-              onChange={(e) => setFormData((p) => ({ ...p, internalReferenceCost: parseFloat(e.target.value) || 0 }))}
+              label="Costo Interno G&P (COP)"
+              value={formData.internalReferenceCost === 0 ? "" : formData.internalReferenceCost}
+              onChange={(e) => setFormData((p) => ({ ...p, internalReferenceCost: e.target.value === "" ? 0 : parseFloat(e.target.value) || 0 }))}
               helperText="Costo real para balance financiero"
             />
           </Grid>
@@ -152,8 +152,8 @@ export default function ValueAddedDrawer({
               size="small"
               type="number"
               label="Cantidad Sugerida"
-              value={formData.defaultQuantity}
-              onChange={(e) => setFormData((p) => ({ ...p, defaultQuantity: parseInt(e.target.value) || 1 }))}
+              value={formData.defaultQuantity === 0 ? "" : formData.defaultQuantity}
+              onChange={(e) => setFormData((p) => ({ ...p, defaultQuantity: e.target.value === "" ? 0 : parseInt(e.target.value) || 0 }))}
               inputProps={{ min: 1 }}
             />
           </Grid>

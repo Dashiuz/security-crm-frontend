@@ -6,13 +6,7 @@ import {
   Typography,
   Grid,
   Card,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Paper,
+  CardContent,
   Button,
   Chip,
   Stack,
@@ -21,6 +15,7 @@ import {
   Select,
   MenuItem,
   FormControl,
+  InputLabel,
   IconButton,
   Tooltip,
   Dialog,
@@ -28,15 +23,24 @@ import {
   DialogContent,
   DialogContentText,
   DialogActions,
+  Accordion,
+  AccordionSummary,
+  AccordionDetails,
+  Divider,
 } from "@mui/material";
 import {
   InfoOutlined,
   SaveOutlined,
-  AccessTimeFilled,
   AddOutlined,
   DeleteOutline,
   AutoFixHighOutlined,
   CalendarMonthOutlined,
+  ExpandMore as ExpandMoreIcon,
+  AccountBalanceWalletOutlined,
+  BadgeOutlined,
+  WorkOutlineOutlined,
+  TrendingUpOutlined,
+  AccessTimeOutlined,
 } from "@mui/icons-material";
 import {
   PositionSalaryMatrixItem,
@@ -156,17 +160,14 @@ export const calculateSmartOvertime = (
     case ShiftScheduleType.SCHEDULE_6X1:
     case ShiftScheduleType.SCHEDULE_6X2:
     case ShiftScheduleType.SCHEDULE_7X1:
-      // Turnos ordinarios de 8h o 5x2 sin horas extras
       return 0;
 
     case ShiftScheduleType.SCHEDULE_5X1: {
-      // 12h diurno lunes a sábado: ~48 horas extras diurnas al mes (recargo 25%)
       const overtimeRate = simulation?.reference?.hourlyRates?.overtimeDay?.totalHourlyRate || (baseHourlyRate * 1.25);
       return Math.round(48 * overtimeRate);
     }
 
     case ShiftScheduleType.SCHEDULE_3X3X2: {
-      // 24h relevos: ~50h nocturnas, ~25h extra diurna, ~25h extra nocturna, ~12h dominicales
       const nightSurcharge = simulation?.reference?.hourlyRates?.ordinaryNight?.surchargeValue || (baseHourlyRate * 0.35);
       const extDay = simulation?.reference?.hourlyRates?.overtimeDay?.totalHourlyRate || (baseHourlyRate * 1.25);
       const extNight = simulation?.reference?.hourlyRates?.overtimeNight?.totalHourlyRate || (baseHourlyRate * 1.75);
@@ -177,7 +178,6 @@ export const calculateSmartOvertime = (
     case ShiftScheduleType.SCHEDULE_2X2X2:
     case ShiftScheduleType.SCHEDULE_4X4X2:
     default: {
-      // 24h rotativo estándar: ~60h nocturnas, ~30h extra diurna, ~30h extra nocturna, ~16h dominicales
       const nightSurcharge = simulation?.reference?.hourlyRates?.ordinaryNight?.surchargeValue || (baseHourlyRate * 0.35);
       const extDay = simulation?.reference?.hourlyRates?.overtimeDay?.totalHourlyRate || (baseHourlyRate * 1.25);
       const extNight = simulation?.reference?.hourlyRates?.overtimeNight?.totalHourlyRate || (baseHourlyRate * 1.75);
@@ -437,12 +437,10 @@ export default function SalaryMatrixTab({
 
   const handleRequestDelete = (index: number, pos: PositionSalaryMatrixItem) => {
     if (!pos.id) {
-      // Row local no persistida
       setPositions((prev) => prev.filter((_, i) => i !== index));
       showSuccess("Fila descartada de la matriz");
       return;
     }
-    // Requiere confirmación
     setDeleteCandidate({ index, position: pos });
   };
 
@@ -606,160 +604,192 @@ export default function SalaryMatrixTab({
         </Grid>
       </Card>
 
-      {/* 2. Matriz de Valor por Hora Trabajada (8 Tarjetas Oficiales SVSP) */}
-      <Box>
-        <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 0.5, color: noxiaPalette.secondary.main }}>
-          Matriz de Valor por Hora Trabajada (Leyenda Oficial SVSP)
-        </Typography>
-        <Typography variant="caption" sx={{ color: "text.secondary", display: "block", mb: 2 }}>
-          Valores base y recargos exactos por cada una de las 8 tipologías horarias reguladas
-        </Typography>
+      {/* 2. Banner Pedagógico Financiero: Conexión Sueldo Guarda -> Factor Puesto -> G&P */}
+      <Card
+        elevation={0}
+        sx={{
+          p: 2,
+          borderRadius: 2.5,
+          bgcolor: `${noxiaPalette.primary.main}08`,
+          border: `1px solid ${noxiaPalette.primary.main}25`,
+        }}
+      >
+        <Stack direction={{ xs: "column", sm: "row" }} spacing={2} alignItems="center">
+          <Box
+            sx={{
+              p: 1.2,
+              borderRadius: 2,
+              bgcolor: noxiaPalette.primary.main,
+              color: "#FFFFFF",
+              display: "flex",
+              flexShrink: 0,
+            }}
+          >
+            <TrendingUpOutlined />
+          </Box>
+          <Box sx={{ flex: 1 }}>
+            <Typography variant="subtitle2" sx={{ fontWeight: 700, color: noxiaPalette.secondary.main }}>
+              Arquitectura Financiera: Sueldo del Guarda vs. Costo Nómina Puesto en G&P
+            </Typography>
+            <Typography variant="caption" sx={{ color: "text.secondary", lineHeight: 1.5, display: "block", mt: 0.3 }}>
+              El <b>Sueldo Neto</b> es lo que el trabajador recibe en su cuenta tras descontar el 8% de ley (Salud 4% + Pensión 4%).
+              Para cotizaciones comerciales y análisis de Ganancias y Pérdidas (G&P), el costo operativo real se calcula multiplicando el
+              <b> Devengado Bruto por el Factor de Guardas</b> del esquema de turno (ej. Factor 3.0 en rotación 2x2x2).
+            </Typography>
+          </Box>
+        </Stack>
+      </Card>
 
-        <Grid container spacing={1.5}>
-          {/* 1. Ord. Diurna */}
-          <Grid size={{ xs: 6, sm: 3 }}>
-            <Card elevation={0} sx={{ p: 1.5, borderRadius: 2, border: `1px solid ${noxiaPalette.warning.main}60`, bgcolor: "#FFFDF5" }}>
-              <Typography variant="caption" sx={{ color: "text.secondary", fontWeight: 700 }}>
-                1. Ord. Diurna (Base)
-              </Typography>
-              <Typography variant="h6" sx={{ fontWeight: 800, fontFamily: jetBrainsMono.style.fontFamily, color: noxiaPalette.warning.dark }}>
-                {formatCOP(refRates?.ordinaryDay.totalHourlyRate || 7959)}
+      {/* 3. Acordeón Colapsable de Recargos de Ley (8 Tarifas Oficiales SVSP) */}
+      <Accordion
+        defaultExpanded={false}
+        sx={{
+          borderRadius: "12px !important",
+          border: "1px solid rgba(0, 0, 0, 0.08)",
+          boxShadow: "none",
+          "&:before": { display: "none" },
+          overflow: "hidden",
+        }}
+      >
+        <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+          <Stack direction="row" spacing={1.5} alignItems="center">
+            <AccessTimeOutlined fontSize="small" sx={{ color: noxiaPalette.primary.main }} />
+            <Box>
+              <Typography variant="subtitle2" sx={{ fontWeight: 700, color: noxiaPalette.secondary.main }}>
+                Matriz de Valor por Hora Trabajada (Leyenda Oficial SVSP)
               </Typography>
               <Typography variant="caption" sx={{ color: "text.secondary" }}>
-                Factor 1.0 (Sin recargo)
+                Desglose oficial de las 8 tarifas horarias reguladas (base 220h / semana 44h)
               </Typography>
-            </Card>
+            </Box>
+          </Stack>
+        </AccordionSummary>
+        <AccordionDetails sx={{ pt: 0, pb: 2 }}>
+          <Grid container spacing={1.5}>
+            {/* 1. Ord. Diurna */}
+            <Grid size={{ xs: 6, sm: 3 }}>
+              <Card elevation={0} sx={{ p: 1.5, borderRadius: 2, border: `1px solid ${noxiaPalette.warning.main}60`, bgcolor: "#FFFDF5" }}>
+                <Typography variant="caption" sx={{ color: "text.secondary", fontWeight: 700 }}>
+                  1. Ord. Diurna (Base)
+                </Typography>
+                <Typography variant="body1" sx={{ fontWeight: 800, fontFamily: jetBrainsMono.style.fontFamily, color: noxiaPalette.warning.dark }}>
+                  {formatCOP(refRates?.ordinaryDay.totalHourlyRate || 7959)}
+                </Typography>
+                <Typography variant="caption" sx={{ color: "text.secondary", fontSize: "0.72rem" }}>
+                  Factor 1.0 (Sin recargo)
+                </Typography>
+              </Card>
+            </Grid>
+
+            {/* 2. Ord. Nocturna */}
+            <Grid size={{ xs: 6, sm: 3 }}>
+              <Card elevation={0} sx={{ p: 1.5, borderRadius: 2, border: `1px solid ${noxiaPalette.info.main}60`, bgcolor: "#F8FAFC" }}>
+                <Typography variant="caption" sx={{ color: "text.secondary", fontWeight: 700 }}>
+                  2. Ord. Nocturna (+35%)
+                </Typography>
+                <Typography variant="body1" sx={{ fontWeight: 800, fontFamily: jetBrainsMono.style.fontFamily, color: noxiaPalette.info.dark }}>
+                  {formatCOP(refRates?.ordinaryNight.totalHourlyRate || 10744)}
+                </Typography>
+                <Typography variant="caption" sx={{ color: "text.secondary", fontSize: "0.72rem" }}>
+                  Recargo: {formatCOP(refRates?.ordinaryNight.surchargeValue || 2785)}
+                </Typography>
+              </Card>
+            </Grid>
+
+            {/* 3. Extra Diurna */}
+            <Grid size={{ xs: 6, sm: 3 }}>
+              <Card elevation={0} sx={{ p: 1.5, borderRadius: 2, border: `1px solid ${noxiaPalette.warning.dark}60`, bgcolor: "#FFFBEB" }}>
+                <Typography variant="caption" sx={{ color: "text.secondary", fontWeight: 700 }}>
+                  3. Extra Diurna (+25%)
+                </Typography>
+                <Typography variant="body1" sx={{ fontWeight: 800, fontFamily: jetBrainsMono.style.fontFamily, color: noxiaPalette.warning.dark }}>
+                  {formatCOP(refRates?.overtimeDay.totalHourlyRate || 9948)}
+                </Typography>
+                <Typography variant="caption" sx={{ color: "text.secondary", fontSize: "0.72rem" }}>
+                  Recargo: {formatCOP(refRates?.overtimeDay.surchargeValue || 1989)}
+                </Typography>
+              </Card>
+            </Grid>
+
+            {/* 4. Extra Nocturna */}
+            <Grid size={{ xs: 6, sm: 3 }}>
+              <Card elevation={0} sx={{ p: 1.5, borderRadius: 2, border: `1px solid ${noxiaPalette.secondary.light}60`, bgcolor: "#F5F3FF" }}>
+                <Typography variant="caption" sx={{ color: "text.secondary", fontWeight: 700 }}>
+                  4. Extra Nocturna (+75%)
+                </Typography>
+                <Typography variant="body1" sx={{ fontWeight: 800, fontFamily: jetBrainsMono.style.fontFamily, color: noxiaPalette.primary.dark }}>
+                  {formatCOP(refRates?.overtimeNight.totalHourlyRate || 13927)}
+                </Typography>
+                <Typography variant="caption" sx={{ color: "text.secondary", fontSize: "0.72rem" }}>
+                  Recargo: {formatCOP(refRates?.overtimeNight.surchargeValue || 5968)}
+                </Typography>
+              </Card>
+            </Grid>
+
+            {/* 5. Dom/Fest Ord. Diur */}
+            <Grid size={{ xs: 6, sm: 3 }}>
+              <Card elevation={0} sx={{ p: 1.5, borderRadius: 2, border: `1px solid ${noxiaPalette.error.light}80`, bgcolor: "#FFF1F2" }}>
+                <Typography variant="caption" sx={{ color: "text.secondary", fontWeight: 700 }}>
+                  5. Dom/Fest Ord. Diur (+80%)
+                </Typography>
+                <Typography variant="body1" sx={{ fontWeight: 800, fontFamily: jetBrainsMono.style.fontFamily, color: noxiaPalette.error.dark }}>
+                  {formatCOP(refRates?.sundayHolidayOrdDay.totalHourlyRate || 14325)}
+                </Typography>
+                <Typography variant="caption" sx={{ color: "text.secondary", fontSize: "0.72rem" }}>
+                  Recargo: {formatCOP(refRates?.sundayHolidayOrdDay.surchargeValue || 6366)}
+                </Typography>
+              </Card>
+            </Grid>
+
+            {/* 6. Dom/Fest Ord. Noct */}
+            <Grid size={{ xs: 6, sm: 3 }}>
+              <Card elevation={0} sx={{ p: 1.5, borderRadius: 2, border: `1px solid ${noxiaPalette.primary.main}60`, bgcolor: "#FAF5FF" }}>
+                <Typography variant="caption" sx={{ color: "text.secondary", fontWeight: 700 }}>
+                  6. Dom/Fest Ord. Noct (+115%)
+                </Typography>
+                <Typography variant="body1" sx={{ fontWeight: 800, fontFamily: jetBrainsMono.style.fontFamily, color: noxiaPalette.primary.main }}>
+                  {formatCOP(refRates?.sundayHolidayOrdNight.totalHourlyRate || 17111)}
+                </Typography>
+                <Typography variant="caption" sx={{ color: "text.secondary", fontSize: "0.72rem" }}>
+                  Recargo: {formatCOP(refRates?.sundayHolidayOrdNight.surchargeValue || 9152)}
+                </Typography>
+              </Card>
+            </Grid>
+
+            {/* 7. Dom/Fest Extra D. */}
+            <Grid size={{ xs: 6, sm: 3 }}>
+              <Card elevation={0} sx={{ p: 1.5, borderRadius: 2, border: `1px solid ${noxiaPalette.error.main}60`, bgcolor: "#FFF1F2" }}>
+                <Typography variant="caption" sx={{ color: "text.secondary", fontWeight: 700 }}>
+                  7. Dom/Fest Extra D. (+105%)
+                </Typography>
+                <Typography variant="body1" sx={{ fontWeight: 800, fontFamily: jetBrainsMono.style.fontFamily, color: noxiaPalette.error.main }}>
+                  {formatCOP(refRates?.sundayHolidayExtDay.totalHourlyRate || 16315)}
+                </Typography>
+                <Typography variant="caption" sx={{ color: "text.secondary", fontSize: "0.72rem" }}>
+                  Recargo: {formatCOP(refRates?.sundayHolidayExtDay.surchargeValue || 8356)}
+                </Typography>
+              </Card>
+            </Grid>
+
+            {/* 8. Dom/Fest Extra N. */}
+            <Grid size={{ xs: 6, sm: 3 }}>
+              <Card elevation={0} sx={{ p: 1.5, borderRadius: 2, border: `1px solid #4C1D95`, bgcolor: "#F3E8FF" }}>
+                <Typography variant="caption" sx={{ color: "text.secondary", fontWeight: 700 }}>
+                  8. Dom/Fest Extra N. (+155%)
+                </Typography>
+                <Typography variant="body1" sx={{ fontWeight: 800, fontFamily: jetBrainsMono.style.fontFamily, color: "#581C87" }}>
+                  {formatCOP(refRates?.sundayHolidayExtNight.totalHourlyRate || 20294)}
+                </Typography>
+                <Typography variant="caption" sx={{ color: "text.secondary", fontSize: "0.72rem" }}>
+                  Recargo: {formatCOP(refRates?.sundayHolidayExtNight.surchargeValue || 12335)}
+                </Typography>
+              </Card>
+            </Grid>
           </Grid>
+        </AccordionDetails>
+      </Accordion>
 
-          {/* 2. Ord. Nocturna */}
-          <Grid size={{ xs: 6, sm: 3 }}>
-            <Card elevation={0} sx={{ p: 1.5, borderRadius: 2, border: `1px solid ${noxiaPalette.info.main}60`, bgcolor: "#F8FAFC" }}>
-              <Typography variant="caption" sx={{ color: "text.secondary", fontWeight: 700 }}>
-                2. Ord. Nocturna (+35%)
-              </Typography>
-              <Typography variant="h6" sx={{ fontWeight: 800, fontFamily: jetBrainsMono.style.fontFamily, color: noxiaPalette.info.dark }}>
-                {formatCOP(refRates?.ordinaryNight.totalHourlyRate || 10744)}
-              </Typography>
-              <Typography variant="caption" sx={{ color: "text.secondary" }}>
-                Recargo: {formatCOP(refRates?.ordinaryNight.surchargeValue || 2785)}
-              </Typography>
-            </Card>
-          </Grid>
-
-          {/* 3. Extra Diurna */}
-          <Grid size={{ xs: 6, sm: 3 }}>
-            <Card elevation={0} sx={{ p: 1.5, borderRadius: 2, border: `1px solid ${noxiaPalette.warning.dark}60`, bgcolor: "#FFFBEB" }}>
-              <Typography variant="caption" sx={{ color: "text.secondary", fontWeight: 700 }}>
-                3. Extra Diurna (+25%)
-              </Typography>
-              <Typography variant="h6" sx={{ fontWeight: 800, fontFamily: jetBrainsMono.style.fontFamily, color: noxiaPalette.warning.dark }}>
-                {formatCOP(refRates?.overtimeDay.totalHourlyRate || 9948)}
-              </Typography>
-              <Typography variant="caption" sx={{ color: "text.secondary" }}>
-                Recargo: {formatCOP(refRates?.overtimeDay.surchargeValue || 1989)}
-              </Typography>
-            </Card>
-          </Grid>
-
-          {/* 4. Extra Nocturna */}
-          <Grid size={{ xs: 6, sm: 3 }}>
-            <Card elevation={0} sx={{ p: 1.5, borderRadius: 2, border: `1px solid ${noxiaPalette.secondary.light}60`, bgcolor: "#F5F3FF" }}>
-              <Typography variant="caption" sx={{ color: "text.secondary", fontWeight: 700 }}>
-                4. Extra Nocturna (+75%)
-              </Typography>
-              <Typography variant="h6" sx={{ fontWeight: 800, fontFamily: jetBrainsMono.style.fontFamily, color: noxiaPalette.primary.dark }}>
-                {formatCOP(refRates?.overtimeNight.totalHourlyRate || 13927)}
-              </Typography>
-              <Typography variant="caption" sx={{ color: "text.secondary" }}>
-                Recargo: {formatCOP(refRates?.overtimeNight.surchargeValue || 5968)}
-              </Typography>
-            </Card>
-          </Grid>
-
-          {/* 5. Dom/Fest Ord. Diur */}
-          <Grid size={{ xs: 6, sm: 3 }}>
-            <Card elevation={0} sx={{ p: 1.5, borderRadius: 2, border: `1px solid ${noxiaPalette.error.light}80`, bgcolor: "#FFF1F2" }}>
-              <Typography variant="caption" sx={{ color: "text.secondary", fontWeight: 700 }}>
-                5. Dom/Fest Ord. Diur (+80%)
-              </Typography>
-              <Typography variant="h6" sx={{ fontWeight: 800, fontFamily: jetBrainsMono.style.fontFamily, color: noxiaPalette.error.dark }}>
-                {formatCOP(refRates?.sundayHolidayOrdDay.totalHourlyRate || 14325)}
-              </Typography>
-              <Typography variant="caption" sx={{ color: "text.secondary" }}>
-                Recargo: {formatCOP(refRates?.sundayHolidayOrdDay.surchargeValue || 6366)}
-              </Typography>
-            </Card>
-          </Grid>
-
-          {/* 6. Dom/Fest Ord. Noct */}
-          <Grid size={{ xs: 6, sm: 3 }}>
-            <Card elevation={0} sx={{ p: 1.5, borderRadius: 2, border: `1px solid ${noxiaPalette.primary.main}60`, bgcolor: "#FAF5FF" }}>
-              <Typography variant="caption" sx={{ color: "text.secondary", fontWeight: 700 }}>
-                6. Dom/Fest Ord. Noct (+115%)
-              </Typography>
-              <Typography variant="h6" sx={{ fontWeight: 800, fontFamily: jetBrainsMono.style.fontFamily, color: noxiaPalette.primary.main }}>
-                {formatCOP(refRates?.sundayHolidayOrdNight.totalHourlyRate || 17111)}
-              </Typography>
-              <Typography variant="caption" sx={{ color: "text.secondary" }}>
-                Recargo: {formatCOP(refRates?.sundayHolidayOrdNight.surchargeValue || 9152)}
-              </Typography>
-            </Card>
-          </Grid>
-
-          {/* 7. Dom/Fest Extra D. */}
-          <Grid size={{ xs: 6, sm: 3 }}>
-            <Card elevation={0} sx={{ p: 1.5, borderRadius: 2, border: `1px solid ${noxiaPalette.error.main}60`, bgcolor: "#FFF1F2" }}>
-              <Typography variant="caption" sx={{ color: "text.secondary", fontWeight: 700 }}>
-                7. Dom/Fest Extra D. (+105%)
-              </Typography>
-              <Typography variant="h6" sx={{ fontWeight: 800, fontFamily: jetBrainsMono.style.fontFamily, color: noxiaPalette.error.main }}>
-                {formatCOP(refRates?.sundayHolidayExtDay.totalHourlyRate || 16315)}
-              </Typography>
-              <Typography variant="caption" sx={{ color: "text.secondary" }}>
-                Recargo: {formatCOP(refRates?.sundayHolidayExtDay.surchargeValue || 8356)}
-              </Typography>
-            </Card>
-          </Grid>
-
-          {/* 8. Dom/Fest Extra N. */}
-          <Grid size={{ xs: 6, sm: 3 }}>
-            <Card elevation={0} sx={{ p: 1.5, borderRadius: 2, border: `1px solid #4C1D95`, bgcolor: "#F3E8FF" }}>
-              <Typography variant="caption" sx={{ color: "text.secondary", fontWeight: 700 }}>
-                8. Dom/Fest Extra N. (+155%)
-              </Typography>
-              <Typography variant="h6" sx={{ fontWeight: 800, fontFamily: jetBrainsMono.style.fontFamily, color: "#581C87" }}>
-                {formatCOP(refRates?.sundayHolidayExtNight.totalHourlyRate || 20294)}
-              </Typography>
-              <Typography variant="caption" sx={{ color: "text.secondary" }}>
-                Recargo: {formatCOP(refRates?.sundayHolidayExtNight.surchargeValue || 12335)}
-              </Typography>
-            </Card>
-          </Grid>
-        </Grid>
-      </Box>
-
-      {/* Badges de Reglas Operativas */}
-      <Stack direction="row" spacing={1.5} flexWrap="wrap" useFlexGap alignItems="center">
-        <Chip
-          icon={<AccessTimeFilled sx={{ fontSize: "16px !important" }} />}
-          label="Estructura de Turno Base: [ 8h ord. ] + [ 4h ext. ] = 12h/turno"
-          color="primary"
-          variant="outlined"
-          sx={{ fontWeight: 600 }}
-        />
-        <Chip
-          label="Deducción Salud: 4.0% sobre devengado (excluye auxilio de transporte)"
-          size="small"
-          sx={{ bgcolor: `${noxiaPalette.info.main}15`, color: noxiaPalette.info.dark, fontWeight: 600 }}
-        />
-        <Chip
-          label="Deducción Pensión: 4.0% sobre devengado (excluye auxilio de transporte)"
-          size="small"
-          sx={{ bgcolor: `${noxiaPalette.info.main}15`, color: noxiaPalette.info.dark, fontWeight: 600 }}
-        />
-      </Stack>
-
-      {/* 3. Tabla Editable por Cargo Operativo */}
+      {/* 4. Tarjetas Bento Modulares por Cargo Operativo (Cero Scroll Horizontal) */}
       <Box>
         <Box
           sx={{
@@ -768,15 +798,15 @@ export default function SalaryMatrixTab({
             justifyContent: "space-between",
             alignItems: { xs: "flex-start", sm: "center" },
             gap: { xs: 1.5, sm: 2 },
-            mb: 2,
+            mb: 2.5,
           }}
         >
           <Box sx={{ flex: 1 }}>
             <Typography variant="subtitle1" sx={{ fontWeight: 700, color: noxiaPalette.secondary.main }}>
-              Matriz Salarial por Cargo Operativo
+              Cargos Operativos y Configuración Salarial ({positions.length})
             </Typography>
             <Typography variant="caption" sx={{ color: "text.secondary", display: "block" }}>
-              Personalización de devengados, turnos, horas extras y deducciones por rol operativo
+              Tarjetas modulares optimizadas para responsive sin desplazamiento horizontal
             </Typography>
           </Box>
           <Stack direction="row" spacing={1.5} alignItems="center">
@@ -830,192 +860,311 @@ export default function SalaryMatrixTab({
           </Stack>
         </Box>
 
-        <TableContainer component={Paper} elevation={0} sx={{ borderRadius: 2.5, border: "1px solid rgba(0,0,0,0.08)" }}>
-          <Table size="small">
-            <TableHead sx={{ bgcolor: "rgba(0,0,0,0.02)" }}>
-              <TableRow>
-                <TableCell sx={{ fontWeight: 700, minWidth: 200 }}>Cargo Operativo</TableCell>
-                <TableCell sx={{ fontWeight: 700, minWidth: 190 }}>Esquema de Turno</TableCell>
-                <TableCell sx={{ fontWeight: 700, minWidth: 130 }}>Sueldo Base</TableCell>
-                <TableCell sx={{ fontWeight: 700, minWidth: 120 }}>Aux. Transporte</TableCell>
-                <TableCell sx={{ fontWeight: 700, minWidth: 160 }}>Horas Extras / Recargos</TableCell>
-                <TableCell sx={{ fontWeight: 700, minWidth: 160 }}>Bonif. / Rodamiento</TableCell>
-                <TableCell sx={{ fontWeight: 700, minWidth: 140 }}>Deducciones (8%)</TableCell>
-                <TableCell sx={{ fontWeight: 700, bgcolor: `${noxiaPalette.primary.main}10`, minWidth: 150 }}>
-                  Sueldo Neto Libre
-                </TableCell>
-                <TableCell align="center" sx={{ fontWeight: 700, width: 60 }}>
-                  Acción
-                </TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {positions.map((pos, idx) => (
-                <TableRow key={(pos.id || pos.positionTitle) + idx} hover>
-                  {/* Cargo Operativo editable */}
-                  <TableCell>
-                    <TextField
-                      size="small"
-                      value={pos.positionTitle}
-                      onChange={(e) => handlePositionChange(idx, "positionTitle", e.target.value)}
-                      placeholder="Ej. Guarda Canino, Escolta VIP..."
-                      fullWidth
-                      sx={{
-                        "& .MuiInputBase-input": {
-                          fontWeight: 700,
-                          fontSize: "0.85rem",
-                        },
-                      }}
-                    />
-                  </TableCell>
+        {/* Bento Grid: 1 o 2 columnas según pantalla, sin scroll horizontal */}
+        <Grid container spacing={2.5}>
+          {positions.map((pos, idx) => {
+            const guardsFactor = Number(pos.guardsRequiredPerPost) || 3.0;
+            const postPayrollCost = Math.round((Number(pos.grossSalary) || 0) * guardsFactor);
 
-                  {/* Selector Dinámico de Esquema de Turno */}
-                  <TableCell>
-                    <Select
-                      size="small"
-                      value={pos.scheduleType || ShiftScheduleType.SCHEDULE_2X2X2}
-                      onChange={(e) => handleScheduleChange(idx, e.target.value as ShiftScheduleType)}
-                      fullWidth
-                      sx={{ fontSize: "0.8rem", fontWeight: 600 }}
-                    >
-                      {Object.entries(SHIFT_SCHEDULE_CONFIG).map(([key, cfg]) => (
-                        <MenuItem key={key} value={key} sx={{ fontSize: "0.82rem" }}>
-                          <Box>
-                            <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                              {cfg.shortLabel}
-                            </Typography>
-                            <Typography variant="caption" sx={{ color: "text.secondary" }}>
-                              Factor: {cfg.guards} guardas/puesto
-                            </Typography>
-                          </Box>
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </TableCell>
-
-                  {/* Sueldo Base */}
-                  <TableCell>
-                    <TextField
-                      size="small"
-                      type="number"
-                      value={pos.baseSalary}
-                      onChange={(e) => handlePositionChange(idx, "baseSalary", parseFloat(e.target.value) || 0)}
-                      sx={{ width: 125 }}
-                      slotProps={{ htmlInput: { style: { fontFamily: jetBrainsMono.style.fontFamily, fontSize: "0.85rem" } } }}
-                    />
-                  </TableCell>
-
-                  {/* Auxilio Transporte */}
-                  <TableCell>
-                    <TextField
-                      size="small"
-                      type="number"
-                      value={pos.transportAllowance}
-                      onChange={(e) => handlePositionChange(idx, "transportAllowance", parseFloat(e.target.value) || 0)}
-                      sx={{ width: 115 }}
-                      slotProps={{ htmlInput: { style: { fontFamily: jetBrainsMono.style.fontFamily, fontSize: "0.85rem" } } }}
-                    />
-                  </TableCell>
-
-                  {/* Horas Extras / Recargos con botón inteligente */}
-                  <TableCell>
-                    <Stack direction="row" spacing={0.5} alignItems="center">
+            return (
+              <Grid size={{ xs: 12, lg: 6 }} key={(pos.id || pos.positionTitle) + idx}>
+                <Card
+                  elevation={0}
+                  sx={{
+                    borderRadius: 3,
+                    border: `1.5px solid ${noxiaPalette.primary.light}30`,
+                    bgcolor: "#FFFFFF",
+                    boxShadow: "0 2px 10px rgba(0, 0, 0, 0.03)",
+                    transition: "all 0.2s ease-in-out",
+                    "&:hover": {
+                      borderColor: `${noxiaPalette.primary.main}60`,
+                      boxShadow: "0 6px 20px rgba(124, 58, 237, 0.08)",
+                    },
+                    display: "flex",
+                    flexDirection: "column",
+                  }}
+                >
+                  {/* Encabezado del Cargo */}
+                  <Box
+                    sx={{
+                      p: 2,
+                      bgcolor: "rgba(124, 58, 237, 0.03)",
+                      borderBottom: "1px solid rgba(0, 0, 0, 0.06)",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      gap: 1.5,
+                      flexWrap: "wrap",
+                    }}
+                  >
+                    <Stack direction="row" spacing={1.5} alignItems="center" sx={{ flex: 1, minWidth: 220 }}>
+                      <Box
+                        sx={{
+                          p: 0.8,
+                          borderRadius: 2,
+                          bgcolor: `${noxiaPalette.primary.main}15`,
+                          color: noxiaPalette.primary.main,
+                          display: "flex",
+                        }}
+                      >
+                        <BadgeOutlined fontSize="small" />
+                      </Box>
                       <TextField
                         size="small"
-                        type="number"
-                        value={pos.estimatedOvertimePay}
-                        onChange={(e) => handlePositionChange(idx, "estimatedOvertimePay", parseFloat(e.target.value) || 0)}
-                        sx={{ width: 115 }}
-                        slotProps={{ htmlInput: { style: { fontFamily: jetBrainsMono.style.fontFamily, fontSize: "0.85rem" } } }}
+                        variant="standard"
+                        value={pos.positionTitle}
+                        onChange={(e) => handlePositionChange(idx, "positionTitle", e.target.value)}
+                        placeholder="Título del Cargo Operativo..."
+                        fullWidth
+                        slotProps={{
+                          input: {
+                            disableUnderline: false,
+                            style: { fontWeight: 800, fontSize: "0.95rem", color: noxiaPalette.secondary.main },
+                          },
+                        }}
                       />
-                      <Tooltip title="Calcular automáticamente según turno y tarifas oficiales SVSP">
+                    </Stack>
+
+                    <Stack direction="row" spacing={1} alignItems="center">
+                      <Chip
+                        label={`Factor: ${guardsFactor} guardas`}
+                        size="small"
+                        color="primary"
+                        variant="outlined"
+                        sx={{ fontWeight: 700, fontFamily: jetBrainsMono.style.fontFamily }}
+                      />
+                      <Tooltip title="Eliminar cargo">
                         <IconButton
                           size="small"
-                          onClick={() => handleAutoCalculateOvertime(idx)}
-                          sx={{
-                            color: noxiaPalette.primary.main,
-                            bgcolor: `${noxiaPalette.primary.main}10`,
-                            "&:hover": { bgcolor: `${noxiaPalette.primary.main}20` },
-                          }}
+                          color="error"
+                          onClick={() => handleRequestDelete(idx, pos)}
+                          sx={{ "&:hover": { bgcolor: `${noxiaPalette.error.main}15` } }}
                         >
-                          <AutoFixHighOutlined fontSize="small" />
+                          <DeleteOutline fontSize="small" />
                         </IconButton>
                       </Tooltip>
                     </Stack>
-                  </TableCell>
+                  </Box>
 
-                  {/* Bonif. / Rodamiento */}
-                  <TableCell>
-                    <Stack direction="row" spacing={0.5}>
-                      <TextField
-                        size="small"
-                        type="number"
-                        label="Bono"
-                        value={pos.fixedBonusNonSalary || 0}
-                        onChange={(e) => handlePositionChange(idx, "fixedBonusNonSalary", parseFloat(e.target.value) || 0)}
-                        sx={{ width: 75 }}
-                        slotProps={{ htmlInput: { style: { fontFamily: jetBrainsMono.style.fontFamily, fontSize: "0.75rem" } } }}
-                      />
-                      <TextField
-                        size="small"
-                        type="number"
-                        label="Rodam."
-                        value={pos.vehicleAllowance || 0}
-                        onChange={(e) => handlePositionChange(idx, "vehicleAllowance", parseFloat(e.target.value) || 0)}
-                        sx={{ width: 75 }}
-                        slotProps={{ htmlInput: { style: { fontFamily: jetBrainsMono.style.fontFamily, fontSize: "0.75rem" } } }}
-                      />
-                    </Stack>
-                  </TableCell>
+                  <CardContent sx={{ p: 2.5, display: "flex", flexDirection: "column", gap: 2 }}>
+                    {/* Selector de Esquema de Turno */}
+                    <FormControl fullWidth size="small">
+                      <InputLabel id={`schedule-label-${idx}`}>Esquema de Turno Oficial</InputLabel>
+                      <Select
+                        labelId={`schedule-label-${idx}`}
+                        label="Esquema de Turno Oficial"
+                        value={pos.scheduleType || ShiftScheduleType.SCHEDULE_2X2X2}
+                        onChange={(e) => handleScheduleChange(idx, e.target.value as ShiftScheduleType)}
+                        sx={{ fontSize: "0.85rem", fontWeight: 600 }}
+                      >
+                        {Object.entries(SHIFT_SCHEDULE_CONFIG).map(([key, cfg]) => (
+                          <MenuItem key={key} value={key}>
+                            <Box sx={{ display: "flex", justifyContent: "space-between", width: "100%", gap: 2 }}>
+                              <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                                {cfg.label}
+                              </Typography>
+                              <Typography variant="caption" sx={{ color: "text.secondary" }}>
+                                {cfg.guards} guardas / puesto
+                              </Typography>
+                            </Box>
+                          </MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
 
-                  {/* Deducciones */}
-                  <TableCell>
-                    <Typography variant="body2" sx={{ fontFamily: jetBrainsMono.style.fontFamily, color: noxiaPalette.error.main, fontWeight: 600 }}>
-                      - {formatCOP(pos.totalDeductions)}
-                    </Typography>
-                    <Typography variant="caption" sx={{ color: "text.secondary", fontSize: "0.72rem" }}>
-                      Salud: {formatCOP(pos.healthDeduction)} | Pens: {formatCOP(pos.pensionDeduction)}
-                    </Typography>
-                  </TableCell>
+                    {/* Fila: Devengados Salariales */}
+                    <Box>
+                      <Typography variant="caption" sx={{ fontWeight: 700, color: "text.secondary", textTransform: "uppercase", display: "block", mb: 1 }}>
+                        Devengados Salariales de Ley
+                      </Typography>
+                      <Grid container spacing={1.5}>
+                        <Grid size={{ xs: 12, sm: 4 }}>
+                          <TextField
+                            fullWidth
+                            size="small"
+                            type="number"
+                            label="Sueldo Base (COP)"
+                            placeholder="0"
+                            value={pos.baseSalary === 0 ? "" : (pos.baseSalary ?? "")}
+                            onChange={(e) => handlePositionChange(idx, "baseSalary", e.target.value === "" ? "" : (parseFloat(e.target.value) || 0))}
+                            slotProps={{ htmlInput: { style: { fontFamily: jetBrainsMono.style.fontFamily, fontSize: "0.85rem" } } }}
+                          />
+                        </Grid>
+                        <Grid size={{ xs: 12, sm: 4 }}>
+                          <TextField
+                            fullWidth
+                            size="small"
+                            type="number"
+                            label="Aux. Transporte"
+                            placeholder="0"
+                            value={pos.transportAllowance === 0 ? "" : (pos.transportAllowance ?? "")}
+                            onChange={(e) => handlePositionChange(idx, "transportAllowance", e.target.value === "" ? "" : (parseFloat(e.target.value) || 0))}
+                            slotProps={{ htmlInput: { style: { fontFamily: jetBrainsMono.style.fontFamily, fontSize: "0.85rem" } } }}
+                          />
+                        </Grid>
+                        <Grid size={{ xs: 12, sm: 4 }}>
+                          <TextField
+                            fullWidth
+                            size="small"
+                            type="number"
+                            label="Extras y Recargos"
+                            placeholder="0"
+                            value={pos.estimatedOvertimePay === 0 ? "" : (pos.estimatedOvertimePay ?? "")}
+                            onChange={(e) => handlePositionChange(idx, "estimatedOvertimePay", e.target.value === "" ? "" : (parseFloat(e.target.value) || 0))}
+                            slotProps={{
+                              htmlInput: { style: { fontFamily: jetBrainsMono.style.fontFamily, fontSize: "0.85rem" } },
+                              input: {
+                                endAdornment: (
+                                  <Tooltip title="Calcular automáticamente según turno y tarifas SVSP">
+                                    <IconButton
+                                      size="small"
+                                      onClick={() => handleAutoCalculateOvertime(idx)}
+                                      sx={{
+                                        color: noxiaPalette.primary.main,
+                                        bgcolor: `${noxiaPalette.primary.main}10`,
+                                        "&:hover": { bgcolor: `${noxiaPalette.primary.main}20` },
+                                        p: 0.5,
+                                      }}
+                                    >
+                                      <AutoFixHighOutlined fontSize="small" />
+                                    </IconButton>
+                                  </Tooltip>
+                                ),
+                              },
+                            }}
+                          />
+                        </Grid>
+                      </Grid>
+                    </Box>
 
-                  {/* Sueldo Neto Libre */}
-                  <TableCell sx={{ bgcolor: `${noxiaPalette.primary.main}08` }}>
-                    <Typography
-                      variant="body2"
+                    {/* Fila: Beneficios Extralegales & Deducciones */}
+                    <Grid container spacing={1.5}>
+                      <Grid size={{ xs: 6, sm: 3 }}>
+                        <TextField
+                          fullWidth
+                          size="small"
+                          type="number"
+                          label="Bono Extralegal"
+                          placeholder="0"
+                          value={pos.fixedBonusNonSalary === 0 ? "" : (pos.fixedBonusNonSalary ?? "")}
+                          onChange={(e) => handlePositionChange(idx, "fixedBonusNonSalary", e.target.value === "" ? "" : (parseFloat(e.target.value) || 0))}
+                          slotProps={{ htmlInput: { style: { fontFamily: jetBrainsMono.style.fontFamily, fontSize: "0.82rem" } } }}
+                        />
+                      </Grid>
+                      <Grid size={{ xs: 6, sm: 3 }}>
+                        <TextField
+                          fullWidth
+                          size="small"
+                          type="number"
+                          label="Rodamiento"
+                          placeholder="0"
+                          value={pos.vehicleAllowance === 0 ? "" : (pos.vehicleAllowance ?? "")}
+                          onChange={(e) => handlePositionChange(idx, "vehicleAllowance", e.target.value === "" ? "" : (parseFloat(e.target.value) || 0))}
+                          slotProps={{ htmlInput: { style: { fontFamily: jetBrainsMono.style.fontFamily, fontSize: "0.82rem" } } }}
+                        />
+                      </Grid>
+
+                      <Grid size={{ xs: 12, sm: 6 }}>
+                        <Box
+                          sx={{
+                            p: 1.2,
+                            borderRadius: 2,
+                            bgcolor: "rgba(239, 68, 68, 0.05)",
+                            border: `1px solid ${noxiaPalette.error.light}40`,
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                          }}
+                        >
+                          <Box>
+                            <Typography variant="caption" sx={{ color: noxiaPalette.error.dark, fontWeight: 700, display: "block" }}>
+                              Deducciones de Ley (8%)
+                            </Typography>
+                            <Typography variant="caption" sx={{ color: "text.secondary", fontSize: "0.72rem" }}>
+                              Salud 4% ({formatCOP(pos.healthDeduction)}) + Pensión 4% ({formatCOP(pos.pensionDeduction)})
+                            </Typography>
+                          </Box>
+                          <Typography
+                            variant="body2"
+                            sx={{ fontWeight: 800, color: noxiaPalette.error.main, fontFamily: jetBrainsMono.style.fontFamily }}
+                          >
+                            - {formatCOP(pos.totalDeductions)}
+                          </Typography>
+                        </Box>
+                      </Grid>
+                    </Grid>
+
+                    <Divider sx={{ my: 0.5 }} />
+
+                    {/* Resumen Táctico Destacado (G&P Footprint) */}
+                    <Box
                       sx={{
-                        fontWeight: 800,
-                        fontFamily: jetBrainsMono.style.fontFamily,
-                        color: noxiaPalette.primary.main,
-                        fontSize: "0.92rem",
+                        p: 1.8,
+                        borderRadius: 2.5,
+                        bgcolor: `${noxiaPalette.primary.main}08`,
+                        border: `1px solid ${noxiaPalette.primary.main}25`,
                       }}
                     >
-                      {formatCOP(pos.netTakeHomePay)}
-                    </Typography>
-                    <Typography variant="caption" sx={{ color: "text.secondary", fontSize: "0.72rem" }}>
-                      Bruto: {formatCOP(pos.grossSalary)}
-                    </Typography>
-                  </TableCell>
+                      <Grid container spacing={2} alignItems="center">
+                        {/* Métrica 1: Sueldo Neto que recibe el Guarda */}
+                        <Grid size={{ xs: 12, sm: 6 }}>
+                          <Stack direction="row" spacing={1} alignItems="center">
+                            <AccountBalanceWalletOutlined fontSize="small" sx={{ color: noxiaPalette.primary.main }} />
+                            <Box>
+                              <Typography variant="caption" sx={{ color: "text.secondary", fontWeight: 700, display: "block" }}>
+                                Sueldo Neto Guarda (en banco)
+                              </Typography>
+                              <Typography
+                                variant="h6"
+                                sx={{
+                                  fontWeight: 800,
+                                  color: noxiaPalette.primary.main,
+                                  fontFamily: jetBrainsMono.style.fontFamily,
+                                  letterSpacing: -0.5,
+                                }}
+                              >
+                                {formatCOP(pos.netTakeHomePay)}
+                              </Typography>
+                              <Typography variant="caption" sx={{ color: "text.secondary", fontSize: "0.72rem" }}>
+                                Bruto individual: {formatCOP(pos.grossSalary)}
+                              </Typography>
+                            </Box>
+                          </Stack>
+                        </Grid>
 
-                  {/* Acciones */}
-                  <TableCell align="center">
-                    <Tooltip title="Eliminar cargo">
-                      <IconButton
-                        size="small"
-                        color="error"
-                        onClick={() => handleRequestDelete(idx, pos)}
-                        sx={{
-                          "&:hover": { bgcolor: `${noxiaPalette.error.main}15` },
-                        }}
-                      >
-                        <DeleteOutline fontSize="small" />
-                      </IconButton>
-                    </Tooltip>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
+                        {/* Métrica 2: Costo Nómina Puesto para la Empresa (G&P) */}
+                        <Grid size={{ xs: 12, sm: 6 }}>
+                          <Stack direction="row" spacing={1} alignItems="center">
+                            <WorkOutlineOutlined fontSize="small" sx={{ color: noxiaPalette.secondary.main }} />
+                            <Box>
+                              <Typography variant="caption" sx={{ color: "text.secondary", fontWeight: 700, display: "block" }}>
+                                Costo Nómina Puesto (G&P)
+                              </Typography>
+                              <Typography
+                                variant="h6"
+                                sx={{
+                                  fontWeight: 800,
+                                  color: noxiaPalette.secondary.main,
+                                  fontFamily: jetBrainsMono.style.fontFamily,
+                                  letterSpacing: -0.5,
+                                }}
+                              >
+                                {formatCOP(postPayrollCost)}
+                              </Typography>
+                              <Typography variant="caption" sx={{ color: "text.secondary", fontSize: "0.72rem" }}>
+                                Bruto × {guardsFactor} guardas requeridos
+                              </Typography>
+                            </Box>
+                          </Stack>
+                        </Grid>
+                      </Grid>
+                    </Box>
+                  </CardContent>
+                </Card>
+              </Grid>
+            );
+          })}
+        </Grid>
       </Box>
 
       {/* Diálogo de Confirmación de Eliminación */}

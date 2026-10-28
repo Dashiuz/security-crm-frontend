@@ -190,7 +190,7 @@ export default function ChameleonPdfPreview({
   const totalPages = paginatedPages.length;
 
   // Total calculation
-  const subtotal = serviceItems.reduce((acc, curr) => acc + curr.monthlyTotal, 0);
+  const subtotal = serviceItems.reduce((acc, curr) => acc + (Number(curr.monthlyTotal) || 0), 0);
   const aiu = subtotal * 0.1;
   const iva = aiu * 0.19;
   const total = subtotal + iva;
@@ -334,7 +334,7 @@ export default function ChameleonPdfPreview({
                 <TableCell sx={{ fontSize: "0.78rem" }}>{item.hours}</TableCell>
                 <TableCell align="center" sx={{ fontWeight: 700, fontSize: "0.8rem" }}>{item.postsCount}</TableCell>
                 <TableCell align="right" sx={{ fontWeight: 700, fontSize: "0.82rem" }}>
-                  $ {item.monthlyTotal.toLocaleString("es-CO")}
+                  $ {(Number(item.monthlyTotal) || 0).toLocaleString("es-CO")}
                 </TableCell>
               </TableRow>
             ))}
@@ -343,7 +343,7 @@ export default function ChameleonPdfPreview({
                 Subtotal Antes de Impuestos:
               </TableCell>
               <TableCell align="right" sx={{ fontWeight: 700, fontSize: "0.8rem" }}>
-                $ {subtotal.toLocaleString("es-CO")}
+                $ {(Number(subtotal) || 0).toLocaleString("es-CO")}
               </TableCell>
             </TableRow>
             <TableRow sx={{ bgcolor: "rgba(241, 245, 249, 0.4)" }}>
@@ -351,7 +351,7 @@ export default function ChameleonPdfPreview({
                 IVA sobre AIU (19% sobre base AIU 10%):
               </TableCell>
               <TableCell align="right" sx={{ fontSize: "0.78rem" }}>
-                $ {iva.toLocaleString("es-CO")}
+                $ {(Number(iva) || 0).toLocaleString("es-CO")}
               </TableCell>
             </TableRow>
             <TableRow sx={{ bgcolor: "primary.soft" }}>
@@ -359,7 +359,7 @@ export default function ChameleonPdfPreview({
                 TOTAL FACTURADO CON IVA (COP):
               </TableCell>
               <TableCell align="right" sx={{ fontWeight: 800, fontSize: "0.92rem", color: primaryColor }}>
-                $ {total.toLocaleString("es-CO")}
+                $ {(Number(total) || 0).toLocaleString("es-CO")}
               </TableCell>
             </TableRow>
           </TableBody>
@@ -417,36 +417,33 @@ export default function ChameleonPdfPreview({
   );
 
   const renderSigners = () => (
-    <Box sx={{ mt: "auto", pt: 2, borderTop: "1px dashed", borderColor: "divider" }}>
-      <Typography variant="caption" sx={{ fontWeight: 700, color: "text.secondary", display: "block", mb: 2, textTransform: "uppercase" }}>
-        Representación y Suscripción Formal
-      </Typography>
-      <Stack direction={{ xs: "column", sm: "row" }} spacing={4} justifyContent="space-around">
+    <Box sx={{ mt: "auto", pt: 1, borderTop: "1px dashed", borderColor: "divider" }}>
+      <Stack direction={{ xs: "column", sm: "row" }} spacing={2} justifyContent="space-around">
         {signers.map((s) => (
-          <Box key={s.id} sx={{ textAlign: "center", minWidth: 200 }}>
+          <Box key={s.id} sx={{ textAlign: "center", minWidth: 160, py: 0.25 }}>
             {s.signatureUrl ? (
               <Box
                 component="img"
                 src={s.signatureUrl}
                 alt={s.fullName}
-                sx={{ height: 48, objectFit: "contain", mx: "auto", mb: 0.5 }}
+                sx={{ height: 30, objectFit: "contain", mx: "auto", mb: 0.25 }}
               />
             ) : (
-              <Box sx={{ height: 48, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <Typography variant="caption" sx={{ color: "text.disabled", fontStyle: "italic" }}>
+              <Box sx={{ height: 28, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <Typography variant="caption" sx={{ color: "text.disabled", fontStyle: "italic", fontSize: "0.65rem" }}>
                   [Firma Digital Registrada]
                 </Typography>
               </Box>
             )}
-            <Divider sx={{ borderColor: primaryColor, mb: 0.5 }} />
-            <Typography variant="body2" sx={{ fontWeight: 700, fontSize: "0.82rem" }}>
+            <Divider sx={{ borderColor: primaryColor, mb: 0.3, width: "60%", mx: "auto" }} />
+            <Typography variant="body2" sx={{ fontWeight: 700, fontSize: "0.75rem", lineHeight: 1.2 }}>
               {s.fullName}
             </Typography>
-            <Typography variant="caption" sx={{ color: "text.secondary", display: "block" }}>
+            <Typography variant="caption" sx={{ color: "text.secondary", display: "block", fontSize: "0.66rem", lineHeight: 1.2 }}>
               {s.jobTitle}
             </Typography>
             {s.professionalCardNum && (
-              <Typography variant="caption" sx={{ fontSize: "0.68rem", color: "text.secondary" }}>
+              <Typography variant="caption" sx={{ fontSize: "0.62rem", color: "text.secondary", display: "block", lineHeight: 1.1 }}>
                 T.P. {s.professionalCardNum}
               </Typography>
             )}
@@ -468,9 +465,68 @@ export default function ChameleonPdfPreview({
           gap: 0,
           p: 0,
           bgcolor: "transparent",
+          display: "block",
         },
       }}
     >
+      {/* Reglas de impresión dedicadas para eliminar artefactos de modales y navegadores */}
+      <style dangerouslySetInnerHTML={{ __html: `
+        @media print {
+          @page {
+            size: letter;
+            margin: 8mm 10mm;
+          }
+          body {
+            background: #ffffff !important;
+            color: #000000 !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+          body > *:not(.MuiDialog-root) {
+            display: none !important;
+          }
+          .MuiBackdrop-root,
+          .MuiDialogTitle-root,
+          .MuiDialogActions-root,
+          .no-print {
+            display: none !important;
+          }
+          .MuiDialog-root {
+            position: static !important;
+            display: block !important;
+            inset: auto !important;
+            z-index: auto !important;
+          }
+          .MuiDialog-container {
+            display: block !important;
+            position: static !important;
+            height: auto !important;
+            padding: 0 !important;
+          }
+          .MuiDialog-paper {
+            background: transparent !important;
+            box-shadow: none !important;
+            border: none !important;
+            margin: 0 auto !important;
+            padding: 0 !important;
+            max-height: none !important;
+            height: auto !important;
+            max-width: 100% !important;
+            width: 100% !important;
+            overflow: visible !important;
+          }
+          .MuiDialogContent-root {
+            background: transparent !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            overflow: visible !important;
+            border: none !important;
+            display: block !important;
+          }
+        }
+      `}} />
       {paginatedPages.map((pageItems, pageIdx) => {
         const isFirstPage = pageIdx === 0;
         const isLastPage = pageIdx === totalPages - 1;
@@ -524,8 +580,11 @@ export default function ChameleonPdfPreview({
                   boxShadow: "none",
                   border: "none",
                   borderRadius: 0,
-                  p: 4,
+                  p: 3,
+                  maxWidth: "100%",
+                  minHeight: "auto",
                   pageBreakAfter: !isLastPage ? "always" : "auto",
+                  breakAfter: !isLastPage ? "page" : "auto",
                 },
               }}
             >

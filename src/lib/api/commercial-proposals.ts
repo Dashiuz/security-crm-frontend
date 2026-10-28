@@ -46,6 +46,7 @@ export interface CreateProposalPayload {
   contractType?: ProposalContractType;
   contractDurationMonths?: number;
   promptPaymentDiscPercent?: number;
+  promptPaymentDays?: number;
   includePresentation?: boolean;
   includeTechSecurityStudy?: boolean;
   includeEconomicQuote?: boolean;
@@ -61,6 +62,7 @@ export type UpdateProposalPayload = Partial<CreateProposalPayload>;
 export interface SimulatePnlPayload {
   contractDurationMonths: number;
   promptPaymentDiscPercent?: number;
+  promptPaymentDays?: number;
   items: Array<{
     positionTitle: string;
     quantity: number;
@@ -110,6 +112,7 @@ export interface CommercialProposalDto {
   subtotalMonthlyPreDisc: number;
   promptPaymentDiscPercent: number;
   promptPaymentDiscAmount: number;
+  promptPaymentDays?: number;
   subtotalMonthlyAfterDisc: number;
   aiuBaseAmount: number;
   ivaAmount: number;

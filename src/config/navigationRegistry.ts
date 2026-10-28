@@ -712,7 +712,7 @@ export const ERP_DIRECTIONS: ErpDirection[] = [
       },
       {
         id: "cfg-roles",
-        title: "Control de Roles (RBAC)",
+        title: "Control de Roles",
         description: "Matriz granular de permisos y asignación de privilegios",
         status: "ACTIVE",
         path: "/administrative/roles",

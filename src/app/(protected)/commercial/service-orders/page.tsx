@@ -238,11 +238,8 @@ export default function ServiceOrdersPage() {
   };
 
   // When a WON proposal is selected in the creation drawer, autofill data
-  const handleProposalSelection = (proposalId: string) => {
-    setSelectedProposalId(proposalId);
-    const prop = wonProposals.find((p) => p.id === proposalId);
-    if (!prop) return;
-
+  const applyProposalData = useCallback((prop: CommercialProposalDto) => {
+    setSelectedProposalId(prop.id);
     if (prop.client) {
       setSelectedClient({
         id: prop.client.id,
@@ -250,8 +247,8 @@ export default function ServiceOrdersPage() {
         nit: prop.client.nit,
       });
     }
-    setTotalMonthlyBeforeTax(Number(prop.subtotalMonthlyAfterDisc || prop.subtotalMonthlyPreDisc || 15000000));
-    setTotalMonthlyWithTax(Number(prop.totalMonthlyWithTax || 15285000));
+    setTotalMonthlyBeforeTax(Number(prop.subtotalMonthlyAfterDisc || prop.subtotalMonthlyPreDisc || 0));
+    setTotalMonthlyWithTax(Number(prop.totalMonthlyWithTax || 0));
 
     if (prop.items && prop.items.length > 0) {
       setPositions(
@@ -276,7 +273,45 @@ export default function ServiceOrdersPage() {
         }))
       );
     }
+  }, []);
+
+  const handleProposalSelection = (proposalId: string) => {
+    setSelectedProposalId(proposalId);
+    const prop = wonProposals.find((p) => p.id === proposalId);
+    if (prop) {
+      applyProposalData(prop);
+    } else {
+      commercialProposalsApi
+        .getProposalById(proposalId)
+        .then((loaded) => {
+          if (loaded) applyProposalData(loaded);
+        })
+        .catch(() => { });
+    }
   };
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const fromProposalId = params.get("fromProposalId");
+      if (fromProposalId) {
+        commercialProposalsApi
+          .getProposalById(fromProposalId)
+          .then((prop) => {
+            if (prop) {
+              setWonProposals((prev) => {
+                if (prev.some((p) => p.id === prop.id)) return prev;
+                return [prop, ...prev];
+              });
+              setCreationMode("PROPOSAL");
+              applyProposalData(prop);
+              setCreateDrawerOpen(true);
+            }
+          })
+          .catch(() => { });
+      }
+    }
+  }, [applyProposalData]);
 
   // Add Position in Create Drawer
   const handleAddPosition = () => {
@@ -737,7 +772,7 @@ export default function ServiceOrdersPage() {
                   onClick={() => setCreationMode("PROPOSAL")}
                   sx={{ borderRadius: 2, textTransform: "none", fontWeight: 700 }}
                 >
-                  Desde Propuesta Ganada (WON)
+                  Desde Propuesta Ganada/Aprobada
                 </Button>
                 <Button
                   variant={creationMode === "DIRECT" ? "contained" : "outlined"}
@@ -759,7 +794,7 @@ export default function ServiceOrdersPage() {
                   onChange={(e) => handleProposalSelection(e.target.value)}
                   helperText={
                     wonProposals.length === 0
-                      ? "No hay propuestas con estado GANADA (WON) disponibles actualmente."
+                      ? "No hay propuestas con estado GANADA disponibles actualmente."
                       : "Al seleccionar una propuesta se precargarán automáticamente cliente, puestos y montos."
                   }
                 >

@@ -56,16 +56,18 @@ export default function ValueAddedTab({ settings, onRefresh }: ValueAddedTabProp
     maxReinvestmentPct1Yr: Number(settings.maxReinvestmentPct1Yr) || 0.8,
     maxReinvestmentPct2Yr: Number(settings.maxReinvestmentPct2Yr) || 1.6,
     defaultQuoteValidityDays: settings.defaultQuoteValidityDays || 15,
+    defaultPromptPaymentDays: settings.defaultPromptPaymentDays ?? 10,
+    defaultPromptPaymentDisc: settings.defaultPromptPaymentDisc ? Number(settings.defaultPromptPaymentDisc) : 0,
   });
 
   const handleSaveCaps = async () => {
     try {
       setIsSavingCaps(true);
       await CommercialSettingsApi.updateSettings(caps);
-      showSuccess("Topes de reinversión actualizados exitosamente");
+      showSuccess("Topes y políticas comerciales actualizadas exitosamente");
       onRefresh();
     } catch (err: any) {
-      showError(err?.message || "Error al actualizar topes de reinversión");
+      showError(err?.message || "Error al actualizar topes y políticas comerciales");
     } finally {
       setIsSavingCaps(false);
     }
@@ -116,10 +118,10 @@ export default function ValueAddedTab({ settings, onRefresh }: ValueAddedTabProp
         >
           <Box sx={{ flex: 1 }}>
             <Typography variant="subtitle1" sx={{ fontWeight: 700, color: noxiaPalette.secondary.main }}>
-              Políticas Comerciales y Topes de Reinversión
+              Políticas Comerciales, Pronto Pago y Topes de Reinversión
             </Typography>
             <Typography variant="caption" sx={{ color: "text.secondary", display: "block" }}>
-              Porcentaje máximo permitido sobre la primera factura sin requerir autorización de Gerencia General
+              Porcentaje máximo permitido sobre la primera factura sin requerir autorización y condiciones de pronto pago por defecto
             </Typography>
           </Box>
           <Button
@@ -145,7 +147,7 @@ export default function ValueAddedTab({ settings, onRefresh }: ValueAddedTabProp
               boxShadow: "0 2px 6px rgba(124, 58, 237, 0.2)",
             }}
           >
-            Guardar Topes
+            Guardar Políticas
           </Button>
         </Box>
 
@@ -190,9 +192,37 @@ export default function ValueAddedTab({ settings, onRefresh }: ValueAddedTabProp
               size="small"
               type="number"
               label="Validez de Ofertas (Días Hábiles)"
-              value={caps.defaultQuoteValidityDays}
-              onChange={(e) => setCaps((p) => ({ ...p, defaultQuoteValidityDays: parseInt(e.target.value) || 15 }))}
+              placeholder="0"
+              value={caps.defaultQuoteValidityDays === 0 ? "" : (caps.defaultQuoteValidityDays ?? "")}
+              onChange={(e) => setCaps((p) => ({ ...p, defaultQuoteValidityDays: e.target.value === "" ? 0 : parseInt(e.target.value) }))}
               helperText="Vigencia por defecto en cartas comerciales"
+            />
+          </Grid>
+
+          <Grid size={{ xs: 12, sm: 6, md: 6 }}>
+            <TextField
+              fullWidth
+              size="small"
+              type="number"
+              label="Días Pronto Pago por Defecto"
+              placeholder="0"
+              value={caps.defaultPromptPaymentDays === 0 ? "" : (caps.defaultPromptPaymentDays ?? "")}
+              onChange={(e) => setCaps((p) => ({ ...p, defaultPromptPaymentDays: e.target.value === "" ? 0 : parseInt(e.target.value) }))}
+              helperText="Días calendario concedidos a clientes para aplicar el descuento"
+            />
+          </Grid>
+
+          <Grid size={{ xs: 12, sm: 6, md: 6 }}>
+            <TextField
+              fullWidth
+              size="small"
+              type="number"
+              label="% Descuento Pronto Pago por Defecto"
+              placeholder="0"
+              value={caps.defaultPromptPaymentDisc === 0 ? "" : (caps.defaultPromptPaymentDisc ? Number((caps.defaultPromptPaymentDisc * 100).toFixed(2)) : "")}
+              onChange={(e) => setCaps((p) => ({ ...p, defaultPromptPaymentDisc: e.target.value === "" ? 0 : (parseFloat(e.target.value) || 0) / 100 }))}
+              slotProps={{ htmlInput: { step: 0.1, min: 0, max: 20 } }}
+              helperText="Porcentaje de descuento estándar aplicable sobre el subtotal"
             />
           </Grid>
         </Grid>
@@ -296,7 +326,7 @@ export default function ValueAddedTab({ settings, onRefresh }: ValueAddedTabProp
 
                 <Box sx={{ bgcolor: "rgba(0,0,0,0.02)", p: 1.5, borderRadius: 2, mt: 1 }}>
                   <Typography variant="caption" sx={{ color: "text.secondary", display: "block" }}>
-                    Costo Interno P&L:
+                    Costo Interno G&P:
                   </Typography>
                   <Typography variant="body1" sx={{ fontWeight: 800, fontFamily: jetBrainsMono.style.fontFamily, color: noxiaPalette.secondary.main }}>
                     {formatCOP(item.internalReferenceCost)}

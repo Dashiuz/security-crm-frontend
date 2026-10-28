@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
   Box,
@@ -21,9 +21,21 @@ import {
   FormGroup,
   FormControlLabel,
   Checkbox,
-  InputAdornment
+  InputAdornment,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Tooltip,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  Alert
 } from "@mui/material";
 import ResponsiveFormDrawer from "@/components/common/ResponsiveFormDrawer";
+import ChameleonPdfPreview from "@/app/(protected)/commercial/proposals/components/ChameleonPdfPreview";
 import {
   ArrowBack as ArrowBackIcon,
   Save as SaveIcon,
@@ -40,8 +52,23 @@ import {
   Engineering as EngineeringIcon,
   EventRepeat as RecaptationIcon,
   HistoryEdu as TimelineIcon,
+  ReceiptLong as ReceiptLongIcon,
+  PictureAsPdf as PdfIcon,
+  EditOutlined as EditIcon,
+  EmojiEvents as TrophyIcon,
+  TrendingUp as TrendingUpIcon,
+  Print as PrintIcon,
+  Close as CloseIcon,
+  FlashOn as BoltIcon,
+  CheckCircleOutline as CheckCircleIcon,
 } from "@mui/icons-material";
 import UserAutocomplete, { UserOption } from "@/components/common/UserAutocomplete";
+import {
+  commercialProposalsApi,
+  CommercialProposalDto,
+  ProposalStatus,
+  PnlHealthStatus,
+} from "@/lib/api/commercial-proposals";
 import { HttpClient } from "@/lib/api/client";
 import { useNotification } from "@/providers/NotificationProvider";
 import {
@@ -209,6 +236,46 @@ export default function ProspectDetailPage() {
     commercialContactId: "",
     administrationType: "INDIVIDUAL",
   });
+
+  // Quotations & Commercial Dossier State (SPEC-ADM-027)
+  const [proposals, setProposals] = useState<CommercialProposalDto[]>([]);
+  const [loadingProposals, setLoadingProposals] = useState(false);
+  const [previewProposal, setPreviewProposal] = useState<CommercialProposalDto | null>(null);
+  const [wonTargetProposal, setWonTargetProposal] = useState<CommercialProposalDto | null>(null);
+  const [transitioningWon, setTransitioningWon] = useState(false);
+
+  const fetchProposals = useCallback(async () => {
+    if (!prospectId) return;
+    setLoadingProposals(true);
+    try {
+      const res = await commercialProposalsApi.getProposals({ clientId: prospectId, take: 50 });
+      setProposals(res.data || []);
+    } catch {
+      // non-blocking
+    } finally {
+      setLoadingProposals(false);
+    }
+  }, [prospectId]);
+
+  const handleConfirmWon = async (targetProposalId: string, createServiceOrderNow: boolean) => {
+    try {
+      setTransitioningWon(true);
+      await commercialProposalsApi.updateStatus(targetProposalId, "WON");
+      showSuccess("Propuesta aprobada y marcada como GANADA.");
+
+      if (createServiceOrderNow) {
+        setWonTargetProposal(null);
+        router.push(`/commercial/service-orders?fromProposalId=${targetProposalId}`);
+      } else {
+        setWonTargetProposal(null);
+        await fetchProposals();
+      }
+    } catch {
+      showError("Error al marcar la propuesta como ganada.");
+    } finally {
+      setTransitioningWon(false);
+    }
+  };
 
   // CRM Follow-up State (SPEC-ADM-022)
   const [followUps, setFollowUps] = useState<CommercialFollowUpDto[]>([]);
@@ -397,6 +464,7 @@ export default function ProspectDetailPage() {
     if (prospectId) {
       fetchProspectData();
       fetchFollowUps();
+      fetchProposals();
     }
   }, [prospectId]);
 
@@ -656,6 +724,7 @@ export default function ProspectDetailPage() {
           <Tab label="📍 INFORMACIÓN GENERAL Y UBICACIÓN" sx={{ fontWeight: 600, textTransform: "none" }} />
           <Tab label="🏢 ESTRUCTURA FÍSICA Y ÁREAS COMUNES" sx={{ fontWeight: 600, textTransform: "none" }} />
           <Tab label="🤝 BITÁCORA COMERCIAL Y CRM" sx={{ fontWeight: 600, textTransform: "none" }} />
+          <Tab label={`📋 COTIZACIONES Y PROPUESTAS (${proposals.length})`} sx={{ fontWeight: 600, textTransform: "none" }} />
         </Tabs>
 
         {/* TAB 0: INFORMACIÓN GENERAL */}
@@ -1739,6 +1808,205 @@ export default function ProspectDetailPage() {
             )}
           </Box>
         </CustomTabPanel>
+        {/* TAB 3: COTIZACIONES Y PROPUESTAS */}
+        <CustomTabPanel value={tabIndex} index={3}>
+          <Box sx={{ p: 3 }}>
+            <Box
+              sx={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                mb: 3,
+                flexWrap: "wrap",
+                gap: 2,
+              }}
+            >
+              <Box>
+                <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                  Cotizaciones y Ofertas Comerciales Estatutarias
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Historial de propuestas económicas emitidas con la calculadora SVSP en vivo para este prospecto.
+                </Typography>
+              </Box>
+              <Button
+                variant="contained"
+                startIcon={<AddIcon />}
+                onClick={() => router.push(`/commercial/proposals/new?clientId=${prospectId}`)}
+                sx={{
+                  borderRadius: 2,
+                  textTransform: "none",
+                  fontWeight: 700,
+                  px: 2.5,
+                  background: "linear-gradient(135deg, #4F46E5 0%, #6366F1 100%)",
+                  boxShadow: "0 4px 12px rgba(99, 102, 241, 0.3)",
+                  "&:hover": {
+                    background: "linear-gradient(135deg, #4338CA 0%, #4F46E5 100%)",
+                  },
+                }}
+              >
+                + Nueva Cotización
+              </Button>
+            </Box>
+
+            {loadingProposals ? (
+              <Box sx={{ p: 6, display: "flex", justifyContent: "center" }}>
+                <CircularProgress size={36} />
+              </Box>
+            ) : proposals.length === 0 ? (
+              <Box sx={{ textAlign: "center", py: 6 }}>
+                <ReceiptLongIcon sx={{ fontSize: 48, color: "text.secondary", opacity: 0.4, mb: 1.5 }} />
+                <Typography variant="h6" sx={{ fontWeight: 700, color: "text.secondary" }}>
+                  No hay cotizaciones registradas para este prospecto
+                </Typography>
+                <Typography variant="body2" sx={{ color: "text.secondary", mb: 3 }}>
+                  Genere una propuesta económica personalizada que se transferirá automáticamente cuando este prospecto se formalice a cliente.
+                </Typography>
+                <Button
+                  variant="contained"
+                  startIcon={<AddIcon />}
+                  onClick={() => router.push(`/commercial/proposals/new?clientId=${prospectId}`)}
+                  sx={{ textTransform: "none", fontWeight: 700, borderRadius: 2 }}
+                >
+                  + Crear Primera Cotización
+                </Button>
+              </Box>
+            ) : (
+              <TableContainer>
+                <Table size="small">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell sx={{ fontWeight: 800 }}>Folio</TableCell>
+                      <TableCell sx={{ fontWeight: 800 }}>Fecha Creación</TableCell>
+                      <TableCell sx={{ fontWeight: 800 }}>Puestos SVSP</TableCell>
+                      <TableCell sx={{ fontWeight: 800 }}>Total Mensual (COP)</TableCell>
+                      <TableCell sx={{ fontWeight: 800 }}>Margen P&L</TableCell>
+                      <TableCell sx={{ fontWeight: 800 }}>Estado</TableCell>
+                      <TableCell align="right" sx={{ fontWeight: 800 }}>Acciones</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {proposals.map((prop) => {
+                      const positionsCount = prop.items?.length || 0;
+                      return (
+                        <TableRow key={prop.id} hover>
+                          <TableCell>
+                            <Typography
+                              component="span"
+                              onClick={() => router.push(`/commercial/proposals/${prop.id}`)}
+                              sx={{
+                                fontWeight: 800,
+                                color: "primary.main",
+                                cursor: "pointer",
+                                "&:hover": { textDecoration: "underline" },
+                              }}
+                            >
+                              {prop.proposalFolioCode}
+                            </Typography>
+                            <Typography variant="caption" sx={{ display: "block", color: "text.secondary" }}>
+                              v{prop.versionNumber}
+                            </Typography>
+                          </TableCell>
+                          <TableCell sx={{ fontSize: "0.85rem" }}>
+                            {new Date(prop.createdAt).toLocaleDateString("es-CO", {
+                              year: "numeric",
+                              month: "short",
+                              day: "numeric",
+                            })}
+                          </TableCell>
+                          <TableCell sx={{ fontSize: "0.85rem" }}>
+                            <Chip
+                              size="small"
+                              label={`${positionsCount} Puesto${positionsCount === 1 ? "" : "s"}`}
+                              variant="outlined"
+                              sx={{ fontWeight: 600 }}
+                            />
+                          </TableCell>
+                          <TableCell sx={{ fontWeight: 800, color: "text.primary" }}>
+                            $ {Number(prop.totalMonthlyWithTax || 0).toLocaleString("es-CO")}
+                          </TableCell>
+                          <TableCell>
+                            <Chip
+                              size="small"
+                              icon={<TrendingUpIcon sx={{ fontSize: "14px !important" }} />}
+                              label={`${prop.netMarginPercentage}%`}
+                              color={
+                                prop.pnlStatus === "PROFITABLE" ? "success" : prop.pnlStatus === "WARNING_LOW_MARGIN" ? "warning" : "error"
+                              }
+                              sx={{ fontWeight: 700 }}
+                            />
+                          </TableCell>
+                          <TableCell>
+                            <Chip
+                              size="small"
+                              label={
+                                prop.status === "WON"
+                                  ? "Ganada / Aceptada"
+                                  : prop.status === "DRAFT"
+                                  ? "Borrador"
+                                  : prop.status === "APPROVED_INTERNAL"
+                                  ? "Aprobada Internamente"
+                                  : prop.status === "SENT_TO_CLIENT"
+                                  ? "Enviada al Cliente"
+                                  : prop.status === "LOST"
+                                  ? "Perdida"
+                                  : prop.status
+                              }
+                              color={
+                                prop.status === "WON"
+                                  ? "success"
+                                  : prop.status === "SENT_TO_CLIENT"
+                                  ? "primary"
+                                  : prop.status === "APPROVED_INTERNAL"
+                                  ? "info"
+                                  : prop.status === "LOST"
+                                  ? "error"
+                                  : "default"
+                              }
+                              sx={{ fontWeight: 700 }}
+                            />
+                          </TableCell>
+                          <TableCell align="right">
+                            <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 0.5 }}>
+                              {prop.status !== "WON" && (
+                                <Tooltip title="Aprobar y Marcar como Ganada (WON)">
+                                  <IconButton
+                                    size="small"
+                                    color="success"
+                                    onClick={() => setWonTargetProposal(prop)}
+                                  >
+                                    <TrophyIcon fontSize="small" />
+                                  </IconButton>
+                                </Tooltip>
+                              )}
+                              <Tooltip title="Editar en Canvas">
+                                <IconButton
+                                  size="small"
+                                  onClick={() => router.push(`/commercial/proposals/${prop.id}`)}
+                                >
+                                  <EditIcon fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                              <Tooltip title="Vista Previa de Propuesta">
+                                <IconButton
+                                  size="small"
+                                  color="primary"
+                                  onClick={() => setPreviewProposal(prop)}
+                                >
+                                  <PdfIcon fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                            </Box>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            )}
+          </Box>
+        </CustomTabPanel>
       </Paper>
 
       {/* Drawer: Nueva Interacción Comercial */}
@@ -2137,6 +2405,273 @@ export default function ProspectDetailPage() {
           </Grid>
         </Box>
       </ResponsiveFormDrawer>
+      {/* Drawer: Marcar Propuesta como Ganada desde Prospecto */}
+      <ResponsiveFormDrawer
+        open={Boolean(wonTargetProposal)}
+        onClose={() => !transitioningWon && setWonTargetProposal(null)}
+        title="Aprobar y Marcar como Ganada"
+        subtitle="Cierre de negociación comercial y emisión de Orden de Servicio"
+        headerIcon={<TrophyIcon sx={{ color: "#059669", fontSize: 28 }} />}
+        width={{ xs: "100%", sm: 540, md: 580 }}
+        customActions={
+          <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5, width: "100%" }}>
+            <Button
+              fullWidth
+              variant="contained"
+              disabled={transitioningWon}
+              startIcon={transitioningWon ? <CircularProgress size={18} color="inherit" /> : <BoltIcon />}
+              onClick={() => wonTargetProposal && handleConfirmWon(wonTargetProposal.id, true)}
+              sx={{
+                py: 1.4,
+                borderRadius: "10px",
+                textTransform: "none",
+                fontWeight: 800,
+                fontSize: "0.92rem",
+                letterSpacing: "0.2px",
+                background: "linear-gradient(135deg, #059669 0%, #10B981 100%)",
+                color: "#FFFFFF",
+                boxShadow: "0 4px 14px rgba(16, 185, 129, 0.35)",
+                transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
+                "&:hover": {
+                  background: "linear-gradient(135deg, #047857 0%, #059669 100%)",
+                  boxShadow: "0 6px 20px rgba(16, 185, 129, 0.45)",
+                  transform: "translateY(-1px)",
+                },
+              }}
+            >
+              {transitioningWon ? "Procesando y emitiendo orden..." : "⚡ Marcar como Ganada y Emitir Orden de Servicio"}
+            </Button>
+
+            <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 1.5 }}>
+              <Button
+                variant="text"
+                onClick={() => setWonTargetProposal(null)}
+                disabled={transitioningWon}
+                sx={{
+                  py: 1,
+                  px: 2,
+                  borderRadius: "8px",
+                  textTransform: "none",
+                  color: "text.secondary",
+                  fontWeight: 600,
+                  "&:hover": { bgcolor: "action.hover" },
+                }}
+              >
+                Cancelar
+              </Button>
+              <Button
+                variant="outlined"
+                disabled={transitioningWon}
+                startIcon={<CheckCircleIcon />}
+                onClick={() => wonTargetProposal && handleConfirmWon(wonTargetProposal.id, false)}
+                sx={{
+                  py: 1,
+                  px: 2.5,
+                  borderRadius: "10px",
+                  textTransform: "none",
+                  fontWeight: 700,
+                  fontSize: "0.86rem",
+                  border: "1.5px solid #059669",
+                  color: "#059669",
+                  bgcolor: "rgba(5, 150, 105, 0.04)",
+                  "&:hover": {
+                    border: "1.5px solid #047857",
+                    bgcolor: "rgba(5, 150, 105, 0.1)",
+                  },
+                }}
+              >
+                Solo Marcar como Ganada
+              </Button>
+            </Box>
+          </Box>
+        }
+      >
+        <Box sx={{ display: "flex", flexDirection: "column", gap: 2.5 }}>
+          <Typography variant="body2" sx={{ color: "text.secondary", lineHeight: 1.6 }}>
+            Está a punto de registrar la aceptación formal de la propuesta por parte del prospecto. Al marcarla como ganada, concluye exitosamente la negociación comercial y se habilita la creación de la <strong>Orden de Servicio Operativa</strong>.
+          </Typography>
+
+          {wonTargetProposal && (
+            <Paper
+              elevation={0}
+              sx={{
+                p: 2.5,
+                bgcolor: "#F8FAFC",
+                borderRadius: 2.5,
+                border: "1px solid #E2E8F0",
+              }}
+            >
+              <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 2 }}>
+                <Box>
+                  <Typography variant="caption" sx={{ color: "text.secondary", fontWeight: 600, textTransform: "uppercase", fontSize: "0.7rem", letterSpacing: 0.5 }}>
+                    Folio de Cotización
+                  </Typography>
+                  <Typography variant="subtitle1" sx={{ fontWeight: 800, color: "#4338CA", mt: 0.2 }}>
+                    {wonTargetProposal.proposalFolioCode}
+                  </Typography>
+                </Box>
+                <Box>
+                  <Typography variant="caption" sx={{ color: "text.secondary", fontWeight: 600, textTransform: "uppercase", fontSize: "0.7rem", letterSpacing: 0.5 }}>
+                    Prospecto Destinatario
+                  </Typography>
+                  <Typography variant="subtitle1" sx={{ fontWeight: 700, color: "#0F172A", mt: 0.2 }}>
+                    {wonTargetProposal.client?.name || generalForm.name || "Sin nombre"}
+                  </Typography>
+                </Box>
+                <Box>
+                  <Typography variant="caption" sx={{ color: "text.secondary", fontWeight: 600, textTransform: "uppercase", fontSize: "0.7rem", letterSpacing: 0.5 }}>
+                    Facturación Mensual (COP)
+                  </Typography>
+                  <Typography variant="subtitle1" sx={{ fontWeight: 800, color: "#059669", mt: 0.2 }}>
+                    $ {Number(wonTargetProposal.totalMonthlyWithTax || 0).toLocaleString("es-CO")}
+                  </Typography>
+                </Box>
+                <Box>
+                  <Typography variant="caption" sx={{ color: "text.secondary", fontWeight: 600, textTransform: "uppercase", fontSize: "0.7rem", letterSpacing: 0.5 }}>
+                    Margen Operativo P&L
+                  </Typography>
+                  <Box sx={{ mt: 0.2 }}>
+                    <Chip
+                      size="small"
+                      icon={<TrendingUpIcon sx={{ fontSize: "14px !important" }} />}
+                      label={`${wonTargetProposal.netMarginPercentage}%`}
+                      color={
+                        wonTargetProposal.pnlStatus === "PROFITABLE" ? "success" : wonTargetProposal.pnlStatus === "WARNING_LOW_MARGIN" ? "warning" : "error"
+                      }
+                      sx={{ fontWeight: 700, fontSize: "0.78rem" }}
+                    />
+                  </Box>
+                </Box>
+              </Box>
+            </Paper>
+          )}
+
+          <Alert
+            severity="info"
+            icon={<BoltIcon sx={{ color: "#0284C7" }} />}
+            sx={{
+              borderRadius: 2,
+              bgcolor: "#F0F9FF",
+              border: "1px solid #BAE6FD",
+              "& .MuiAlert-message": { fontSize: "0.85rem", color: "#0369A1", lineHeight: 1.5 },
+            }}
+          >
+            <strong>Recomendación Operativa:</strong> Al crear la Orden de Servicio, el sistema trasladará las especificaciones del puesto e integrará el Código OMEGA para el posterior despliegue.
+          </Alert>
+        </Box>
+      </ResponsiveFormDrawer>
+
+      {/* Modal: Vista Previa PDF de Propuesta */}
+      <Dialog
+        open={Boolean(previewProposal)}
+        onClose={() => setPreviewProposal(null)}
+        maxWidth="lg"
+        fullWidth
+        PaperProps={{
+          sx: {
+            height: "92vh",
+            maxHeight: "92vh",
+            borderRadius: 3,
+            overflow: "hidden",
+            display: "flex",
+            flexDirection: "column",
+          },
+        }}
+      >
+        <DialogTitle
+          sx={{
+            px: 3,
+            py: 2,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            borderBottom: "1px solid",
+            borderColor: "divider",
+          }}
+        >
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+            <Typography variant="h6" sx={{ fontWeight: 800 }}>
+              Vista Previa: {previewProposal?.proposalFolioCode}
+            </Typography>
+          </Box>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+            <Button
+              size="small"
+              variant="outlined"
+              startIcon={<PrintIcon />}
+              onClick={() => window.print()}
+              sx={{ textTransform: "none", fontWeight: 600 }}
+            >
+              Imprimir
+            </Button>
+            {previewProposal && (
+              <Button
+                size="small"
+                variant="contained"
+                startIcon={<EditIcon />}
+                onClick={() => {
+                  const id = previewProposal.id;
+                  setPreviewProposal(null);
+                  router.push(`/commercial/proposals/${id}`);
+                }}
+                sx={{ textTransform: "none", fontWeight: 700 }}
+              >
+                Editar en Canvas
+              </Button>
+            )}
+            <IconButton onClick={() => setPreviewProposal(null)} size="small">
+              <CloseIcon />
+            </IconButton>
+          </Box>
+        </DialogTitle>
+        <DialogContent sx={{ p: 0, flex: 1, bgcolor: "#F1F5F9", overflowY: "auto" }}>
+          {previewProposal && (
+            <Box sx={{ p: 4, display: "flex", justifyContent: "center" }}>
+              <ChameleonPdfPreview
+                proposalNumber={previewProposal.proposalFolioCode}
+                date={new Date(previewProposal.createdAt).toLocaleDateString("es-CO", {
+                  year: "numeric",
+                  month: "long",
+                  day: "numeric",
+                })}
+                clientName={previewProposal.client?.name || generalForm.name || "Prospecto"}
+                clientNit={previewProposal.client?.nit || generalForm.nit || ""}
+                clientCity={previewProposal.draftSnapshotJson?.clientCity || generalForm.city || "Bogotá D.C."}
+                skin={previewProposal.draftSnapshotJson?.skin || {
+                  primaryColor: "#0F172A",
+                  secondaryColor: "#4338CA",
+                  headerLogoUrl: "",
+                  footerText: "Propuesta de Seguridad Privada",
+                }}
+                bodyHtml={
+                  previewProposal.draftSnapshotJson?.clauseBlocks
+                    ? previewProposal.draftSnapshotJson.clauseBlocks
+                        .map((b: any) => `<h3>${b.title || ""}</h3>${b.content}`)
+                        .join("<br/>")
+                    : "<p>Propuesta técnica y económica generada.</p>"
+                }
+                serviceItems={previewProposal.items?.map((it: any) => ({
+                  name: it.positionTitle,
+                  modality: it.weaponModality,
+                  hours: it.scheduleType,
+                  postsCount: it.quantity,
+                  monthlyTotal:
+                    Number(it.totalMonthlyBilledPrice) ||
+                    (Number(it.unitMonthlyBilledPrice) || 0) * (Number(it.quantity) || 1),
+                }))}
+                valueAddedItems={previewProposal.valueAddedItems?.map((v: any) => ({
+                  itemName: v.itemName,
+                  quantity: v.quantity,
+                  periodicity: v.periodicity,
+                  itemInternalCost: Number(v.itemInternalCost) || 0,
+                  notes: v.notes,
+                }))}
+                signers={previewProposal.signers}
+              />
+            </Box>
+          )}
+        </DialogContent>
+      </Dialog>
     </Box>
   );
 }

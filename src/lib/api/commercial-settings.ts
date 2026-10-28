@@ -183,6 +183,8 @@ export interface CommercialSettings {
   maxReinvestmentPct1Yr: number;
   maxReinvestmentPct2Yr: number;
   defaultQuoteValidityDays: number;
+  defaultPromptPaymentDays?: number;
+  defaultPromptPaymentDisc?: number;
   enableGuardSalaryDisplay: boolean;
   qualityDocCode: string;
   qualityDocVersion: string;
@@ -207,6 +209,12 @@ export interface SimulateTariffInput {
   billableDays: number;
   discountPct?: number;
   customSectorMultiplier?: number;
+  promptPaymentDays?: number;
+  customAdminSupervisionPct?: number;
+  statutoryDayHours?: number;
+  statutoryNightHours?: number;
+  dayProportionFactor?: number;
+  nightProportionFactor?: number;
 }
 
 export interface TariffSimulationResult {
@@ -218,6 +226,7 @@ export interface TariffSimulationResult {
   adminSupervisionValue: number;
   subtotalBeforeTax: number;
   discountValue: number;
+  discountPct?: number;
   subtotalAfterDiscount: number;
   aiuBaseValue: number;
   ivaValue: number;
@@ -226,9 +235,12 @@ export interface TariffSimulationResult {
   totalWithTax: number;
   netCompanyToReceive: number;
   dailyRate: number;
+  multiplierUsed?: number;
+  promptPaymentDays?: number;
 }
 
 export interface SimulateSalaryInput {
+  tariffPeriodId?: string;
   smmlv?: number;
   transportAllowance?: number;
   statutoryWeeklyHours?: number;
@@ -401,6 +413,7 @@ export interface SystemUserSigner {
   document: string;
   position?: string;
   department?: string;
+  corporateTitle?: string;
   signatureUrl?: string;
   signatureMethod?: string;
   hasSignature: boolean;

@@ -33,6 +33,8 @@ import {
   ListItemButton,
   ListItemText,
   ButtonGroup,
+  FormControl,
+  Select,
 } from "@mui/material";
 import {
   Close as CloseIcon,
@@ -65,6 +67,7 @@ import {
   FitScreen,
   Draw,
   ContentCopy,
+  ReceiptLong,
   AddCircleOutline,
   ExpandMore,
   ExpandLess,
@@ -106,6 +109,7 @@ import {
   BenefitPeriodicity,
 } from "@/lib/api/commercial-proposals";
 import { useNotification } from "@/providers/NotificationProvider";
+import { HttpClient } from "@/lib/api/client";
 
 export interface CanvasProposalWorkspaceProps {
   initialProposal?: any;
@@ -115,10 +119,16 @@ export interface CanvasProposalWorkspaceProps {
 export interface LocalServicePosition {
   id: string;
   positionTitle: string;
+  targetPosition?: string;
   quantity: number;
   scheduleType: ShiftScheduleType;
   weaponModality: WeaponModality;
   tariffCategory: CommercialSector;
+  dailyTotalHours?: number;
+  dayHours?: number;
+  nightHours?: number;
+  billableDaysPerMonth?: number;
+  adminSupervisionPct?: number;
   unitMonthlyBilledPrice: number;
   unitMonthlyRealCost: number;
 }
@@ -178,6 +188,8 @@ const SYSTEM_VARIABLES = [
   { token: "propuesta_total_mensual", label: "Total Mensual COP", category: "Propuesta" },
   { token: "monto_en_letras", label: "Total Mensual en Letras", category: "Propuesta" },
   { token: "propuesta_meses", label: "Duración en Meses", category: "Propuesta" },
+  { token: "propuesta_dias_pronto_pago", label: "Días de Pronto Pago", category: "Propuesta" },
+  { token: "propuesta_descuento_pronto_pago", label: "% Descuento Pronto Pago", category: "Propuesta" },
   { token: "empresa_nombre", label: "Razón Social Empresa", category: "Empresa" },
   { token: "empresa_nit", label: "NIT Empresa", category: "Empresa" },
   { token: "empresa_licencia_svsp", label: "Resolución SVSP", category: "Empresa" },
@@ -215,27 +227,14 @@ export default function CanvasProposalWorkspace({
   const [clientCity, setClientCity] = useState("Bogotá D.C.");
   const [contractDurationMonths, setContractDurationMonths] = useState<number>(12);
   const [promptPaymentDiscount, setPromptPaymentDiscount] = useState<number>(0);
+  const [promptPaymentDays, setPromptPaymentDays] = useState<number>(10);
   const [proposalNumber, setProposalNumber] = useState(
     `PROP-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`
   );
 
-  // Notion-like Document Blocks (Lienzo en Blanco)
-  const [blocks, setBlocks] = useState<ProposalContentBlock[]>([
-    {
-      id: "block-intro",
-      type: "paragraph",
-      content:
-        "<p>Respetados señores, nos complace presentar a su consideración nuestra propuesta técnico-económica para la prestación integral de los servicios especializados de seguridad y vigilancia privada, dando estricto cumplimiento a la normatividad legal vigente y las directrices tarifarias de la Superintendencia de Vigilancia y Seguridad Privada.</p>",
-    },
-    {
-      id: "block-cl1",
-      type: "clause",
-      title: "CLÁUSULA PRIMERA: Objeto y Alcance Operativo",
-      content:
-        "<p>La empresa suministrará al cliente el personal operativo debidamente calificado, carnetizado y uniformado, respaldado por una estricta supervisión móvil y enlace permanente a nuestra central de operaciones 24/7.</p>",
-    },
-  ]);
-  const [activeBlockId, setActiveBlockId] = useState<string>("block-intro");
+  // Notion-like Document Blocks (Lienzo en Blanco: vacío al iniciar nueva propuesta)
+  const [blocks, setBlocks] = useState<ProposalContentBlock[]>([]);
+  const [activeBlockId, setActiveBlockId] = useState<string>("");
   const editorRefs = useRef<Record<string, any>>({});
 
   // Drag and Drop reordering state
@@ -248,25 +247,15 @@ export default function CanvasProposalWorkspace({
   const [canUndo, setCanUndo] = useState(false);
   const [canRedo, setCanRedo] = useState(false);
 
-  // Positions
-  const [servicePositions, setServicePositions] = useState<LocalServicePosition[]>([
-    {
-      id: "pos-1",
-      positionTitle: "Guarda de Seguridad 24 Horas",
-      quantity: 1,
-      scheduleType: ShiftScheduleType.SCHEDULE_2X2X2,
-      weaponModality: WeaponModality.LETHAL_WEAPON,
-      tariffCategory: CommercialSector.RESIDENTIAL_STRATA_4_6,
-      unitMonthlyBilledPrice: 17270787,
-      unitMonthlyRealCost: 11400000,
-    },
-  ]);
+  // Positions (vacío al iniciar nueva propuesta)
+  const [servicePositions, setServicePositions] = useState<LocalServicePosition[]>([]);
+  const [showServiceTable, setShowServiceTable] = useState<boolean>(false);
 
-  // Values Added (VAG)
+  // Values Added (VAG) (vacío y oculto al iniciar nueva propuesta)
   const [valueAddedItems, setValueAddedItems] = useState<LocalValueAddedItem[]>([]);
-  const [showVags, setShowVags] = useState(true);
+  const [showVags, setShowVags] = useState<boolean>(false);
 
-  // Signers & Signatures conmutable
+  // Signers & Signatures conmutable (oculto por defecto al iniciar nueva propuesta)
   const [selectedSignerIds, setSelectedSignerIds] = useState<string[]>([]);
   const [adHocSigners, setAdHocSigners] = useState<
     Array<{ id: string; fullName: string; jobTitle: string; documentNumber?: string }>
@@ -471,6 +460,13 @@ export default function CanvasProposalWorkspace({
         .map((s: AuthorizedSigner) => s.id);
       setSelectedSignerIds(defaultSigners);
 
+      if (settingsRes?.defaultPromptPaymentDays && !proposalId) {
+        setPromptPaymentDays(settingsRes.defaultPromptPaymentDays);
+      }
+      if (settingsRes?.defaultPromptPaymentDisc && !proposalId) {
+        setPromptPaymentDiscount(Number(settingsRes.defaultPromptPaymentDisc) * 100);
+      }
+
       // Hydrate if editing an existing proposal
       if (proposalId) {
         try {
@@ -487,6 +483,7 @@ export default function CanvasProposalWorkspace({
             }
             if (loaded.contractDurationMonths) setContractDurationMonths(loaded.contractDurationMonths);
             if (loaded.promptPaymentDiscPercent) setPromptPaymentDiscount(loaded.promptPaymentDiscPercent);
+            if (loaded.promptPaymentDays) setPromptPaymentDays(loaded.promptPaymentDays);
             if (loaded.draftSnapshotJson?.clauseBlocks?.length) {
               setBlocks(loaded.draftSnapshotJson.clauseBlocks);
               historyStackRef.current = [JSON.parse(JSON.stringify(loaded.draftSnapshotJson.clauseBlocks))];
@@ -495,7 +492,13 @@ export default function CanvasProposalWorkspace({
               setCanRedo(false);
             }
             if (loaded.draftSnapshotJson?.clientCity) setClientCity(loaded.draftSnapshotJson.clientCity);
-            if (loaded.draftSnapshotJson?.showSignatures !== undefined) setShowSignatures(loaded.draftSnapshotJson.showSignatures);
+            const hasLoadedPositions = Boolean(loaded.items && loaded.items.length > 0);
+            const hasLoadedVags = Boolean(loaded.valueAddedItems && loaded.valueAddedItems.length > 0);
+            setShowServiceTable(loaded.draftSnapshotJson?.showServiceTable ?? hasLoadedPositions);
+            setShowVags(loaded.draftSnapshotJson?.showVags ?? hasLoadedVags);
+            if (loaded.draftSnapshotJson?.showSignatures !== undefined) {
+              setShowSignatures(loaded.draftSnapshotJson.showSignatures);
+            }
             if (loaded.items?.length) {
               setServicePositions(
                 loaded.items.map((it: any, i: number) => ({
@@ -534,12 +537,45 @@ export default function CanvasProposalWorkspace({
           setCanUndo(false);
           setCanRedo(false);
         }
+        if (initialProposal.draftSnapshotJson?.showServiceTable !== undefined) {
+          setShowServiceTable(initialProposal.draftSnapshotJson.showServiceTable);
+        }
+        if (initialProposal.draftSnapshotJson?.showVags !== undefined) {
+          setShowVags(initialProposal.draftSnapshotJson.showVags);
+        }
+        if (initialProposal.draftSnapshotJson?.showSignatures !== undefined) {
+          setShowSignatures(initialProposal.draftSnapshotJson.showSignatures);
+        }
       } else {
         // Initial snapshot for undo stack
         historyStackRef.current = [JSON.parse(JSON.stringify(blocks))];
         historyIndexRef.current = 0;
         setCanUndo(false);
         setCanRedo(false);
+      }
+
+      // Check query param for clientId when creating a new proposal
+      if (!proposalId && typeof window !== "undefined") {
+        const urlParams = new URLSearchParams(window.location.search);
+        const qClientId = urlParams.get("clientId");
+        if (qClientId) {
+          try {
+            const clientRes = await HttpClient.get<any>(`/client/${qClientId}`);
+            if (clientRes) {
+              setSelectedClient({
+                id: clientRes.id,
+                name: clientRes.name,
+                nit: clientRes.nit,
+                isProspect: clientRes.clientStatus === "PROSPECT",
+              });
+              if (clientRes.city) {
+                setClientCity(clientRes.city);
+              }
+            }
+          } catch {
+            // Client not found or unauthorized
+          }
+        }
       }
     } catch {
       showError("Error al cargar la configuración comercial y tarifaria.");
@@ -550,37 +586,81 @@ export default function CanvasProposalWorkspace({
 
   // Salary Matrix & SVSP Tariff Calculation Helpers
   const findLaborCostFromSalaryMatrix = useCallback(
-    (title: string, schedule: ShiftScheduleType): number => {
+    (targetTitleOrId: string, schedule: ShiftScheduleType): number => {
       if (!salaryMatrix || salaryMatrix.length === 0) {
-        return schedule === ShiftScheduleType.SCHEDULE_5X2 ? 4000000 : 11400000;
+        return schedule === ShiftScheduleType.SCHEDULE_5X2 ? 4000000 : 9089346;
       }
-      const exact = salaryMatrix.find(
-        (m) =>
-          m.scheduleType === schedule &&
-          m.positionTitle.trim().toLowerCase() === title.trim().toLowerCase()
-      );
-      if (exact) return Number(exact.grossSalary) || 11400000;
+      const cleanTarget = (targetTitleOrId || "").trim().toLowerCase();
+      const exact =
+        salaryMatrix.find((m) => m.positionTitle.trim().toLowerCase() === cleanTarget) ||
+        salaryMatrix.find((m) => m.id === targetTitleOrId) ||
+        salaryMatrix.find((m) => m.scheduleType === schedule) ||
+        salaryMatrix[0];
 
-      const bySchedule = salaryMatrix.find((m) => m.scheduleType === schedule);
-      if (bySchedule) return Number(bySchedule.grossSalary) || 11400000;
-
-      return 11400000;
+      if (exact) {
+        const guards = Number(exact.guardsRequiredPerPost) || (schedule === ShiftScheduleType.SCHEDULE_5X2 ? 1.0 : 3.0);
+        return Math.round(Number(exact.grossSalary) * guards);
+      }
+      return 9089346;
     },
     [salaryMatrix]
   );
 
-  const calculateBilledPriceForService = useCallback(
-    (service: SecurityServiceCatalogItem): number => {
+  const calculateBilledPriceForPosition = useCallback(
+    (pos: Partial<LocalServicePosition>): number => {
       if (!activeTariffPeriod) return 17270787;
-      const smmlv = Number(activeTariffPeriod.smmlv) || 1423500;
-      const baseCost = smmlv * 8.8;
-      let multiplier = 1.0;
-      if (service.weaponModality === WeaponModality.LETHAL_WEAPON) multiplier += 0.1;
-      else if (service.weaponModality === WeaponModality.CANINE_SUPPORT) multiplier += 0.15;
-      const adminSupervision = 1 + (Number(service.adminSupervisionPct) || 0.1);
-      return Math.round(baseCost * multiplier * adminSupervision);
+      const smmlv = Number(activeTariffPeriod.smmlv) || 1750905;
+
+      // Determinar multiplicador sectorial de la vigencia activa
+      let sectorMultiplier = Number(activeTariffPeriod.commercialMultiplier) || 8.8;
+      if (pos.tariffCategory === CommercialSector.RESIDENTIAL_STRATA_4_6) {
+        sectorMultiplier = Number(activeTariffPeriod.strata46Multiplier) || 9.77;
+      } else if (pos.tariffCategory === CommercialSector.RESIDENTIAL_STRATA_1_3) {
+        sectorMultiplier = Number(activeTariffPeriod.strata13Multiplier) || 7.0;
+      }
+
+      const tariffBase24h = smmlv * sectorMultiplier;
+
+      // Horas de servicio y horas estatutarias
+      const dayHours = pos.dayHours !== undefined ? Number(pos.dayHours) : 15;
+      const nightHours = pos.nightHours !== undefined ? Number(pos.nightHours) : 9;
+      const totalHours = pos.dailyTotalHours !== undefined ? Number(pos.dailyTotalHours) : (dayHours + nightHours);
+
+      const statDay = Number(activeTariffPeriod.statutoryDayHours) || 13;
+      const statNight = Number(activeTariffPeriod.statutoryNightHours) || 11;
+      const dayProp = Number(activeTariffPeriod.dayProportionFactor) || 0.4759;
+      const nightProp = Number(activeTariffPeriod.nightProportionFactor) || 0.5241;
+
+      let directCost: number;
+      if (totalHours >= 24 && dayHours === statDay && nightHours === statNight) {
+        directCost = tariffBase24h;
+      } else if (totalHours >= 24) {
+        const dayRatio = statDay > 0 ? (dayHours / statDay) * dayProp : 0;
+        const nightRatio = statNight > 0 ? (nightHours / statNight) * nightProp : 0;
+        directCost = tariffBase24h * (dayRatio + nightRatio);
+      } else {
+        const dayRatio = statDay > 0 ? (dayHours / statDay) * dayProp : 0;
+        const nightRatio = statNight > 0 ? (nightHours / statNight) * nightProp : 0;
+        const hourlyProportion = dayRatio + nightRatio;
+        const daysRatio = (Number(pos.billableDaysPerMonth) || 30) / 30;
+        directCost = tariffBase24h * hourlyProportion * daysRatio;
+      }
+
+      // A&S oficial según modalidad de arma o porcentaje provisto
+      let adminPct = pos.adminSupervisionPct !== undefined ? Number(pos.adminSupervisionPct) : 0.10;
+      if (adminPct > 1) adminPct = adminPct / 100;
+
+      const subtotal = directCost * (1 + adminPct);
+      return Math.round(subtotal);
     },
     [activeTariffPeriod]
+  );
+
+  const calculateBilledPriceForService = useCallback(
+    (service: SecurityServiceCatalogItem): number => {
+      return calculateBilledPriceForPosition(service as any);
+    },
+    [calculateBilledPriceForPosition]
   );
 
   // Trigger P&L Simulation
@@ -682,7 +762,7 @@ export default function CanvasProposalWorkspace({
       .map((u) => ({
         id: u.id,
         fullName: u.fullName,
-        jobTitle: u.position || "Funcionario Autorizado",
+        jobTitle: u.position || u.corporateTitle || "Funcionario Autorizado",
         documentNumber: u.document,
         signatureUrl: u.signatureUrl,
       }));
@@ -719,11 +799,13 @@ export default function CanvasProposalWorkspace({
       };
     });
 
-    items.push({
-      id: "section_tariffs",
-      kind: "economic_tariffs",
-      height: 180 + servicePositions.length * 45,
-    });
+    if (showServiceTable) {
+      items.push({
+        id: "section_tariffs",
+        kind: "economic_tariffs",
+        height: 180 + servicePositions.length * 45,
+      });
+    }
 
     if (showVags) {
       items.push({
@@ -733,16 +815,16 @@ export default function CanvasProposalWorkspace({
       });
     }
 
-    if (showSignatures && allActiveSigners.length > 0) {
+    if (showSignatures) {
       items.push({
         id: "section_signatures",
         kind: "signatures",
-        height: 220,
+        height: allActiveSigners.length > 0 ? 110 : 65,
       });
     }
 
     return items;
-  }, [blocks, servicePositions, showVags, valueAddedItems, showSignatures, allActiveSigners]);
+  }, [blocks, showServiceTable, servicePositions, showVags, valueAddedItems, showSignatures, allActiveSigners]);
 
   // Paginated Pages Memo: Pack sequentially into discrete physical A4 sheets
   const paginatedPages = useMemo(() => {
@@ -813,10 +895,6 @@ export default function CanvasProposalWorkspace({
   };
 
   const handleRemoveBlock = (id: string) => {
-    if (blocks.length <= 1) {
-      showError("La cotización debe contener al menos un bloque de texto.");
-      return;
-    }
     const next = blocks.filter((b) => b.id !== id);
     setBlocks(next);
     pushToHistory(next);
@@ -932,39 +1010,56 @@ export default function CanvasProposalWorkspace({
   // Positions Handlers
   const handleAddPosition = () => {
     const defaultSchedule = ShiftScheduleType.SCHEDULE_2X2X2;
-    const defaultTitle = "Guarda de Seguridad 24 Horas";
-    const defaultLaborCost = findLaborCostFromSalaryMatrix(defaultTitle, defaultSchedule);
+    const defaultTarget = salaryMatrix[0]?.positionTitle || "Guarda Portero";
+    const defaultLaborCost = findLaborCostFromSalaryMatrix(defaultTarget, defaultSchedule);
 
-    const newPos: LocalServicePosition = {
+    const initialPos: LocalServicePosition = {
       id: `pos-${Date.now()}`,
-      positionTitle: defaultTitle,
+      positionTitle: "Servicio de Vigilancia 24 horas",
+      targetPosition: defaultTarget,
       quantity: 1,
       scheduleType: defaultSchedule,
       weaponModality: WeaponModality.LETHAL_WEAPON,
-      tariffCategory: CommercialSector.RESIDENTIAL_STRATA_4_6,
-      unitMonthlyBilledPrice: 17270787,
+      tariffCategory: CommercialSector.COMMERCIAL_PUBLIC,
+      dailyTotalHours: 24,
+      dayHours: 15,
+      nightHours: 9,
+      billableDaysPerMonth: 30,
+      adminSupervisionPct: 0.10,
+      unitMonthlyBilledPrice: 0,
       unitMonthlyRealCost: defaultLaborCost,
     };
-    setServicePositions((prev) => [...prev, newPos]);
+    initialPos.unitMonthlyBilledPrice = calculateBilledPriceForPosition(initialPos);
+
+    setServicePositions((prev) => [...prev, initialPos]);
+    setShowServiceTable(true);
     setDrawerTab("positions");
   };
 
   const handleSelectFromCatalog = (service: SecurityServiceCatalogItem) => {
-    const billedPrice = calculateBilledPriceForService(service);
-    const laborCost = findLaborCostFromSalaryMatrix(service.name, service.scheduleType);
+    const target = service.targetPosition || service.name;
+    const laborCost = findLaborCostFromSalaryMatrix(target, service.scheduleType);
 
     const newPos: LocalServicePosition = {
       id: `pos-${Date.now()}`,
       positionTitle: service.name,
+      targetPosition: service.targetPosition || "Guarda Portero",
       quantity: 1,
       scheduleType: service.scheduleType,
       weaponModality: service.weaponModality,
       tariffCategory: service.sector,
-      unitMonthlyBilledPrice: billedPrice,
+      dailyTotalHours: Number(service.dailyTotalHours) || 24,
+      dayHours: Number(service.dayHours) || 15,
+      nightHours: Number(service.nightHours) || 9,
+      billableDaysPerMonth: Number(service.billableDaysPerMonth) || 30,
+      adminSupervisionPct: Number(service.adminSupervisionPct) || 0.10,
+      unitMonthlyBilledPrice: 0,
       unitMonthlyRealCost: laborCost,
     };
+    newPos.unitMonthlyBilledPrice = calculateBilledPriceForPosition(newPos);
 
     setServicePositions((prev) => [...prev, newPos]);
+    setShowServiceTable(true);
   };
 
   const handleUpdatePosition = (id: string, field: keyof LocalServicePosition, value: any) => {
@@ -972,20 +1067,34 @@ export default function CanvasProposalWorkspace({
       prev.map((item) => {
         if (item.id !== id) return item;
         const updated = { ...item, [field]: value };
-        if (field === "scheduleType") {
-          const matchedCost = findLaborCostFromSalaryMatrix(updated.positionTitle, value as ShiftScheduleType);
-          updated.unitMonthlyRealCost = matchedCost;
+
+        // Si cambia el cargo objetivo o turno, recalcular costo de nómina del puesto
+        if (field === "targetPosition" || field === "scheduleType") {
+          updated.unitMonthlyRealCost = findLaborCostFromSalaryMatrix(
+            updated.targetPosition || "",
+            updated.scheduleType
+          );
         }
+
+        // Si cambian variables tarifarias (horas, modalidad, sector, A&S), recalcular tarifa facturada
+        if (
+          field === "tariffCategory" ||
+          field === "weaponModality" ||
+          field === "dailyTotalHours" ||
+          field === "dayHours" ||
+          field === "nightHours" ||
+          field === "billableDaysPerMonth" ||
+          field === "adminSupervisionPct"
+        ) {
+          updated.unitMonthlyBilledPrice = calculateBilledPriceForPosition(updated);
+        }
+
         return updated;
       })
     );
   };
 
   const handleRemovePosition = (id: string) => {
-    if (servicePositions.length === 1) {
-      showError("Debe mantener al menos una posición en la propuesta.");
-      return;
-    }
     setServicePositions((prev) => prev.filter((p) => p.id !== id));
   };
 
@@ -1034,12 +1143,6 @@ export default function CanvasProposalWorkspace({
       setDrawerTab("client");
       return;
     }
-    if (servicePositions.length === 0) {
-      showError("La propuesta debe contener al menos un puesto de seguridad.");
-      setDrawerTab("positions");
-      return;
-    }
-
     setSaving(true);
     try {
       const payloadItems: ProposalServiceItemPayload[] = servicePositions.map((pos, idx) => ({
@@ -1069,12 +1172,13 @@ export default function CanvasProposalWorkspace({
         )
         .join("\n");
 
-      await commercialProposalsApi.createProposal({
+      const proposalPayload = {
         clientId: selectedClient.id,
         tariffPeriodId: tariffPeriodId || "tariff-default",
-        contractType: "NEW_CONTRACT",
+        contractType: "NEW_CONTRACT" as const,
         contractDurationMonths: Number(contractDurationMonths) || 12,
         promptPaymentDiscPercent: Number(promptPaymentDiscount) || 0,
+        promptPaymentDays: Number(promptPaymentDays) || 10,
         items: payloadItems,
         valueAddedItems: payloadVags,
         draftSnapshotJson: {
@@ -1083,16 +1187,21 @@ export default function CanvasProposalWorkspace({
           selectedSignerIds,
           selectedSystemUserIds,
           adHocSigners,
+          showServiceTable,
+          showVags,
           showSignatures,
           headerLayout: DocumentHeaderLayout.MODERN_MINIMALIST,
           clientCity,
         },
-      });
+      };
 
-      // Clear draft backup
-      localStorage.removeItem(`noxia_proposal_draft_${proposalId || "new"}`);
-
-      showSuccess(`¡Propuesta comercial emitida exitosamente con folio correlativo ${proposalNumber}!`);
+      if (proposalId) {
+        await commercialProposalsApi.updateProposal(proposalId, proposalPayload);
+        showSuccess(`¡Propuesta comercial ${proposalNumber} actualizada exitosamente!`);
+      } else {
+        await commercialProposalsApi.createProposal(proposalPayload);
+        showSuccess(`¡Propuesta comercial emitida exitosamente con folio correlativo ${proposalNumber}!`);
+      }
       router.push("/commercial/proposals");
     } catch (err: any) {
       showError(err.message || "Error al emitir y persistir la propuesta comercial.");
@@ -1415,17 +1524,21 @@ export default function CanvasProposalWorkspace({
             onClose={() => setViewMenuAnchor(null)}
             slotProps={{ paper: { sx: { borderRadius: 2, minWidth: 220, bgcolor: "#1E293B", color: "#F8FAFC" } } }}
           >
-            <MenuItem onClick={() => setShowSignatures((prev) => !prev)}>
-              {showSignatures ? <Visibility sx={{ fontSize: 16, mr: 1.5, color: "#10B981" }} /> : <VisibilityOff sx={{ fontSize: 16, mr: 1.5, color: "#94A3B8" }} />}
-              {showSignatures ? "Ocultar Bloque de Firmas" : "Mostrar Bloque de Firmas"}
+            <MenuItem onClick={() => setShowServiceTable((prev) => !prev)}>
+              {showServiceTable ? <Visibility sx={{ fontSize: 16, mr: 1.5, color: "#10B981" }} /> : <VisibilityOff sx={{ fontSize: 16, mr: 1.5, color: "#94A3B8" }} />}
+              {showServiceTable ? "Ocultar Tabla de Cotización" : "Mostrar Tabla de Cotización"}
             </MenuItem>
             <MenuItem onClick={() => setShowVags((prev) => !prev)}>
               {showVags ? <Visibility sx={{ fontSize: 16, mr: 1.5, color: "#10B981" }} /> : <VisibilityOff sx={{ fontSize: 16, mr: 1.5, color: "#94A3B8" }} />}
               {showVags ? "Ocultar Valores Agregados (VAG)" : "Mostrar Valores Agregados (VAG)"}
             </MenuItem>
+            <MenuItem onClick={() => setShowSignatures((prev) => !prev)}>
+              {showSignatures ? <Visibility sx={{ fontSize: 16, mr: 1.5, color: "#10B981" }} /> : <VisibilityOff sx={{ fontSize: 16, mr: 1.5, color: "#94A3B8" }} />}
+              {showSignatures ? "Ocultar Bloque de Firmas" : "Mostrar Bloque de Firmas"}
+            </MenuItem>
             <MenuItem onClick={() => { setViewMenuAnchor(null); setDrawerTab("pnl"); }}>
               <Calculate sx={{ fontSize: 16, mr: 1.5, color: "#818CF8" }} />
-              Análisis Financiero P&L
+              Análisis Financiero G&P
             </MenuItem>
           </Menu>
         </Stack>
@@ -1443,7 +1556,7 @@ export default function CanvasProposalWorkspace({
                   <Block fontSize="small" sx={{ color: "#EF4444 !important" }} />
                 )
               }
-              label={`P&L: ${pnlResult.netMarginPercentage.toFixed(1)}% (${
+              label={`G&P: ${pnlResult.netMarginPercentage.toFixed(1)}% (${
                 pnlResult.pnlStatus === "PROFITABLE" ? "Rentable" : pnlResult.pnlStatus === "WARNING_LOW_MARGIN" ? "Ajustado" : "Déficit"
               })`}
               size="small"
@@ -1492,7 +1605,7 @@ export default function CanvasProposalWorkspace({
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          px: { xs: 1.25, sm: 2 },
+          px: { xs: 1, sm: 2 },
           position: "sticky",
           top: 38,
           zIndex: 90,
@@ -1501,11 +1614,8 @@ export default function CanvasProposalWorkspace({
           maxWidth: "100%",
           minWidth: 0,
           boxSizing: "border-box",
-          overflowX: "auto",
-          gap: { xs: 1, sm: 1.5 },
-          scrollbarWidth: "thin",
-          "&::-webkit-scrollbar": { height: "3px" },
-          "&::-webkit-scrollbar-thumb": { bgcolor: "#CBD5E1", borderRadius: "3px" },
+          overflow: "hidden",
+          gap: { xs: 0.75, sm: 1.5 },
         }}
       >
         {/* Left: Insertion Tools Styled as a Sleek Segmented Control */}
@@ -1569,6 +1679,116 @@ export default function CanvasProposalWorkspace({
 
           <Button
             size="small"
+            variant={showServiceTable ? "contained" : "text"}
+            startIcon={<ReceiptLong sx={{ fontSize: 16, color: showServiceTable ? "#FFFFFF" : "#0284C7" }} />}
+            onClick={() => {
+              setShowServiceTable((prev) => {
+                const next = !prev;
+                if (next && servicePositions.length === 0) {
+                  setDrawerTab("positions");
+                }
+                return next;
+              });
+            }}
+            sx={{
+              fontWeight: 700,
+              fontSize: "0.78rem",
+              color: showServiceTable ? "#FFFFFF" : "#334155",
+              bgcolor: showServiceTable ? "#0284C7" : "transparent",
+              textTransform: "none",
+              borderRadius: "6px",
+              px: { xs: 0.75, sm: 1.25 },
+              py: 0.4,
+              whiteSpace: "nowrap",
+              transition: "all 0.15s ease",
+              "&:hover": {
+                bgcolor: showServiceTable ? "#0369A1" : "#FFFFFF",
+                color: showServiceTable ? "#FFFFFF" : "#0F172A",
+                boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
+                transform: "translateY(-1px)",
+              },
+              "&:active": { transform: "scale(0.96)" },
+            }}
+          >
+            + Tabla Cotización
+          </Button>
+
+          <Button
+            size="small"
+            variant={showVags ? "contained" : "text"}
+            startIcon={<CardGiftcard sx={{ fontSize: 16, color: showVags ? "#FFFFFF" : "#059669" }} />}
+            onClick={() => {
+              setShowVags((prev) => {
+                const next = !prev;
+                if (next && valueAddedItems.length === 0) {
+                  setDrawerTab("vags");
+                }
+                return next;
+              });
+            }}
+            sx={{
+              fontWeight: 700,
+              fontSize: "0.78rem",
+              color: showVags ? "#FFFFFF" : "#334155",
+              bgcolor: showVags ? "#059669" : "transparent",
+              textTransform: "none",
+              borderRadius: "6px",
+              px: { xs: 0.75, sm: 1.25 },
+              py: 0.4,
+              whiteSpace: "nowrap",
+              transition: "all 0.15s ease",
+              "&:hover": {
+                bgcolor: showVags ? "#047857" : "#FFFFFF",
+                color: showVags ? "#FFFFFF" : "#0F172A",
+                boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
+                transform: "translateY(-1px)",
+              },
+              "&:active": { transform: "scale(0.96)" },
+            }}
+          >
+            + VAG
+          </Button>
+
+          <Button
+            size="small"
+            variant={showSignatures ? "contained" : "text"}
+            startIcon={<Draw sx={{ fontSize: 16, color: showSignatures ? "#FFFFFF" : "#7C3AED" }} />}
+            onClick={() => {
+              setShowSignatures((prev) => {
+                const next = !prev;
+                if (next && allActiveSigners.length === 0) {
+                  setDrawerTab("signers");
+                }
+                return next;
+              });
+            }}
+            sx={{
+              fontWeight: 700,
+              fontSize: "0.78rem",
+              color: showSignatures ? "#FFFFFF" : "#334155",
+              bgcolor: showSignatures ? "#7C3AED" : "transparent",
+              textTransform: "none",
+              borderRadius: "6px",
+              px: { xs: 0.75, sm: 1.25 },
+              py: 0.4,
+              whiteSpace: "nowrap",
+              transition: "all 0.15s ease",
+              "&:hover": {
+                bgcolor: showSignatures ? "#6D28D9" : "#FFFFFF",
+                color: showSignatures ? "#FFFFFF" : "#0F172A",
+                boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
+                transform: "translateY(-1px)",
+              },
+              "&:active": { transform: "scale(0.96)" },
+            }}
+          >
+            + Firmas
+          </Button>
+
+          <Divider orientation="vertical" flexItem sx={{ mx: 0.5, my: 0.5, borderColor: "#CBD5E1" }} />
+
+          <Button
+            size="small"
             variant="text"
             startIcon={<AlternateEmail sx={{ fontSize: 16, color: "#7C3AED" }} />}
             onClick={() => setDrawerTab("variables")}
@@ -1614,7 +1834,7 @@ export default function CanvasProposalWorkspace({
           </Button>
         </Box>
 
-        {/* Center: Context Indicators & Drawer Triggers */}
+        {/* Center: Context Indicators & Unified Metric Badges */}
         <Stack
           direction="row"
           spacing={1}
@@ -1622,136 +1842,160 @@ export default function CanvasProposalWorkspace({
           sx={{
             minWidth: 0,
             flexShrink: 1,
-            overflowX: "auto",
-            scrollbarWidth: "none",
-            "&::-webkit-scrollbar": { display: "none" },
           }}
         >
-          <Chip
-            icon={<PersonAdd sx={{ fontSize: "15px !important", color: selectedClient ? "#4338CA !important" : "#64748B !important" }} />}
-            label={selectedClient ? selectedClient.name : "Seleccionar Destinatario"}
-            color={selectedClient ? "primary" : "default"}
-            variant={selectedClient ? "filled" : "outlined"}
-            size="small"
-            onClick={() => setDrawerTab("client")}
-            sx={{
-              fontWeight: 700,
-              fontSize: "0.76rem",
-              cursor: "pointer",
-              maxWidth: { xs: 120, sm: 150, md: 180, xl: 220 },
-              borderRadius: "6px",
-              height: 28,
-              flexShrink: 0,
-              transition: "all 0.15s ease",
-              "& .MuiChip-label": { overflow: "hidden", textOverflow: "ellipsis" },
-              "&:hover": { boxShadow: "0 2px 6px rgba(0,0,0,0.08)", transform: "translateY(-1px)" },
-              "&:active": { transform: "scale(0.96)" },
-            }}
-          />
-          <Chip
-            icon={<Security sx={{ fontSize: "14px !important", color: "#475569 !important" }} />}
-            label={`${servicePositions.length} Puesto${servicePositions.length === 1 ? "" : "s"} SVSP`}
-            size="small"
+          <Tooltip title={selectedClient ? `${selectedClient.name} • ${selectedClient.nit}` : "Seleccionar Destinatario"}>
+            <Chip
+              icon={<PersonAdd sx={{ fontSize: "14px !important", color: selectedClient ? "#4338CA !important" : "#64748B !important" }} />}
+              label={selectedClient ? selectedClient.name : "Destinatario"}
+              color={selectedClient ? "primary" : "default"}
+              variant={selectedClient ? "filled" : "outlined"}
+              size="small"
+              onClick={() => setDrawerTab("client")}
+              sx={{
+                fontWeight: 700,
+                fontSize: "0.75rem",
+                cursor: "pointer",
+                maxWidth: { xs: 110, sm: 140, md: 170, xl: 210 },
+                borderRadius: "6px",
+                height: 28,
+                flexShrink: 0,
+                transition: "all 0.15s ease",
+                "& .MuiChip-label": { overflow: "hidden", textOverflow: "ellipsis", px: 1 },
+                "&:hover": { boxShadow: "0 2px 6px rgba(0,0,0,0.08)", transform: "translateY(-1px)" },
+                "&:active": { transform: "scale(0.96)" },
+              }}
+            />
+          </Tooltip>
+
+          {/* Unified Metrics Pill */}
+          <Paper
             variant="outlined"
-            onClick={() => setDrawerTab("positions")}
             sx={{
-              fontWeight: 700,
-              fontSize: "0.76rem",
-              cursor: "pointer",
+              display: "inline-flex",
+              alignItems: "center",
               borderRadius: "6px",
-              height: 28,
-              flexShrink: 0,
               borderColor: "#CBD5E1",
               bgcolor: "#F8FAFC",
-              transition: "all 0.15s ease",
-              "&:hover": { bgcolor: "#FFFFFF", borderColor: "#94A3B8", boxShadow: "0 2px 6px rgba(0,0,0,0.06)", transform: "translateY(-1px)" },
-              "&:active": { transform: "scale(0.96)" },
-            }}
-          />
-          <Chip
-            icon={<CardGiftcard sx={{ fontSize: "14px !important", color: "#475569 !important" }} />}
-            label={`${valueAddedItems.length} Beneficio${valueAddedItems.length === 1 ? "" : "s"} VAG`}
-            size="small"
-            variant="outlined"
-            onClick={() => setDrawerTab("vags")}
-            sx={{
-              fontWeight: 700,
-              fontSize: "0.76rem",
-              cursor: "pointer",
-              borderRadius: "6px",
+              p: "2px 4px",
               height: 28,
               flexShrink: 0,
-              borderColor: "#CBD5E1",
-              bgcolor: "#F8FAFC",
-              transition: "all 0.15s ease",
-              "&:hover": { bgcolor: "#FFFFFF", borderColor: "#94A3B8", boxShadow: "0 2px 6px rgba(0,0,0,0.06)", transform: "translateY(-1px)" },
-              "&:active": { transform: "scale(0.96)" },
+              gap: 0.5,
             }}
-          />
-          <Chip
-            icon={<Draw sx={{ fontSize: "14px !important", color: "#475569 !important" }} />}
-            label={`${allActiveSigners.length} Firmante${allActiveSigners.length === 1 ? "" : "s"}`}
-            size="small"
-            variant="outlined"
-            onClick={() => setDrawerTab("signers")}
-            sx={{
-              fontWeight: 700,
-              fontSize: "0.76rem",
-              cursor: "pointer",
-              borderRadius: "6px",
-              height: 28,
-              flexShrink: 0,
-              borderColor: "#CBD5E1",
-              bgcolor: "#F8FAFC",
-              transition: "all 0.15s ease",
-              "&:hover": { bgcolor: "#FFFFFF", borderColor: "#94A3B8", boxShadow: "0 2px 6px rgba(0,0,0,0.06)", transform: "translateY(-1px)" },
-              "&:active": { transform: "scale(0.96)" },
-            }}
-          />
+          >
+            <Tooltip title={`${servicePositions.length} Puesto(s) SVSP cotizados (Clic para editar)`}>
+              <Button
+                size="small"
+                onClick={() => setDrawerTab("positions")}
+                startIcon={<Security sx={{ fontSize: 13, color: "#0284C7" }} />}
+                sx={{
+                  minWidth: "auto",
+                  px: 0.75,
+                  py: 0.2,
+                  fontSize: "0.74rem",
+                  fontWeight: 700,
+                  color: "#334155",
+                  textTransform: "none",
+                  borderRadius: "4px",
+                  "&:hover": { bgcolor: "#E2E8F0" },
+                }}
+              >
+                {servicePositions.length} <Box component="span" sx={{ display: { xs: "none", xl: "inline" }, ml: 0.5 }}>Puestos</Box>
+              </Button>
+            </Tooltip>
+
+            <Divider orientation="vertical" flexItem sx={{ my: 0.5, borderColor: "#CBD5E1" }} />
+
+            <Tooltip title={`${valueAddedItems.length} Beneficio(s) VAG agregados (Clic para editar)`}>
+              <Button
+                size="small"
+                onClick={() => setDrawerTab("vags")}
+                startIcon={<CardGiftcard sx={{ fontSize: 13, color: "#059669" }} />}
+                sx={{
+                  minWidth: "auto",
+                  px: 0.75,
+                  py: 0.2,
+                  fontSize: "0.74rem",
+                  fontWeight: 700,
+                  color: "#334155",
+                  textTransform: "none",
+                  borderRadius: "4px",
+                  "&:hover": { bgcolor: "#E2E8F0" },
+                }}
+              >
+                {valueAddedItems.length} <Box component="span" sx={{ display: { xs: "none", xl: "inline" }, ml: 0.5 }}>VAG</Box>
+              </Button>
+            </Tooltip>
+
+            <Divider orientation="vertical" flexItem sx={{ my: 0.5, borderColor: "#CBD5E1" }} />
+
+            <Tooltip title={`${allActiveSigners.length} Firmante(s) asignados (Clic para editar)`}>
+              <Button
+                size="small"
+                onClick={() => setDrawerTab("signers")}
+                startIcon={<Draw sx={{ fontSize: 13, color: "#7C3AED" }} />}
+                sx={{
+                  minWidth: "auto",
+                  px: 0.75,
+                  py: 0.2,
+                  fontSize: "0.74rem",
+                  fontWeight: 700,
+                  color: "#334155",
+                  textTransform: "none",
+                  borderRadius: "4px",
+                  "&:hover": { bgcolor: "#E2E8F0" },
+                }}
+              >
+                {allActiveSigners.length} <Box component="span" sx={{ display: { xs: "none", xl: "inline" }, ml: 0.5 }}>Firmas</Box>
+              </Button>
+            </Tooltip>
+          </Paper>
         </Stack>
 
         {/* Right: Primary Action Button & Zoom Controller */}
         <Stack direction="row" spacing={1} alignItems="center" sx={{ flexShrink: 0, ml: "auto" }}>
-          {/* Zoom Controller */}
-          <Box
+          {/* Zoom Controller (Granular en pasos de 20%) */}
+          <FormControl
+            size="small"
             sx={{
-              display: { xs: "none", lg: "inline-flex" },
-              alignItems: "center",
-              bgcolor: "#F1F5F9",
-              p: "2px",
-              borderRadius: "6px",
-              border: "1px solid #E2E8F0",
+              display: { xs: "none", md: "inline-flex" },
+              minWidth: 86,
               flexShrink: 0,
             }}
           >
-            {[
-              { val: 0.75, lbl: "75%" },
-              { val: 0.9, lbl: "90%" },
-              { val: 1.0, lbl: "100%" },
-            ].map((z) => (
-              <Button
-                key={z.val}
-                size="small"
-                onClick={() => setZoomLevel(z.val)}
-                sx={{
-                  minWidth: 36,
-                  px: 0.6,
-                  py: 0.2,
-                  fontSize: "0.72rem",
-                  fontWeight: zoomLevel === z.val ? 800 : 600,
-                  color: zoomLevel === z.val ? "#0F172A" : "#64748B",
-                  bgcolor: zoomLevel === z.val ? "#FFFFFF" : "transparent",
-                  boxShadow: zoomLevel === z.val ? "0 1px 3px rgba(0,0,0,0.1)" : "none",
-                  borderRadius: "4px",
-                  textTransform: "none",
-                  transition: "all 0.15s ease",
-                  "&:hover": { color: "#0F172A" },
-                }}
-              >
-                {z.lbl}
-              </Button>
-            ))}
-          </Box>
+            <Select
+              value={zoomLevel}
+              onChange={(e) => setZoomLevel(Number(e.target.value))}
+              size="small"
+              sx={{
+                height: 28,
+                fontSize: "0.74rem",
+                fontWeight: 700,
+                color: "#1E293B",
+                bgcolor: "#F8FAFC",
+                borderRadius: "6px",
+                "& .MuiOutlinedInput-notchedOutline": {
+                  borderColor: "#CBD5E1",
+                },
+                "&:hover .MuiOutlinedInput-notchedOutline": {
+                  borderColor: "#94A3B8",
+                },
+                "& .MuiSelect-select": {
+                  py: 0.3,
+                  px: 1,
+                  display: "flex",
+                  alignItems: "center",
+                },
+              }}
+            >
+              <MenuItem value={0.6} sx={{ fontSize: "0.75rem", fontWeight: 600 }}>60%</MenuItem>
+              <MenuItem value={0.8} sx={{ fontSize: "0.75rem", fontWeight: 600 }}>80%</MenuItem>
+              <MenuItem value={1.0} sx={{ fontSize: "0.75rem", fontWeight: 700 }}>100%</MenuItem>
+              <MenuItem value={1.2} sx={{ fontSize: "0.75rem", fontWeight: 600 }}>120%</MenuItem>
+              <MenuItem value={1.4} sx={{ fontSize: "0.75rem", fontWeight: 600 }}>140%</MenuItem>
+              <MenuItem value={1.6} sx={{ fontSize: "0.75rem", fontWeight: 600 }}>160%</MenuItem>
+            </Select>
+          </FormControl>
 
           <Button
             size="small"
@@ -1805,10 +2049,14 @@ export default function CanvasProposalWorkspace({
             }}
           >
             <Box component="span" sx={{ display: { xs: "none", sm: "inline" } }}>
-              {saving ? "Emitiendo..." : "Guardar y Emitir Cotización"}
+              {saving
+                ? "Guardando..."
+                : proposalId
+                ? "Guardar Cambios"
+                : "Guardar y Emitir Cotización"}
             </Box>
             <Box component="span" sx={{ display: { xs: "inline", sm: "none" } }}>
-              {saving ? "Emitiendo..." : "Guardar"}
+              {saving ? "Guardando..." : "Guardar"}
             </Box>
           </Button>
         </Stack>
@@ -1960,83 +2208,115 @@ export default function CanvasProposalWorkspace({
                 <Box sx={{ mb: 3, position: "relative", "&:hover .edit-pos-btn": { opacity: 1 } }}>
                   <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1 }}>
                     <Typography variant="subtitle2" sx={{ fontWeight: 800, color: "#0F172A", textTransform: "uppercase", fontSize: "0.82rem", letterSpacing: "0.02em" }}>
-                      Estructura Económica y Tarifas Mensuales (Decreto Ley SVSP 2026)
+                      Estructura Económica y Tarifas Mensuales
                     </Typography>
-                    <Button
-                      className="edit-pos-btn"
-                      size="small"
-                      variant="outlined"
-                      startIcon={<EditOutlined fontSize="small" />}
-                      onClick={() => setDrawerTab("positions")}
-                      sx={{
-                        opacity: 0,
-                        transition: "opacity 0.2s ease-in-out",
-                        textTransform: "none",
-                        fontWeight: 700,
-                        fontSize: "0.7rem",
-                      }}
-                    >
-                      Editar Puestos y Turnos
-                    </Button>
+                    <Stack direction="row" spacing={1} className="edit-pos-btn" sx={{ opacity: 0, transition: "opacity 0.2s ease-in-out" }}>
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        startIcon={<EditOutlined fontSize="small" />}
+                        onClick={() => setDrawerTab("positions")}
+                        sx={{
+                          textTransform: "none",
+                          fontWeight: 700,
+                          fontSize: "0.7rem",
+                        }}
+                      >
+                        Editar Puestos y Turnos
+                      </Button>
+                      <Button
+                        size="small"
+                        variant="text"
+                        onClick={() => setShowServiceTable(false)}
+                        sx={{
+                          textTransform: "none",
+                          fontSize: "0.68rem",
+                          color: "#94A3B8",
+                          py: 0,
+                          minHeight: 0,
+                          "&:hover": { color: "#EF4444" },
+                        }}
+                      >
+                        Ocultar Tabla
+                      </Button>
+                    </Stack>
                   </Box>
 
-                  <Box sx={{ border: "1px solid #E2E8F0", borderRadius: "4px", overflow: "hidden" }}>
-                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.78rem" }}>
-                      <thead>
-                        <tr style={{ backgroundColor: "#0F172A", color: "#FFFFFF", textAlign: "left" }}>
-                          <th style={{ padding: "6px 10px", fontWeight: 700 }}>Servicio / Cargo</th>
-                          <th style={{ padding: "6px 10px", fontWeight: 700 }}>Modalidad</th>
-                          <th style={{ padding: "6px 10px", fontWeight: 700 }}>Programación Turno</th>
-                          <th style={{ padding: "6px 10px", fontWeight: 700, textAlign: "center" }}>Puestos</th>
-                          <th style={{ padding: "6px 10px", fontWeight: 700, textAlign: "right" }}>Tarifa Mes (COP)</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {servicePositions.map((pos, idx) => (
-                          <tr key={pos.id} style={{ borderBottom: "1px solid #F1F5F9", backgroundColor: idx % 2 === 0 ? "#FFFFFF" : "#F8FAFC" }}>
-                            <td style={{ padding: "6px 10px", fontWeight: 600, color: "#1E293B" }}>{pos.positionTitle}</td>
-                            <td style={{ padding: "6px 10px", color: "#475569" }}>
-                              {MODALITY_OPTIONS.find((m) => m.value === pos.weaponModality)?.label || pos.weaponModality}
+                  {servicePositions.length === 0 ? (
+                    <Box
+                      onClick={() => setDrawerTab("positions")}
+                      sx={{
+                        p: 2,
+                        border: "1px dashed #CBD5E1",
+                        borderRadius: "4px",
+                        textAlign: "center",
+                        cursor: "pointer",
+                        "&:hover": { borderColor: "#6366F1", bgcolor: "rgba(99, 102, 241, 0.02)" },
+                      }}
+                    >
+                      <Typography variant="caption" sx={{ color: "#64748B", fontWeight: 600, fontSize: "0.75rem" }}>
+                        No hay puestos de vigilancia configurados. Haga clic aquí para añadir servicios y turnos.
+                      </Typography>
+                    </Box>
+                  ) : (
+                    <Box sx={{ border: "1px solid #E2E8F0", borderRadius: "4px", overflow: "hidden" }}>
+                      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.78rem" }}>
+                        <thead>
+                          <tr style={{ backgroundColor: "#0F172A", color: "#FFFFFF", textAlign: "left" }}>
+                            <th style={{ padding: "6px 10px", fontWeight: 700 }}>Servicio / Cargo</th>
+                            <th style={{ padding: "6px 10px", fontWeight: 700 }}>Modalidad</th>
+                            <th style={{ padding: "6px 10px", fontWeight: 700 }}>Programación Turno</th>
+                            <th style={{ padding: "6px 10px", fontWeight: 700, textAlign: "center" }}>Puestos</th>
+                            <th style={{ padding: "6px 10px", fontWeight: 700, textAlign: "right" }}>Tarifa Mes (COP)</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {servicePositions.map((pos, idx) => (
+                            <tr key={pos.id} style={{ borderBottom: "1px solid #F1F5F9", backgroundColor: idx % 2 === 0 ? "#FFFFFF" : "#F8FAFC" }}>
+                              <td style={{ padding: "6px 10px", fontWeight: 600, color: "#1E293B" }}>{pos.positionTitle}</td>
+                              <td style={{ padding: "6px 10px", color: "#475569" }}>
+                                {MODALITY_OPTIONS.find((m) => m.value === pos.weaponModality)?.label || pos.weaponModality}
+                              </td>
+                              <td style={{ padding: "6px 10px", color: "#475569" }}>
+                                {SHIFT_OPTIONS.find((s) => s.value === pos.scheduleType)?.label || pos.scheduleType}
+                              </td>
+                              <td style={{ padding: "6px 10px", textAlign: "center", fontWeight: 700 }}>{pos.quantity}</td>
+                              <td style={{ padding: "6px 10px", textAlign: "right", fontWeight: 700, color: "#0F172A" }}>
+                                $ {((Number(pos.unitMonthlyBilledPrice) || 0) * (Number(pos.quantity) || 1)).toLocaleString("es-CO")}
+                              </td>
+                            </tr>
+                          ))}
+                          {/* Subtotal */}
+                          <tr style={{ backgroundColor: "#F8FAFC", borderTop: "1.5px solid #E2E8F0" }}>
+                            <td colSpan={4} style={{ padding: "6px 10px", textAlign: "right", fontWeight: 700, color: "#475569" }}>
+                              Subtotal Antes de Impuestos:
                             </td>
-                            <td style={{ padding: "6px 10px", color: "#475569" }}>
-                              {SHIFT_OPTIONS.find((s) => s.value === pos.scheduleType)?.label || pos.scheduleType}
-                            </td>
-                            <td style={{ padding: "6px 10px", textAlign: "center", fontWeight: 700 }}>{pos.quantity}</td>
-                            <td style={{ padding: "6px 10px", textAlign: "right", fontWeight: 700, color: "#0F172A" }}>
-                              $ {((Number(pos.unitMonthlyBilledPrice) || 0) * (Number(pos.quantity) || 1)).toLocaleString("es-CO")}
+                            <td style={{ padding: "6px 10px", textAlign: "right", fontWeight: 700 }}>
+                              $ {financialSummary.subtotal.toLocaleString("es-CO")}
                             </td>
                           </tr>
-                        ))}
-                        {/* Subtotal */}
-                        <tr style={{ backgroundColor: "#F8FAFC", borderTop: "1.5px solid #E2E8F0" }}>
-                          <td colSpan={4} style={{ padding: "6px 10px", textAlign: "right", fontWeight: 700, color: "#475569" }}>
-                            Subtotal Antes de Impuestos:
-                          </td>
-                          <td style={{ padding: "6px 10px", textAlign: "right", fontWeight: 700 }}>
-                            $ {financialSummary.subtotal.toLocaleString("es-CO")}
-                          </td>
-                        </tr>
-                        {/* IVA sobre AIU */}
-                        <tr style={{ backgroundColor: "#F8FAFC" }}>
-                          <td colSpan={4} style={{ padding: "5px 10px", textAlign: "right", fontSize: "0.72rem", color: "#64748B" }}>
-                            IVA sobre AIU (19% sobre base AIU 10%):
-                          </td>
-                          <td style={{ padding: "5px 10px", textAlign: "right", fontSize: "0.75rem", color: "#475569" }}>
-                            $ {financialSummary.iva.toLocaleString("es-CO")}
-                          </td>
-                        </tr>
-                        {/* Total */}
-                        <tr style={{ backgroundColor: "rgba(99, 102, 241, 0.08)" }}>
-                          <td colSpan={4} style={{ padding: "8px 10px", textAlign: "right", fontWeight: 800, fontSize: "0.82rem", color: "#4338CA" }}>
-                            TOTAL FACTURADO CON IVA (COP):
-                          </td>
-                          <td style={{ padding: "8px 10px", textAlign: "right", fontWeight: 800, fontSize: "0.92rem", color: "#4338CA" }}>
-                            $ {financialSummary.total.toLocaleString("es-CO")}
-                          </td>
-                        </tr>
-                      </tbody>
-                    </table>
-                  </Box>
+                          {/* IVA sobre AIU */}
+                          <tr style={{ backgroundColor: "#F8FAFC" }}>
+                            <td colSpan={4} style={{ padding: "5px 10px", textAlign: "right", fontSize: "0.72rem", color: "#64748B" }}>
+                              IVA sobre AIU (19% sobre base AIU 10%):
+                            </td>
+                            <td style={{ padding: "5px 10px", textAlign: "right", fontSize: "0.75rem", color: "#475569" }}>
+                              $ {financialSummary.iva.toLocaleString("es-CO")}
+                            </td>
+                          </tr>
+                          {/* Total */}
+                          <tr style={{ backgroundColor: "rgba(99, 102, 241, 0.08)" }}>
+                            <td colSpan={4} style={{ padding: "8px 10px", textAlign: "right", fontWeight: 800, fontSize: "0.82rem", color: "#4338CA" }}>
+                              TOTAL FACTURADO CON IVA (COP):
+                            </td>
+                            <td style={{ padding: "8px 10px", textAlign: "right", fontWeight: 800, fontSize: "0.92rem", color: "#4338CA" }}>
+                              $ {financialSummary.total.toLocaleString("es-CO")}
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </Box>
+                  )}
                 </Box>
               );
 
@@ -2046,22 +2326,36 @@ export default function CanvasProposalWorkspace({
                     <Typography variant="subtitle2" sx={{ fontWeight: 800, color: "#0F172A", textTransform: "uppercase", fontSize: "0.82rem", letterSpacing: "0.02em" }}>
                       Valores Agregados y Beneficios en Especie (100% Bonificados / Cortesía Comercial)
                     </Typography>
-                    <Button
-                      className="edit-vag-btn"
-                      size="small"
-                      variant="outlined"
-                      startIcon={<EditOutlined fontSize="small" />}
-                      onClick={() => setDrawerTab("vags")}
-                      sx={{
-                        opacity: 0,
-                        transition: "opacity 0.2s ease-in-out",
-                        textTransform: "none",
-                        fontWeight: 700,
-                        fontSize: "0.7rem",
-                      }}
-                    >
-                      Editar Beneficios VAG
-                    </Button>
+                    <Stack direction="row" spacing={1} className="edit-vag-btn" sx={{ opacity: 0, transition: "opacity 0.2s ease-in-out" }}>
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        startIcon={<EditOutlined fontSize="small" />}
+                        onClick={() => setDrawerTab("vags")}
+                        sx={{
+                          textTransform: "none",
+                          fontWeight: 700,
+                          fontSize: "0.7rem",
+                        }}
+                      >
+                        Editar Beneficios VAG
+                      </Button>
+                      <Button
+                        size="small"
+                        variant="text"
+                        onClick={() => setShowVags(false)}
+                        sx={{
+                          textTransform: "none",
+                          fontSize: "0.68rem",
+                          color: "#94A3B8",
+                          py: 0,
+                          minHeight: 0,
+                          "&:hover": { color: "#EF4444" },
+                        }}
+                      >
+                        Ocultar VAG
+                      </Button>
+                    </Stack>
                   </Box>
 
                   {valueAddedItems.length === 0 ? (
@@ -2125,50 +2419,65 @@ export default function CanvasProposalWorkspace({
               );
 
               const renderSignatures = () => (
-                <Box sx={{ mt: "auto", pt: 2, borderTop: "1px dashed #CBD5E1", mb: 1.5, position: "relative", "&:hover .sign-toggle-btn": { opacity: 1 } }}>
-                  <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1.5 }}>
-                    <Typography variant="caption" sx={{ fontWeight: 800, color: "#475569", textTransform: "uppercase", fontSize: "0.72rem" }}>
-                      Representación y Suscripción Formal
-                    </Typography>
+                <Box sx={{ mt: "auto", pt: 1, borderTop: "1px dashed #E2E8F0", mb: 0.5, position: "relative", "&:hover .sign-toggle-btn": { opacity: 1 } }}>
+                  <Box sx={{ display: "flex", justifyContent: "flex-end", alignItems: "center", mb: 0.5 }}>
                     <Button
                       className="sign-toggle-btn"
                       size="small"
                       variant="text"
                       onClick={() => setShowSignatures(false)}
-                      sx={{ opacity: 0, transition: "opacity 0.2s ease-in-out", textTransform: "none", fontSize: "0.7rem", color: "#94A3B8" }}
+                      sx={{ opacity: 0, transition: "opacity 0.2s ease-in-out", textTransform: "none", fontSize: "0.68rem", color: "#94A3B8", py: 0, minHeight: 0, "&:hover": { color: "#EF4444" } }}
                     >
                       Ocultar Firmas
                     </Button>
                   </Box>
-                  <Grid container spacing={2} justifyContent="space-around">
-                    {allActiveSigners.map((s) => (
-                      <Grid size={{ xs: 12, sm: 6 }} key={s.id}>
-                        <Box sx={{ textAlign: "center", p: 1 }}>
-                          {s.signatureUrl ? (
-                            <Box component="img" src={s.signatureUrl} alt={s.fullName} sx={{ height: 40, mx: "auto", mb: 0.5, objectFit: "contain" }} />
-                          ) : (
-                            <Box sx={{ height: 40, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                              <Typography variant="caption" sx={{ color: "#94A3B8", fontStyle: "italic", fontSize: "0.7rem" }}>
-                                [Firma Digital Registrada]
-                              </Typography>
-                            </Box>
-                          )}
-                          <Box sx={{ width: "75%", mx: "auto", borderBottom: "1.5px solid #0F172A", mb: 0.5 }} />
-                          <Typography variant="body2" sx={{ fontWeight: 700, fontSize: "0.8rem" }}>
-                            {s.fullName}
-                          </Typography>
-                          <Typography variant="caption" sx={{ color: "#64748B", display: "block", fontSize: "0.7rem" }}>
-                            {s.jobTitle}
-                          </Typography>
-                          {s.documentNumber && (
-                            <Typography variant="caption" sx={{ color: "#94A3B8", fontSize: "0.68rem" }}>
-                              C.C. {s.documentNumber}
+                  {allActiveSigners.length === 0 ? (
+                    <Box
+                      onClick={() => setDrawerTab("signers")}
+                      sx={{
+                        p: 1.5,
+                        border: "1px dashed #CBD5E1",
+                        borderRadius: "4px",
+                        textAlign: "center",
+                        cursor: "pointer",
+                        "&:hover": { borderColor: "#6366F1", bgcolor: "rgba(99, 102, 241, 0.02)" },
+                      }}
+                    >
+                      <Typography variant="caption" sx={{ color: "#64748B", fontWeight: 600, fontSize: "0.75rem" }}>
+                        Sin firmantes seleccionados. Haga clic aquí para asignar representantes institucionales o funcionarios autorizados.
+                      </Typography>
+                    </Box>
+                  ) : (
+                    <Grid container spacing={1.5} justifyContent="space-around">
+                      {allActiveSigners.map((s) => (
+                        <Grid size={{ xs: 12, sm: 6 }} key={s.id}>
+                          <Box sx={{ textAlign: "center", px: 1, py: 0.25 }}>
+                            {s.signatureUrl ? (
+                              <Box component="img" src={s.signatureUrl} alt={s.fullName} sx={{ height: 30, mx: "auto", mb: 0.25, objectFit: "contain" }} />
+                            ) : (
+                              <Box sx={{ height: 28, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                                <Typography variant="caption" sx={{ color: "#94A3B8", fontStyle: "italic", fontSize: "0.65rem" }}>
+                                  [Firma Digital Registrada]
+                                </Typography>
+                              </Box>
+                            )}
+                            <Box sx={{ width: "55%", mx: "auto", borderBottom: "1.5px solid #0F172A", mb: 0.3 }} />
+                            <Typography variant="body2" sx={{ fontWeight: 700, fontSize: "0.75rem", lineHeight: 1.2 }}>
+                              {s.fullName}
                             </Typography>
-                          )}
-                        </Box>
-                      </Grid>
-                    ))}
-                  </Grid>
+                            <Typography variant="caption" sx={{ color: "#475569", display: "block", fontSize: "0.66rem", lineHeight: 1.2 }}>
+                              {s.jobTitle}
+                            </Typography>
+                            {s.documentNumber && (
+                              <Typography variant="caption" sx={{ color: "#94A3B8", fontSize: "0.62rem", display: "block", lineHeight: 1.1 }}>
+                                C.C. {s.documentNumber}
+                              </Typography>
+                            )}
+                          </Box>
+                        </Grid>
+                      ))}
+                    </Grid>
+                  )}
                 </Box>
               );
 
@@ -2373,7 +2682,7 @@ export default function CanvasProposalWorkspace({
             {drawerTab === "positions" && "Estructura de Puestos y Turnos SVSP"}
             {drawerTab === "vags" && "Valores Agregados (VAG) y Comodatos"}
             {drawerTab === "signers" && "Firmantes Autorizados (Noxia Sign)"}
-            {drawerTab === "pnl" && "Análisis Financiero P&L en Tiempo Real"}
+            {drawerTab === "pnl" && "Análisis Financiero G&P en Tiempo Real"}
             {drawerTab === "variables" && "Variables Dinámicas & Atajos"}
           </Typography>
           <IconButton size="small" onClick={() => setDrawerTab(null)}>
@@ -2415,6 +2724,15 @@ export default function CanvasProposalWorkspace({
               size="small"
               value={promptPaymentDiscount}
               onChange={(e) => setPromptPaymentDiscount(Number(e.target.value) || 0)}
+            />
+            <TextField
+              label="Días Pronto Pago (Días Calendario)"
+              type="number"
+              fullWidth
+              size="small"
+              value={promptPaymentDays}
+              onChange={(e) => setPromptPaymentDays(Number(e.target.value) || 0)}
+              helperText="Plazo máximo concedido para acceder al descuento"
             />
           </Stack>
         )}
@@ -2501,39 +2819,131 @@ export default function CanvasProposalWorkspace({
                     </Card>
                   ))}
               </Stack>
+            ) : servicePositions.length === 0 ? (
+              <Box
+                sx={{
+                  p: 3,
+                  textAlign: "center",
+                  border: "1px dashed #CBD5E1",
+                  borderRadius: 2,
+                  bgcolor: "#FFFFFF",
+                }}
+              >
+                <Security sx={{ fontSize: 36, color: "#94A3B8", mb: 1 }} />
+                <Typography variant="subtitle2" sx={{ fontWeight: 700, color: "#1E293B", mb: 0.5 }}>
+                  No hay puestos de vigilancia configurados
+                </Typography>
+                <Typography variant="caption" sx={{ color: "#64748B", display: "block", mb: 2 }}>
+                  Añada un puesto manual o elija un servicio preconfigurado del Catálogo Oficial SVSP.
+                </Typography>
+                <Stack direction="row" spacing={1} justifyContent="center">
+                  <Button
+                    size="small"
+                    variant="contained"
+                    startIcon={<AddIcon fontSize="small" />}
+                    onClick={handleAddPosition}
+                    sx={{ textTransform: "none", fontWeight: 700, fontSize: "0.75rem", borderRadius: 1.5 }}
+                  >
+                    Puesto Manual
+                  </Button>
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    startIcon={<ListAlt fontSize="small" />}
+                    onClick={() => setPositionDrawerSubTab("catalog")}
+                    sx={{ textTransform: "none", fontWeight: 700, fontSize: "0.75rem", borderRadius: 1.5 }}
+                  >
+                    Ver Catálogo
+                  </Button>
+                </Stack>
+              </Box>
             ) : (
               <Stack spacing={2} sx={{ maxHeight: "calc(100vh - 220px)", overflowY: "auto", pr: 0.5 }}>
                 {servicePositions.map((pos) => (
                   <Paper key={pos.id} variant="outlined" sx={{ p: 2, borderRadius: 2, bgcolor: "#F8FAFC" }}>
-                    <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1 }}>
-                      <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
-                        {pos.positionTitle}
-                      </Typography>
+                    <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1.5 }}>
+                      <Box sx={{ minWidth: 0, flex: 1, pr: 1 }}>
+                        <Typography variant="subtitle2" sx={{ fontWeight: 700 }} noWrap>
+                          {pos.positionTitle || "Puesto de Vigilancia"}
+                        </Typography>
+                        {pos.targetPosition && (
+                          <Typography variant="caption" sx={{ color: "#6366F1", fontWeight: 600, fontSize: "0.7rem", display: "block" }}>
+                            Cargo Base: {pos.targetPosition}
+                          </Typography>
+                        )}
+                      </Box>
                       <IconButton size="small" color="error" onClick={() => handleRemovePosition(pos.id)}>
                         <DeleteIcon fontSize="small" />
                       </IconButton>
                     </Box>
+
                     <Grid container spacing={1.5}>
+                      {/* Cargo Objetivo de la Matriz Salarial */}
                       <Grid size={12}>
                         <TextField
                           size="small"
                           fullWidth
-                          label="Nombre del Puesto / Cargo"
+                          select
+                          label="Cargo Objetivo (Matriz Salarial)"
+                          value={pos.targetPosition || ""}
+                          onChange={(e) => {
+                            const newTarget = e.target.value;
+                            handleUpdatePosition(pos.id, "targetPosition", newTarget);
+                            if (!pos.positionTitle || pos.positionTitle === "Servicio de Vigilancia" || pos.positionTitle === "Nuevo Puesto") {
+                              handleUpdatePosition(pos.id, "positionTitle", newTarget);
+                            }
+                          }}
+                          helperText={
+                            pos.unitMonthlyRealCost
+                              ? `Costo Laboral Puesto: $ ${Number(pos.unitMonthlyRealCost).toLocaleString("es-CO")} COP/mes`
+                              : "Vincule con la matriz salarial para calcular costo de nómina del puesto"
+                          }
+                          SelectProps={{
+                            MenuProps: { sx: { zIndex: 99999 }, PaperProps: { sx: { zIndex: 99999 } } },
+                          }}
+                        >
+                          {salaryMatrix && salaryMatrix.length > 0 ? (
+                            salaryMatrix.map((item) => (
+                              <MenuItem key={item.id} value={item.positionTitle}>
+                                {item.positionTitle} ({SHIFT_OPTIONS.find((s) => s.value === item.scheduleType)?.label || item.scheduleType}) - $ {Number(item.grossSalary).toLocaleString("es-CO")}/guarda
+                              </MenuItem>
+                            ))
+                          ) : (
+                            [
+                              <MenuItem key="portero" value="Guarda Portero">Guarda Portero</MenuItem>,
+                              <MenuItem key="supervisor" value="Supervisor Operativo">Supervisor Operativo</MenuItem>,
+                              <MenuItem key="escolta" value="Escolta / Conductor">Escolta / Conductor</MenuItem>,
+                              <MenuItem key="omt" value="Operador Medios Tecnológicos">Operador Medios Tecnológicos</MenuItem>,
+                            ]
+                          )}
+                        </TextField>
+                      </Grid>
+
+                      {/* Nombre Comercial del Puesto */}
+                      <Grid size={12}>
+                        <TextField
+                          size="small"
+                          fullWidth
+                          label="Nombre Comercial del Servicio"
                           value={pos.positionTitle}
                           onChange={(e) => handleUpdatePosition(pos.id, "positionTitle", e.target.value)}
+                          placeholder="Ej: Vigilancia 24 horas Armada"
                         />
                       </Grid>
-                      <Grid size={6}>
+
+                      {/* Cantidad y Turno */}
+                      <Grid size={4}>
                         <TextField
                           size="small"
                           fullWidth
                           type="number"
-                          label="Cantidad"
-                          value={pos.quantity}
-                          onChange={(e) => handleUpdatePosition(pos.id, "quantity", Number(e.target.value) || 1)}
+                          label="Cant. Puestos"
+                          value={pos.quantity === 0 ? "" : pos.quantity}
+                          onChange={(e) => handleUpdatePosition(pos.id, "quantity", e.target.value === "" ? 0 : Math.max(1, parseInt(e.target.value) || 1))}
+                          inputProps={{ min: 1 }}
                         />
                       </Grid>
-                      <Grid size={6}>
+                      <Grid size={8}>
                         <TextField
                           size="small"
                           fullWidth
@@ -2542,10 +2952,7 @@ export default function CanvasProposalWorkspace({
                           value={pos.scheduleType}
                           onChange={(e) => handleUpdatePosition(pos.id, "scheduleType", e.target.value)}
                           SelectProps={{
-                            MenuProps: {
-                              sx: { zIndex: 99999 },
-                              PaperProps: { sx: { zIndex: 99999 } },
-                            },
+                            MenuProps: { sx: { zIndex: 99999 }, PaperProps: { sx: { zIndex: 99999 } } },
                           }}
                         >
                           {SHIFT_OPTIONS.map((s) => (
@@ -2555,6 +2962,8 @@ export default function CanvasProposalWorkspace({
                           ))}
                         </TextField>
                       </Grid>
+
+                      {/* Modalidad y Sector */}
                       <Grid size={6}>
                         <TextField
                           size="small"
@@ -2564,10 +2973,7 @@ export default function CanvasProposalWorkspace({
                           value={pos.weaponModality}
                           onChange={(e) => handleUpdatePosition(pos.id, "weaponModality", e.target.value)}
                           SelectProps={{
-                            MenuProps: {
-                              sx: { zIndex: 99999 },
-                              PaperProps: { sx: { zIndex: 99999 } },
-                            },
+                            MenuProps: { sx: { zIndex: 99999 }, PaperProps: { sx: { zIndex: 99999 } } },
                           }}
                         >
                           {MODALITY_OPTIONS.map((m) => (
@@ -2582,14 +2988,11 @@ export default function CanvasProposalWorkspace({
                           size="small"
                           fullWidth
                           select
-                          label="Sector Comercial"
+                          label="Sector Económico"
                           value={pos.tariffCategory}
                           onChange={(e) => handleUpdatePosition(pos.id, "tariffCategory", e.target.value)}
                           SelectProps={{
-                            MenuProps: {
-                              sx: { zIndex: 99999 },
-                              PaperProps: { sx: { zIndex: 99999 } },
-                            },
+                            MenuProps: { sx: { zIndex: 99999 }, PaperProps: { sx: { zIndex: 99999 } } },
                           }}
                         >
                           {SECTOR_OPTIONS.map((sec) => (
@@ -2599,14 +3002,85 @@ export default function CanvasProposalWorkspace({
                           ))}
                         </TextField>
                       </Grid>
+
+                      {/* Desglose Horario y Factor de A&S (Idéntico a Catálogo de Servicios) */}
                       <Grid size={12}>
+                        <Divider sx={{ my: 0.5 }} />
+                        <Typography variant="caption" sx={{ fontWeight: 700, color: "text.secondary", textTransform: "uppercase", display: "block" }}>
+                          Desglose Horario y Factor de A&S
+                        </Typography>
+                      </Grid>
+                      <Grid size={3}>
+                        <TextField
+                          size="small"
+                          fullWidth
+                          type="number"
+                          label="Horas Totales"
+                          value={pos.dailyTotalHours ?? 24}
+                          onChange={(e) => handleUpdatePosition(pos.id, "dailyTotalHours", e.target.value === "" ? 0 : parseInt(e.target.value) || 0)}
+                          inputProps={{ min: 1, max: 24 }}
+                        />
+                      </Grid>
+                      <Grid size={3}>
+                        <TextField
+                          size="small"
+                          fullWidth
+                          type="number"
+                          label="Horas Día"
+                          value={pos.dayHours ?? 15}
+                          onChange={(e) => handleUpdatePosition(pos.id, "dayHours", e.target.value === "" ? 0 : parseInt(e.target.value) || 0)}
+                          inputProps={{ min: 0, max: 24 }}
+                        />
+                      </Grid>
+                      <Grid size={3}>
+                        <TextField
+                          size="small"
+                          fullWidth
+                          type="number"
+                          label="Horas Noche"
+                          value={pos.nightHours ?? 9}
+                          onChange={(e) => handleUpdatePosition(pos.id, "nightHours", e.target.value === "" ? 0 : parseInt(e.target.value) || 0)}
+                          inputProps={{ min: 0, max: 24 }}
+                        />
+                      </Grid>
+                      <Grid size={3}>
+                        <TextField
+                          size="small"
+                          fullWidth
+                          type="number"
+                          label="Días Mes"
+                          value={pos.billableDaysPerMonth ?? 30}
+                          onChange={(e) => handleUpdatePosition(pos.id, "billableDaysPerMonth", e.target.value === "" ? 0 : parseInt(e.target.value) || 30)}
+                          inputProps={{ min: 1, max: 31 }}
+                        />
+                      </Grid>
+                      <Grid size={6}>
+                        <TextField
+                          size="small"
+                          fullWidth
+                          type="number"
+                          label="Factor A&S (%)"
+                          value={pos.adminSupervisionPct !== undefined ? (pos.adminSupervisionPct <= 1 ? Math.round(pos.adminSupervisionPct * 100) : pos.adminSupervisionPct) : 10}
+                          onChange={(e) => {
+                            const raw = e.target.value;
+                            const val = raw === "" ? 0 : Number(raw);
+                            handleUpdatePosition(pos.id, "adminSupervisionPct", val / 100);
+                          }}
+                          InputProps={{
+                            endAdornment: <InputAdornment position="end">%</InputAdornment>,
+                          }}
+                          helperText="Normalmente 10% (Sin Arma) u 8% (Con Arma)"
+                        />
+                      </Grid>
+                      <Grid size={6}>
                         <TextField
                           size="small"
                           fullWidth
                           type="number"
                           label="Tarifa Billed Price (COP)"
-                          value={pos.unitMonthlyBilledPrice}
-                          onChange={(e) => handleUpdatePosition(pos.id, "unitMonthlyBilledPrice", Number(e.target.value) || 0)}
+                          value={pos.unitMonthlyBilledPrice === 0 ? "" : pos.unitMonthlyBilledPrice}
+                          onChange={(e) => handleUpdatePosition(pos.id, "unitMonthlyBilledPrice", e.target.value === "" ? 0 : Number(e.target.value) || 0)}
+                          helperText="Tarifa final por puesto mes"
                         />
                       </Grid>
                     </Grid>
@@ -2919,7 +3393,7 @@ export default function CanvasProposalWorkspace({
           <Stack spacing={2.5}>
             <Paper variant="outlined" sx={{ p: 2, borderRadius: 2, bgcolor: "#F8FAFC" }}>
               <Typography variant="subtitle2" sx={{ fontWeight: 800, textTransform: "uppercase", mb: 1.5, fontSize: "0.82rem" }}>
-                Simulación Financiera P&L
+                Simulación Financiera G&P
               </Typography>
               <Grid container spacing={2}>
                 <Grid size={6}>
@@ -3192,6 +3666,31 @@ export default function CanvasProposalWorkspace({
             maxHeight: "94vh",
             display: "flex",
             flexDirection: "column",
+            "@media print": {
+              bgcolor: "transparent !important",
+              maxHeight: "none !important",
+              height: "auto !important",
+              boxShadow: "none !important",
+              border: "none !important",
+              overflow: "visible !important",
+              margin: "0 !important",
+              maxWidth: "100% !important",
+              width: "100% !important",
+            },
+          },
+        }}
+        sx={{
+          "@media print": {
+            position: "static",
+            "& .MuiBackdrop-root": {
+              display: "none !important",
+            },
+            "& .MuiDialog-container": {
+              display: "block !important",
+              position: "static !important",
+              height: "auto !important",
+              padding: "0 !important",
+            },
           },
         }}
       >
@@ -3203,6 +3702,9 @@ export default function CanvasProposalWorkspace({
             justifyContent: "space-between",
             alignItems: "center",
             py: 1.5,
+            "@media print": {
+              display: "none !important",
+            },
           }}
         >
           <Typography component="span" variant="subtitle1" fontWeight={800}>
@@ -3212,7 +3714,21 @@ export default function CanvasProposalWorkspace({
             <CloseIcon />
           </IconButton>
         </DialogTitle>
-        <DialogContent dividers sx={{ p: 4, display: "flex", justifyContent: "center" }}>
+        <DialogContent
+          dividers
+          sx={{
+            p: 4,
+            display: "flex",
+            justifyContent: "center",
+            "@media print": {
+              p: "0 !important",
+              border: "none !important",
+              bgcolor: "transparent !important",
+              overflow: "visible !important",
+              display: "block !important",
+            },
+          }}
+        >
           <ChameleonPdfPreview
             skin={skin}
             clientName={selectedClient?.name || "CONJUNTO RESIDENCIAL"}
@@ -3234,7 +3750,16 @@ export default function CanvasProposalWorkspace({
             showSignatures={showSignatures}
           />
         </DialogContent>
-        <DialogActions sx={{ px: 3, py: 2, bgcolor: "#1E293B" }}>
+        <DialogActions
+          sx={{
+            px: 3,
+            py: 2,
+            bgcolor: "#1E293B",
+            "@media print": {
+              display: "none !important",
+            },
+          }}
+        >
           <Button onClick={() => window.print()} startIcon={<Print />} sx={{ color: "#FFFFFF" }}>
             Imprimir
           </Button>

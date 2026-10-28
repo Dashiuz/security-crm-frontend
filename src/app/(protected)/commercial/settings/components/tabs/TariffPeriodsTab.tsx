@@ -17,6 +17,8 @@ import {
   Add as AddIcon,
   EditOutlined,
   DeleteOutline,
+  VerifiedOutlined,
+  CheckCircleOutline,
 } from "@mui/icons-material";
 import { TariffPeriodConfig, CommercialSettingsApi } from "@/lib/api/commercial-settings";
 import LiveTariffSimulator from "../widgets/LiveTariffSimulator";
@@ -56,6 +58,16 @@ export default function TariffPeriodsTab({ periods, onRefresh }: TariffPeriodsTa
   const handleCreate = () => {
     setSelectedPeriod(null);
     setDrawerOpen(true);
+  };
+
+  const handleActivate = async (p: TariffPeriodConfig) => {
+    try {
+      await CommercialSettingsApi.updateTariffPeriod(p.id, { isActive: true });
+      showSuccess(`Vigencia "${p.label}" establecida como activa exitosamente`);
+      onRefresh();
+    } catch (err: any) {
+      showError(err?.message || "Error al activar la vigencia");
+    }
   };
 
   const handleDeleteClick = (p: TariffPeriodConfig) => {
@@ -123,8 +135,94 @@ export default function TariffPeriodsTab({ periods, onRefresh }: TariffPeriodsTa
         </Button>
       </Box>
 
+      {/* Banner de Vigencia Oficial Activa en el Sistema */}
+      {activePeriod && (
+        <Card
+          elevation={0}
+          sx={{
+            borderRadius: 2.5,
+            border: `1px solid ${noxiaPalette.primary.main}30`,
+            background: `linear-gradient(135deg, ${noxiaPalette.secondary.main} 0%, #1E1B4B 100%)`,
+            color: "#FFFFFF",
+            p: 2,
+          }}
+        >
+          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 1.5 }}>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+              <Box
+                sx={{
+                  p: 1,
+                  borderRadius: 2,
+                  bgcolor: "rgba(16, 185, 129, 0.2)",
+                  color: "#34D399",
+                  display: "flex",
+                }}
+              >
+                <VerifiedOutlined />
+              </Box>
+              <Box>
+                <Stack direction="row" spacing={1} alignItems="center">
+                  <Typography variant="caption" sx={{ color: "#34D399", fontWeight: 800, letterSpacing: 0.5, textTransform: "uppercase" }}>
+                    VIGENCIA OFICIAL ACTIVA EN EL SISTEMA
+                  </Typography>
+                  <Chip
+                    label="ACTIVA GLOBAL"
+                    size="small"
+                    sx={{
+                      height: 18,
+                      fontSize: "0.62rem",
+                      fontWeight: 800,
+                      bgcolor: "#10B981",
+                      color: "#FFFFFF",
+                    }}
+                  />
+                </Stack>
+                <Typography variant="subtitle1" sx={{ fontWeight: 800, color: "#FFFFFF" }}>
+                  {activePeriod.label} (Año Fiscal {activePeriod.year})
+                </Typography>
+              </Box>
+            </Box>
+
+            <Stack direction="row" spacing={2} sx={{ flexWrap: "wrap" }}>
+              <Box sx={{ bgcolor: "rgba(255,255,255,0.08)", px: 1.5, py: 0.75, borderRadius: 1.5 }}>
+                <Typography variant="caption" sx={{ color: "rgba(255,255,255,0.7)", display: "block", fontSize: "0.68rem" }}>
+                  SMMLV Base
+                </Typography>
+                <Typography variant="body2" sx={{ fontWeight: 800, fontFamily: jetBrainsMono.style.fontFamily }}>
+                  {formatCOP(activePeriod.smmlv)}
+                </Typography>
+              </Box>
+              <Box sx={{ bgcolor: "rgba(255,255,255,0.08)", px: 1.5, py: 0.75, borderRadius: 1.5 }}>
+                <Typography variant="caption" sx={{ color: "rgba(255,255,255,0.7)", display: "block", fontSize: "0.68rem" }}>
+                  Jornada Semanal
+                </Typography>
+                <Typography variant="body2" sx={{ fontWeight: 800, color: "#38BDF8" }}>
+                  {activePeriod.statutoryWeeklyHours} Horas
+                </Typography>
+              </Box>
+              <Box sx={{ bgcolor: "rgba(255,255,255,0.08)", px: 1.5, py: 0.75, borderRadius: 1.5 }}>
+                <Typography variant="caption" sx={{ color: "rgba(255,255,255,0.7)", display: "block", fontSize: "0.68rem" }}>
+                  Comercial
+                </Typography>
+                <Typography variant="body2" sx={{ fontWeight: 800, color: "#A78BFA" }}>
+                  {activePeriod.commercialMultiplier}x
+                </Typography>
+              </Box>
+              <Box sx={{ bgcolor: "rgba(255,255,255,0.08)", px: 1.5, py: 0.75, borderRadius: 1.5 }}>
+                <Typography variant="caption" sx={{ color: "rgba(255,255,255,0.7)", display: "block", fontSize: "0.68rem" }}>
+                  Residencial E4-6
+                </Typography>
+                <Typography variant="body2" sx={{ fontWeight: 800, color: "#F472B6" }}>
+                  {activePeriod.strata46Multiplier}x
+                </Typography>
+              </Box>
+            </Stack>
+          </Box>
+        </Card>
+      )}
+
       {/* Widget Flotante del Simulador */}
-      <LiveTariffSimulator activePeriod={activePeriod} />
+      <LiveTariffSimulator periods={periods} activePeriod={activePeriod} />
 
       {/* Listado de Vigencias Configuradas */}
       <Box>
@@ -235,6 +333,35 @@ export default function TariffPeriodsTab({ periods, onRefresh }: TariffPeriodsTa
                       </Typography>
                     </Grid>
                   </Grid>
+
+                  {/* Estatus y Botón Establecer como Activa */}
+                  <Box sx={{ mt: 1.5, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    {p.isActive ? (
+                      <Typography variant="caption" sx={{ color: noxiaPalette.success.dark, fontWeight: 700, display: "flex", alignItems: "center", gap: 0.5 }}>
+                        <VerifiedOutlined sx={{ fontSize: 16 }} /> Vigencia rectora del cotizador y simulador
+                      </Typography>
+                    ) : (
+                      <Box sx={{ ml: "auto" }}>
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          startIcon={<CheckCircleOutline fontSize="small" />}
+                          onClick={() => handleActivate(p)}
+                          sx={{
+                            textTransform: "none",
+                            fontWeight: 700,
+                            fontSize: "0.75rem",
+                            borderRadius: 1.5,
+                            color: noxiaPalette.primary.main,
+                            borderColor: `${noxiaPalette.primary.main}40`,
+                            "&:hover": { borderColor: noxiaPalette.primary.main, bgcolor: `${noxiaPalette.primary.main}08` },
+                          }}
+                        >
+                          Establecer como Activa
+                        </Button>
+                      </Box>
+                    )}
+                  </Box>
                 </CardContent>
               </Card>
             </Grid>

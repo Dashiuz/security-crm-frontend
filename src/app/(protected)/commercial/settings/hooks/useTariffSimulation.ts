@@ -14,11 +14,22 @@ export function useTariffSimulation(initialPeriodId?: string) {
     tariffPeriodId: initialPeriodId,
     sector: CommercialSector.COMMERCIAL_PUBLIC,
     weaponModality: WeaponModality.LETHAL_WEAPON,
-    dayHours: 15,
-    nightHours: 9,
+    dayHours: 13,
+    nightHours: 11,
     billableDays: 30,
     discountPct: 0,
+    promptPaymentDays: 10,
+    statutoryDayHours: 13,
+    statutoryNightHours: 11,
+    dayProportionFactor: 0.4759,
+    nightProportionFactor: 0.5241,
   });
+
+  useEffect(() => {
+    if (initialPeriodId) {
+      setParams((prev) => ({ ...prev, tariffPeriodId: initialPeriodId }));
+    }
+  }, [initialPeriodId]);
 
   const [result, setResult] = useState<TariffSimulationResult | null>(null);
   const [loading, setLoading] = useState<boolean>(false);

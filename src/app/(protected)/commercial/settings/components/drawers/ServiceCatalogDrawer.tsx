@@ -156,8 +156,8 @@ export default function ServiceCatalogDrawer({
               size="small"
               type="number"
               label="Código Interno"
-              value={formData.serviceCode}
-              onChange={(e) => handleChange("serviceCode", parseInt(e.target.value) || 1)}
+              value={formData.serviceCode === 0 ? "" : formData.serviceCode}
+              onChange={(e) => handleChange("serviceCode", e.target.value === "" ? "" : parseInt(e.target.value) || "")}
               disabled={!!serviceItem}
               helperText="Identificador numérico"
             />
@@ -273,8 +273,8 @@ export default function ServiceCatalogDrawer({
               size="small"
               type="number"
               label="Horas Totales"
-              value={formData.dailyTotalHours}
-              onChange={(e) => handleChange("dailyTotalHours", parseInt(e.target.value) || 0)}
+              value={formData.dailyTotalHours === 0 ? "" : formData.dailyTotalHours}
+              onChange={(e) => handleChange("dailyTotalHours", e.target.value === "" ? "" : parseInt(e.target.value) || 0)}
               inputProps={{ min: 1, max: 24 }}
             />
           </Grid>
@@ -285,8 +285,8 @@ export default function ServiceCatalogDrawer({
               size="small"
               type="number"
               label="Horas Día"
-              value={formData.dayHours}
-              onChange={(e) => handleChange("dayHours", parseInt(e.target.value) || 0)}
+              value={formData.dayHours === 0 ? "" : formData.dayHours}
+              onChange={(e) => handleChange("dayHours", e.target.value === "" ? "" : parseInt(e.target.value) || 0)}
               inputProps={{ min: 0, max: 24 }}
             />
           </Grid>
@@ -297,8 +297,8 @@ export default function ServiceCatalogDrawer({
               size="small"
               type="number"
               label="Horas Noche"
-              value={formData.nightHours}
-              onChange={(e) => handleChange("nightHours", parseInt(e.target.value) || 0)}
+              value={formData.nightHours === 0 ? "" : formData.nightHours}
+              onChange={(e) => handleChange("nightHours", e.target.value === "" ? "" : parseInt(e.target.value) || 0)}
               inputProps={{ min: 0, max: 24 }}
             />
           </Grid>
@@ -309,8 +309,8 @@ export default function ServiceCatalogDrawer({
               size="small"
               type="number"
               label="Días Mes"
-              value={formData.billableDaysPerMonth}
-              onChange={(e) => handleChange("billableDaysPerMonth", parseInt(e.target.value) || 30)}
+              value={formData.billableDaysPerMonth === 0 ? "" : formData.billableDaysPerMonth}
+              onChange={(e) => handleChange("billableDaysPerMonth", e.target.value === "" ? "" : parseInt(e.target.value) || 0)}
               inputProps={{ min: 1, max: 31 }}
             />
           </Grid>
@@ -323,14 +323,14 @@ export default function ServiceCatalogDrawer({
           type="number"
           label="% A&S (Administración y Supervisión)"
           value={
-            formData.adminSupervisionPct !== undefined && formData.adminSupervisionPct !== null
+            formData.adminSupervisionPct !== undefined && formData.adminSupervisionPct !== null && (formData.adminSupervisionPct as any) !== ""
               ? Math.round(Number(formData.adminSupervisionPct) * 100)
               : ""
           }
           onChange={(e) => {
             const raw = e.target.value;
             if (raw === "") {
-              handleChange("adminSupervisionPct", 0);
+              handleChange("adminSupervisionPct", "");
             } else {
               const val = parseFloat(raw);
               handleChange("adminSupervisionPct", isNaN(val) ? 0 : val / 100);

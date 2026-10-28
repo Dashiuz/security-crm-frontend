@@ -40,8 +40,8 @@ import { noxiaPalette } from "@/theme/noxiaTheme";
 
 const TAB_CONFIG = [
   { label: "Vigencias y Tarifas SVSP", icon: <CalendarMonthOutlined /> },
-  { label: "Catálogo de Servicios", icon: <ShieldOutlined /> },
   { label: "Matriz Salarial y Turnos", icon: <BadgeOutlined /> },
+  { label: "Catálogo de Servicios", icon: <ShieldOutlined /> },
   { label: "Valores Agregados y Topes", icon: <CardGiftcardOutlined /> },
   { label: "Plantillas e Identidad Empresarial", icon: <PaletteOutlined /> },
   { label: "Notificar Departamentos", icon: <SendTimeExtensionOutlined /> },
@@ -147,13 +147,17 @@ export default function CommercialSettingsPage() {
             >
               <AccordionSummary expandIcon={<ExpandMoreIcon />}>
                 <Typography sx={{ fontWeight: 700, display: "flex", alignItems: "center", gap: 1 }}>
-                  <ShieldOutlined fontSize="small" sx={{ color: noxiaPalette.primary.main }} />
-                  Catálogo de Servicios
+                  <BadgeOutlined fontSize="small" sx={{ color: noxiaPalette.primary.main }} />
+                  Matriz Salarial y Turnos
                 </Typography>
               </AccordionSummary>
               <AccordionDetails>
                 {activeTab === 1 && (
-                  <ServiceCatalogTab services={settings.serviceCatalog || []} onRefresh={refresh} />
+                  <SalaryMatrixTab
+                    salaryMatrix={settings.salaryMatrix || []}
+                    tariffPeriods={settings.tariffPeriods || []}
+                    onRefresh={refresh}
+                  />
                 )}
               </AccordionDetails>
             </Accordion>
@@ -165,17 +169,13 @@ export default function CommercialSettingsPage() {
             >
               <AccordionSummary expandIcon={<ExpandMoreIcon />}>
                 <Typography sx={{ fontWeight: 700, display: "flex", alignItems: "center", gap: 1 }}>
-                  <BadgeOutlined fontSize="small" sx={{ color: noxiaPalette.primary.main }} />
-                  Matriz Salarial y Turnos
+                  <ShieldOutlined fontSize="small" sx={{ color: noxiaPalette.primary.main }} />
+                  Catálogo de Servicios
                 </Typography>
               </AccordionSummary>
               <AccordionDetails>
                 {activeTab === 2 && (
-                  <SalaryMatrixTab
-                    salaryMatrix={settings.salaryMatrix || []}
-                    tariffPeriods={settings.tariffPeriods || []}
-                    onRefresh={refresh}
-                  />
+                  <ServiceCatalogTab services={settings.serviceCatalog || []} onRefresh={refresh} />
                 )}
               </AccordionDetails>
             </Accordion>
@@ -305,14 +305,14 @@ export default function CommercialSettingsPage() {
                 <TariffPeriodsTab periods={settings.tariffPeriods || []} onRefresh={refresh} />
               )}
               {desktopTabValue === 1 && (
-                <ServiceCatalogTab services={settings.serviceCatalog || []} onRefresh={refresh} />
-              )}
-              {desktopTabValue === 2 && (
                 <SalaryMatrixTab
                   salaryMatrix={settings.salaryMatrix || []}
                   tariffPeriods={settings.tariffPeriods || []}
                   onRefresh={refresh}
                 />
+              )}
+              {desktopTabValue === 2 && (
+                <ServiceCatalogTab services={settings.serviceCatalog || []} onRefresh={refresh} />
               )}
               {desktopTabValue === 3 && (
                 <ValueAddedTab settings={settings} onRefresh={refresh} />
