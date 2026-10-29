@@ -648,6 +648,28 @@ export const ERP_DIRECTIONS: ErpDirection[] = [
     iconName: "AccountBalanceOutlined",
     items: [
       {
+        id: "fin-payroll-dependencies",
+        title: "Puestos y Dependencias",
+        description: "Fichas salariales de puestos, desglose garantizado, códigos OMEGA y sincronización 1-clic",
+        status: "ACTIVE",
+        path: "/finance/payroll/dependencies",
+        iconName: "WorkspacesOutlined",
+        permissions: ["payroll:dependencies:read", "payroll:dependencies:manage"],
+        features: ["payroll"],
+        bulletColor: "#059669",
+      },
+      {
+        id: "fin-payroll-settings",
+        title: "Configuración y Catálogos",
+        description: "Parámetros legales, conceptos PUC, matriz de bases, modalidades y festivos Emiliani",
+        status: "ACTIVE",
+        path: "/finance/payroll/settings",
+        iconName: "TuneOutlined",
+        permissions: ["payroll:settings:read", "payroll:settings:manage"],
+        features: ["payroll"],
+        bulletColor: "#10B981",
+      },
+      {
         id: "fin-treasury",
         title: "Tesorería (Nómina y Facturación)",
         description: "Facturación a clientes por puestos y liquidación de horas/nómina",

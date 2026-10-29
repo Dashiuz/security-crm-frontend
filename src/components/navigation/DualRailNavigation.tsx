@@ -147,6 +147,7 @@ export default function DualRailNavigation() {
     }
     if (pathname.startsWith("/operation")) return "operations";
     if (pathname.startsWith("/administrative/pqrs")) return "quality";
+    if (pathname.startsWith("/finance")) return "finance";
     if (
       pathname.startsWith("/administrative/users") ||
       pathname.startsWith("/administrative/roles") ||
