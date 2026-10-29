@@ -255,6 +255,19 @@ export interface PayrollSvspLevel {
   isActive: boolean;
 }
 
+export interface PayrollSecurityAcademy {
+  id: string;
+  code: number;
+  name: string;
+  nit: string;
+  address?: string;
+  phone?: string;
+  email?: string;
+  legalRepName?: string;
+  city?: string;
+  isActive: boolean;
+}
+
 export interface PayrollPeriod {
   id: string;
   code: number;
@@ -361,6 +374,7 @@ export const PayrollApi = {
   listExitReasons: () => HttpClient.get<PayrollExitReason[]>("/payroll/catalogs/exit-reasons"),
   listHiringRequirements: () => HttpClient.get<PayrollHiringRequirement[]>("/payroll/catalogs/hiring-requirements"),
   listSvspLevels: () => HttpClient.get<PayrollSvspLevel[]>("/payroll/catalogs/svsp-levels"),
+  listAcademies: () => HttpClient.get<PayrollSecurityAcademy[]>("/payroll/catalogs/academies"),
   listPeriods: (year?: number) =>
     HttpClient.get<PayrollPeriod[]>(`/payroll/catalogs/periods${year ? `?year=${year}` : ""}`),
 };

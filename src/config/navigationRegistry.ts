@@ -648,6 +648,17 @@ export const ERP_DIRECTIONS: ErpDirection[] = [
     iconName: "AccountBalanceOutlined",
     items: [
       {
+        id: "fin-payroll-employees",
+        title: "Expediente Laboral y SVSP",
+        description: "Hoja de vida 360°, afiliaciones PILA, requisitos de ingreso, cursos SVSP y exportación RENOVA",
+        status: "ACTIVE",
+        path: "/finance/payroll/employees",
+        iconName: "BadgeOutlined",
+        permissions: ["payroll:employees:read", "payroll:employees:manage"],
+        features: ["payroll"],
+        bulletColor: "#7C3AED",
+      },
+      {
         id: "fin-payroll-dependencies",
         title: "Puestos y Dependencias",
         description: "Fichas salariales de puestos, desglose garantizado, códigos OMEGA y sincronización 1-clic",
