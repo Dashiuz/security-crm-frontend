@@ -10,7 +10,21 @@ export enum EmploymentContractType {
 
 export enum EmployeeSalaryMode {
   BY_DEPENDENCY = "BY_DEPENDENCY",
+  MINIMUM_WAGE = "MINIMUM_WAGE",
   CUSTOM_FIXED = "CUSTOM_FIXED",
+}
+
+export enum SalaryAdjustmentOrigin {
+  INITIAL_CONTRACT = "INITIAL_CONTRACT",
+  INDIVIDUAL_INCREASE = "INDIVIDUAL_INCREASE",
+  SMMLV_GLOBAL_UPDATE = "SMMLV_GLOBAL_UPDATE",
+}
+
+export interface ApplySalaryAdjustmentDto {
+  salaryMode?: EmployeeSalaryMode;
+  newSalary: number;
+  effectiveDate: string;
+  reason: string;
 }
 
 export enum BankAccountType {
@@ -124,6 +138,8 @@ export interface EmployeeDossierResponse {
   requirementMatrix: any[];
   svspCourses: any[];
   internalTrainings: any[];
+  salaryHistories?: any[];
+  periodSettlements?: any[];
   svspStatus: "VALID" | "EXPIRING_SOON" | "EXPIRED" | "MISSING";
   svspDaysRemaining: number | null;
   contractAlertStatus: "OK" | "PREAVISO_REQUIRED" | "EXPIRED";
@@ -211,6 +227,44 @@ export class PayrollEmployeesApi {
     const a = document.createElement("a");
     a.href = url;
     a.download = `RENOVA_SUPERVIGILANCIA_${new Date().toISOString().split("T")[0]}.xlsx`;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+  }
+
+  static async applySalaryAdjustment(
+    employeeId: string,
+    data: ApplySalaryAdjustmentDto,
+  ): Promise<any> {
+    return HttpClient.post(`/payroll/employees/${employeeId}/salary-adjustment`, data);
+  }
+
+  static async downloadPayslipPdf(
+    employeeId: string,
+    settlementId: string,
+    groupOvertime = false,
+  ): Promise<void> {
+    const token = typeof window !== "undefined" ? localStorage.getItem("access-token") : null;
+    const response = await fetch(
+      `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/payroll/employees/${employeeId}/payslips/${settlementId}/pdf?groupOvertime=${groupOvertime}`,
+      {
+        method: "GET",
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      },
+    );
+
+    if (!response.ok) {
+      throw new Error("Error al descargar desprendible de nómina");
+    }
+
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `desprendible_${employeeId}_${settlementId}.pdf`;
     document.body.appendChild(a);
     a.click();
     window.URL.revokeObjectURL(url);

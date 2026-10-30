@@ -696,6 +696,17 @@ export const ERP_DIRECTIONS: ErpDirection[] = [
         features: ["payroll"],
         bulletColor: "#8B5CF6",
       },
+      {
+        id: "fin-payroll-settlement",
+        title: "Liquidación de Nómina y Bancos",
+        description: "Pre-nómina legal base 30, anticipos día 15, dispersión ACH bancaria y desprendibles PDF/email",
+        status: "ACTIVE",
+        path: "/finance/payroll/settlement",
+        iconName: "AccountBalanceWalletOutlined",
+        permissions: ["payroll:settlement:read", "payroll:settlement:manage"],
+        features: ["payroll"],
+        bulletColor: "#EC4899",
+      },
     ],
   },
   {

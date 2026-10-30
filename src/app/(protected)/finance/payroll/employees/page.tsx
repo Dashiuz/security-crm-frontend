@@ -48,6 +48,9 @@ import {
   OpenInNewOutlined,
   AccountBalanceOutlined,
   SecurityOutlined,
+  ReceiptLongOutlined,
+  TrendingUpOutlined,
+  PictureAsPdfOutlined,
 } from "@mui/icons-material";
 import {
   PayrollEmployeesApi,
@@ -142,6 +145,46 @@ export default function PayrollEmployeesPage() {
     score: 5.0,
     approved: true,
   });
+
+  // Salary Adjustment Dialog State
+  const [salaryAdjOpen, setSalaryAdjOpen] = useState(false);
+  const [salaryAdjForm, setSalaryAdjForm] = useState({
+    salaryMode: EmployeeSalaryMode.CUSTOM_FIXED,
+    newSalary: 1750905,
+    effectiveDate: new Date().toISOString().split("T")[0],
+    reason: "",
+  });
+
+  const handleApplySalaryAdjustment = async () => {
+    if (!selectedEmployeeId) return;
+    try {
+      setDossierLoading(true);
+      await PayrollEmployeesApi.applySalaryAdjustment(selectedEmployeeId, {
+        salaryMode: salaryAdjForm.salaryMode,
+        newSalary: Number(salaryAdjForm.newSalary),
+        effectiveDate: salaryAdjForm.effectiveDate,
+        reason: salaryAdjForm.reason || "Ajuste o aumento salarial individual",
+      });
+      setFeedback({ type: "success", message: "Ajuste salarial aplicado y registrado en el historial." });
+      setSalaryAdjOpen(false);
+      await handleOpenDossier(selectedEmployeeId);
+      await loadMainData();
+    } catch (err: any) {
+      setFeedback({ type: "error", message: err?.message || "Error al aplicar ajuste salarial" });
+    } finally {
+      setDossierLoading(false);
+    }
+  };
+
+  const handleDownloadPayslip = async (settlementId: string) => {
+    if (!selectedEmployeeId) return;
+    try {
+      await PayrollEmployeesApi.downloadPayslipPdf(selectedEmployeeId, settlementId, false);
+      setFeedback({ type: "success", message: "Desprendible de nómina descargado con éxito." });
+    } catch (err: any) {
+      setFeedback({ type: "error", message: err?.message || "Error al descargar desprendible de nómina" });
+    }
+  };
 
   useEffect(() => {
     loadMainData();
@@ -1050,6 +1093,7 @@ export default function PayrollEmployeesPage() {
               <Tab label="3. Requisitos de Ingreso (1..10)" icon={<AssignmentOutlined />} iconPosition="start" />
               <Tab label="4. Cursos SVSP y RENOVA" icon={<SecurityOutlined />} iconPosition="start" />
               <Tab label="5. Capacitaciones Cap/SOMA" icon={<SchoolOutlined />} iconPosition="start" />
+              <Tab label="6. Desprendibles e Historial Salarial" icon={<ReceiptLongOutlined />} iconPosition="start" />
             </Tabs>
 
             {/* TAB 0: Contrato, Puesto, Salario, ACH y PILA */}
@@ -1151,22 +1195,45 @@ export default function PayrollEmployeesPage() {
                       onChange={(e) => setProfileForm({ ...profileForm, salaryMode: e.target.value })}
                     >
                       <MenuItem value={EmployeeSalaryMode.BY_DEPENDENCY}>Heredar del Puesto (Sueldo Garantizado / Modalidad)</MenuItem>
+                      <MenuItem value={EmployeeSalaryMode.MINIMUM_WAGE}>Salario Mínimo Legal Vigente (SMMLV Automático)</MenuItem>
                       <MenuItem value={EmployeeSalaryMode.CUSTOM_FIXED}>Sueldo Fijo Contractual Personalizado</MenuItem>
                     </TextField>
                   </Grid>
 
                   <Grid size={{ xs: 12, sm: 6 }}>
-                    <TextField
-                      size="small"
-                      fullWidth
-                      type="number"
-                      label="Sueldo Básico Personalizado ($ COP)"
-                      value={profileForm.customBaseSalary ?? 1750905}
-                      onChange={(e) => setProfileForm({ ...profileForm, customBaseSalary: Number(e.target.value) })}
-                      InputProps={{
-                        startAdornment: <InputAdornment position="start">$</InputAdornment>,
-                      }}
-                    />
+                    <Box sx={{ display: "flex", gap: 1 }}>
+                      <TextField
+                        size="small"
+                        fullWidth
+                        type="number"
+                        label="Sueldo Básico ($ COP)"
+                        value={profileForm.customBaseSalary ?? 1750905}
+                        disabled={profileForm.salaryMode === EmployeeSalaryMode.MINIMUM_WAGE}
+                        onChange={(e) => setProfileForm({ ...profileForm, customBaseSalary: Number(e.target.value) })}
+                        InputProps={{
+                          startAdornment: <InputAdornment position="start">$</InputAdornment>,
+                        }}
+                      />
+                      <Tooltip title="Registrar aumento salarial con trazabilidad e historial">
+                        <Button
+                          variant="outlined"
+                          size="small"
+                          sx={{ textTransform: "none", minWidth: 140, fontWeight: 700, borderColor: "#7C3AED", color: "#7C3AED" }}
+                          startIcon={<TrendingUpOutlined />}
+                          onClick={() => {
+                            setSalaryAdjForm({
+                              salaryMode: profileForm.salaryMode || EmployeeSalaryMode.CUSTOM_FIXED,
+                              newSalary: profileForm.customBaseSalary || 1750905,
+                              effectiveDate: new Date().toISOString().split("T")[0],
+                              reason: "Aumento por desempeño / nivelación",
+                            });
+                            setSalaryAdjOpen(true);
+                          }}
+                        >
+                          Ajustar Salario
+                        </Button>
+                      </Tooltip>
+                    </Box>
                   </Grid>
 
                   <Grid size={{ xs: 12, sm: 6 }}>
@@ -2004,8 +2071,245 @@ export default function PayrollEmployeesPage() {
                 </TableContainer>
               </Box>
             )}
+
+            {/* TAB 5: Desprendibles e Historial Salarial */}
+            {drawerTab === 5 && (
+              <Box>
+                {/* 1. Historial de Aumentos y Nivelaciones */}
+                <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1.5 }}>
+                  <Typography variant="caption" sx={{ fontWeight: 700, color: "#0F172A", textTransform: "uppercase" }}>
+                    Historial de Aumentos y Ajustes Salariales
+                  </Typography>
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    startIcon={<TrendingUpOutlined />}
+                    onClick={() => {
+                      setSalaryAdjForm({
+                        salaryMode: dossier.payrollProfile?.salaryMode || EmployeeSalaryMode.CUSTOM_FIXED,
+                        newSalary: dossier.payrollProfile?.customBaseSalary ? Number(dossier.payrollProfile.customBaseSalary) : 1750905,
+                        effectiveDate: new Date().toISOString().split("T")[0],
+                        reason: "Ajuste / Aumento salarial individual",
+                      });
+                      setSalaryAdjOpen(true);
+                    }}
+                    sx={{ textTransform: "none", fontWeight: 700, borderColor: "#7C3AED", color: "#7C3AED" }}
+                  >
+                    Registrar Aumento Salarial
+                  </Button>
+                </Box>
+
+                <TableContainer component={Paper} elevation={0} sx={{ border: "1px solid #E2E8F0", borderRadius: "8px", mb: 4 }}>
+                  <Table size="small">
+                    <TableHead sx={{ bgcolor: "#F8FAFC" }}>
+                      <TableRow>
+                        <TableCell sx={{ fontWeight: 700, fontSize: "0.72rem" }}>FECHA EFECTIVA</TableCell>
+                        <TableCell sx={{ fontWeight: 700, fontSize: "0.72rem" }}>ORIGEN DEL AJUSTE</TableCell>
+                        <TableCell sx={{ fontWeight: 700, fontSize: "0.72rem" }} align="right">SALARIO ANTERIOR</TableCell>
+                        <TableCell sx={{ fontWeight: 700, fontSize: "0.72rem" }} align="right">SALARIO NUEVO</TableCell>
+                        <TableCell sx={{ fontWeight: 700, fontSize: "0.72rem" }} align="center">INCREMENTO</TableCell>
+                        <TableCell sx={{ fontWeight: 700, fontSize: "0.72rem" }}>MOTIVO / JUSTIFICACIÓN</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {(!dossier.salaryHistories || dossier.salaryHistories.length === 0) ? (
+                        <TableRow>
+                          <TableCell colSpan={6} align="center" sx={{ py: 3, color: "#64748B", fontSize: "0.8rem" }}>
+                            No hay registros históricos de variación salarial para este empleado.
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        dossier.salaryHistories.map((h: any) => (
+                          <TableRow key={h.id} hover>
+                            <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>
+                              {h.effectiveDate ? h.effectiveDate.split("T")[0] : "N/A"}
+                            </TableCell>
+                            <TableCell>
+                              <Chip
+                                label={
+                                  h.origin === "SMMLV_GLOBAL_UPDATE"
+                                    ? "Nivelación SMMLV"
+                                    : h.origin === "INDIVIDUAL_INCREASE"
+                                    ? "Aumento Individual"
+                                    : "Contrato Inicial"
+                                }
+                                size="small"
+                                sx={{
+                                  height: 20,
+                                  fontWeight: 700,
+                                  bgcolor: h.origin === "SMMLV_GLOBAL_UPDATE" ? "#EDE9FE" : "#DCFCE7",
+                                  color: h.origin === "SMMLV_GLOBAL_UPDATE" ? "#6D28D9" : "#166534",
+                                }}
+                              />
+                            </TableCell>
+                            <TableCell align="right" sx={{ fontFamily: "'JetBrains Mono', monospace" }}>
+                              ${Number(h.previousSalary).toLocaleString("es-CO")}
+                            </TableCell>
+                            <TableCell align="right" sx={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, color: "#059669" }}>
+                              ${Number(h.newSalary).toLocaleString("es-CO")}
+                            </TableCell>
+                            <TableCell align="center">
+                              <Chip
+                                label={`+${Number(h.variationPct).toFixed(2)}%`}
+                                size="small"
+                                color="success"
+                                sx={{ height: 20, fontWeight: 700 }}
+                              />
+                            </TableCell>
+                            <TableCell sx={{ color: "#334155" }}>{h.reason}</TableCell>
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+
+                {/* 2. Desprendibles de Pago Emitidos */}
+                <Typography variant="caption" sx={{ fontWeight: 700, color: "#0F172A", textTransform: "uppercase", display: "block", mb: 1.5 }}>
+                  Desprendibles de Pago Emitidos Oficialmente
+                </Typography>
+
+                <TableContainer component={Paper} elevation={0} sx={{ border: "1px solid #E2E8F0", borderRadius: "8px" }}>
+                  <Table size="small">
+                    <TableHead sx={{ bgcolor: "#F8FAFC" }}>
+                      <TableRow>
+                        <TableCell sx={{ fontWeight: 700, fontSize: "0.72rem" }}>PERIODO DE NÓMINA</TableCell>
+                        <TableCell sx={{ fontWeight: 700, fontSize: "0.72rem" }} align="center">DÍAS LIQ.</TableCell>
+                        <TableCell sx={{ fontWeight: 700, fontSize: "0.72rem" }} align="right">TOTAL DEVENGADO</TableCell>
+                        <TableCell sx={{ fontWeight: 700, fontSize: "0.72rem" }} align="right">TOTAL DEDUCIDO</TableCell>
+                        <TableCell sx={{ fontWeight: 700, fontSize: "0.72rem" }} align="right">NETO PAGADO</TableCell>
+                        <TableCell sx={{ fontWeight: 700, fontSize: "0.72rem" }} align="center">ESTADO</TableCell>
+                        <TableCell sx={{ fontWeight: 700, fontSize: "0.72rem" }} align="center">DESPRENDIBLE PDF</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {(!dossier.periodSettlements || dossier.periodSettlements.length === 0) ? (
+                        <TableRow>
+                          <TableCell colSpan={7} align="center" sx={{ py: 3, color: "#64748B", fontSize: "0.8rem" }}>
+                            No hay liquidaciones de nómina históricas generadas para este empleado.
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        dossier.periodSettlements.map((ps: any) => (
+                          <TableRow key={ps.id} hover>
+                            <TableCell sx={{ fontWeight: 700, color: "#1E1B4B" }}>
+                              {ps.periodLabel || "Periodo de Nómina"}
+                            </TableCell>
+                            <TableCell align="center">
+                              <Chip label={`${ps.workedDays} d`} size="small" sx={{ height: 20, fontWeight: 700 }} />
+                            </TableCell>
+                            <TableCell align="right" sx={{ fontFamily: "'JetBrains Mono', monospace", color: "#059669" }}>
+                              ${Number(ps.totalEarnings).toLocaleString("es-CO")}
+                            </TableCell>
+                            <TableCell align="right" sx={{ fontFamily: "'JetBrains Mono', monospace", color: "#DC2626" }}>
+                              ${Number(ps.totalDeductions).toLocaleString("es-CO")}
+                            </TableCell>
+                            <TableCell align="right" sx={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 800, color: "#7C3AED" }}>
+                              ${Number(ps.netPayAmount).toLocaleString("es-CO")}
+                            </TableCell>
+                            <TableCell align="center">
+                              <Chip
+                                label={ps.status === "PAID" ? "PAGADO" : ps.status === "APPROVED" ? "APROBADO" : "BORRADOR"}
+                                size="small"
+                                color={ps.status === "PAID" ? "success" : "default"}
+                                sx={{ height: 20, fontWeight: 700 }}
+                              />
+                            </TableCell>
+                            <TableCell align="center">
+                              <Button
+                                size="small"
+                                variant="outlined"
+                                startIcon={<PictureAsPdfOutlined />}
+                                onClick={() => handleDownloadPayslip(ps.id)}
+                                sx={{ textTransform: "none", borderColor: "#DC2626", color: "#DC2626", fontWeight: 700, py: 0.2 }}
+                              >
+                                Descargar PDF
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              </Box>
+            )}
           </Box>
         )}
+      </ResponsiveFormDrawer>
+
+      {/* DRAWER: REGISTRAR AUMENTO / AJUSTE SALARIAL */}
+      <ResponsiveFormDrawer
+        open={salaryAdjOpen}
+        onClose={() => setSalaryAdjOpen(false)}
+        title="Registrar Aumento / Ajuste Salarial"
+        subtitle={`Empleado: ${dossier?.employee?.fullName || ""}`}
+        actions={
+          <>
+            <Button variant="outlined" color="inherit" onClick={() => setSalaryAdjOpen(false)}>
+              Cancelar
+            </Button>
+            <Button
+              variant="contained"
+              sx={{ bgcolor: "#7C3AED", "&:hover": { bgcolor: "#6D28D9" }, fontWeight: 700 }}
+              onClick={handleApplySalaryAdjustment}
+              disabled={dossierLoading}
+            >
+              Aplicar Aumento
+            </Button>
+          </>
+        }
+      >
+        <Box sx={{ p: 2 }}>
+          <TextField
+            select
+            fullWidth
+            size="small"
+            label="Modo Salarial"
+            value={salaryAdjForm.salaryMode}
+            onChange={(e) => setSalaryAdjForm({ ...salaryAdjForm, salaryMode: e.target.value as any })}
+            sx={{ mb: 2 }}
+          >
+            <MenuItem value={EmployeeSalaryMode.CUSTOM_FIXED}>Sueldo Fijo Contractual Personalizado</MenuItem>
+            <MenuItem value={EmployeeSalaryMode.MINIMUM_WAGE}>Salario Mínimo Legal Vigente (SMMLV Automático)</MenuItem>
+            <MenuItem value={EmployeeSalaryMode.BY_DEPENDENCY}>Heredar del Puesto (Sueldo Garantizado / Modalidad)</MenuItem>
+          </TextField>
+
+          <TextField
+            fullWidth
+            type="number"
+            size="small"
+            label="Nuevo Salario Básico Mensual ($ COP)"
+            value={salaryAdjForm.newSalary}
+            onChange={(e) => setSalaryAdjForm({ ...salaryAdjForm, newSalary: Number(e.target.value) })}
+            InputProps={{
+              startAdornment: <InputAdornment position="start">$</InputAdornment>,
+            }}
+            sx={{ mb: 2 }}
+          />
+
+          <TextField
+            fullWidth
+            type="date"
+            size="small"
+            label="Fecha Efectiva del Aumento"
+            value={salaryAdjForm.effectiveDate}
+            onChange={(e) => setSalaryAdjForm({ ...salaryAdjForm, effectiveDate: e.target.value })}
+            InputLabelProps={{ shrink: true }}
+            sx={{ mb: 2 }}
+          />
+
+          <TextField
+            fullWidth
+            multiline
+            rows={3}
+            size="small"
+            label="Motivo o Justificación del Aumento"
+            placeholder="Ej: Ascenso a Supervisor, Nivelación IPC 2026, Desempeño Destacado..."
+            value={salaryAdjForm.reason}
+            onChange={(e) => setSalaryAdjForm({ ...salaryAdjForm, reason: e.target.value })}
+          />
+        </Box>
       </ResponsiveFormDrawer>
     </Box>
   );
