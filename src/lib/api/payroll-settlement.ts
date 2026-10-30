@@ -10,6 +10,9 @@ export enum PayrollSettlementStatus {
 export enum PayrollDisbursementType {
   PAYROLL_PERIOD = "PAYROLL_PERIOD",
   FORTNIGHT_ADVANCE = "FORTNIGHT_ADVANCE",
+  SOCIAL_BENEFITS = "SOCIAL_BENEFITS",
+  VACATION_SETTLEMENT = "VACATION_SETTLEMENT",
+  FINAL_LIQUIDATION = "FINAL_LIQUIDATION",
 }
 
 export enum PayslipDeliveryStatus {

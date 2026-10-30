@@ -374,11 +374,26 @@ export const PayrollApi = {
   listBanks: () => HttpClient.get<PayrollBank[]>("/payroll/catalogs/banks"),
   createBank: (data: Partial<PayrollBank>) => HttpClient.post<PayrollBank>("/payroll/catalogs/banks", data),
   listBranches: () => HttpClient.get<PayrollBranch[]>("/payroll/catalogs/branches"),
+  listEmployees: () => HttpClient.get<any[]>("/payroll/employees"),
   listExitReasons: () => HttpClient.get<PayrollExitReason[]>("/payroll/catalogs/exit-reasons"),
   listHiringRequirements: () => HttpClient.get<PayrollHiringRequirement[]>("/payroll/catalogs/hiring-requirements"),
   listSvspLevels: () => HttpClient.get<PayrollSvspLevel[]>("/payroll/catalogs/svsp-levels"),
   listAcademies: () => HttpClient.get<PayrollSecurityAcademy[]>("/payroll/catalogs/academies"),
   listPeriods: (year?: number) =>
     HttpClient.get<PayrollPeriod[]>(`/payroll/catalogs/periods${year ? `?year=${year}` : ""}`),
+  createPeriod: (data: {
+    code: number;
+    label: string;
+    year: number;
+    month: number;
+    periodNumber?: number;
+    startDate: string;
+    endDate: string;
+    paymentDate?: string;
+    status?: string;
+    notes?: string;
+  }) => HttpClient.post<PayrollPeriod>("/payroll/catalogs/periods", data),
+  generateYearPeriods: (data: { year: number; baseCode?: number }) =>
+    HttpClient.post<PayrollPeriod[]>("/payroll/catalogs/periods/generate-year", data),
 };
 

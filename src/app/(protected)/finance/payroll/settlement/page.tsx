@@ -118,6 +118,68 @@ export default function PayrollSettlementPage() {
   // Desprendibles
   const [groupOvertime, setGroupOvertime] = useState(false);
 
+  // Drawer Periodos (Fase 5)
+  const [periodDrawerOpen, setPeriodDrawerOpen] = useState(false);
+  const [periodDrawerMode, setPeriodDrawerMode] = useState<"INDIVIDUAL" | "YEAR_GENERATE">("INDIVIDUAL");
+  const [periodForm, setPeriodForm] = useState({
+    code: new Date().getFullYear() * 100 + (new Date().getMonth() + 1),
+    label: "",
+    year: new Date().getFullYear(),
+    month: new Date().getMonth() + 1,
+    periodNumber: 1,
+    startDate: new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split("T")[0],
+    endDate: new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).toISOString().split("T")[0],
+    paymentDate: new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).toISOString().split("T")[0],
+    notes: "",
+  });
+  const [genYear, setGenYear] = useState(new Date().getFullYear());
+  const [genBaseCode, setGenBaseCode] = useState(new Date().getFullYear() * 100 + 1);
+
+  const handleCreatePeriod = async () => {
+    try {
+      setActionLoading(true);
+      const created = await PayrollApi.createPeriod({
+        code: Number(periodForm.code),
+        label: periodForm.label || `Periodo ${periodForm.month}/${periodForm.year}`,
+        year: Number(periodForm.year),
+        month: Number(periodForm.month),
+        periodNumber: Number(periodForm.periodNumber) || 1,
+        startDate: periodForm.startDate,
+        endDate: periodForm.endDate,
+        paymentDate: periodForm.paymentDate || undefined,
+        notes: periodForm.notes || undefined,
+      });
+      setAlertInfo({ type: "success", msg: `Periodo "${created.label}" creado exitosamente.` });
+      setPeriodDrawerOpen(false);
+      await loadCatalogs();
+      setSelectedPeriodId(created.id);
+    } catch (err: any) {
+      setAlertInfo({ type: "error", msg: err?.message || "Error al crear periodo de nómina" });
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleGenerateYearPeriods = async () => {
+    try {
+      setActionLoading(true);
+      const generated = await PayrollApi.generateYearPeriods({
+        year: Number(genYear),
+        baseCode: Number(genBaseCode) || undefined,
+      });
+      setAlertInfo({ type: "success", msg: `Se generaron exitosamente ${generated.length} periodos para el año ${genYear}.` });
+      setPeriodDrawerOpen(false);
+      await loadCatalogs();
+      if (generated.length > 0) {
+        setSelectedPeriodId(generated[0].id);
+      }
+    } catch (err: any) {
+      setAlertInfo({ type: "error", msg: err?.message || "Error al generar periodos anuales" });
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   // Cargar Catálogos Iniciales
   useEffect(() => {
     loadCatalogs();
@@ -548,6 +610,24 @@ export default function PayrollSettlementPage() {
             <IconButton onClick={() => selectedPeriodId && loadSettlementsData(selectedPeriodId)} size="small" disabled={loading}>
               <RefreshOutlined fontSize="small" />
             </IconButton>
+
+            <Button
+              variant="contained"
+              size="small"
+              startIcon={<AddOutlined />}
+              onClick={() => setPeriodDrawerOpen(true)}
+              sx={{
+                bgcolor: "#7C3AED",
+                "&:hover": { bgcolor: "#6D28D9" },
+                textTransform: "none",
+                fontWeight: 700,
+                borderRadius: 2,
+                whiteSpace: "nowrap",
+                ml: 1,
+              }}
+            >
+              + Abrir Periodo
+            </Button>
           </Box>
         </Box>
       </Box>
@@ -1069,6 +1149,9 @@ export default function PayrollSettlementPage() {
                 >
                   <MenuItem value={PayrollDisbursementType.PAYROLL_PERIOD}>Nómina Mensual (Periodo Fin de Mes)</MenuItem>
                   <MenuItem value={PayrollDisbursementType.FORTNIGHT_ADVANCE}>Anticipo Quincenal (Día 15)</MenuItem>
+                  <MenuItem value={PayrollDisbursementType.SOCIAL_BENEFITS}>Prestaciones Sociales (Prima / Cesantías)</MenuItem>
+                  <MenuItem value={PayrollDisbursementType.VACATION_SETTLEMENT}>Compensación de Vacaciones en Dinero</MenuItem>
+                  <MenuItem value={PayrollDisbursementType.FINAL_LIQUIDATION}>Liquidación Definitiva de Contratos</MenuItem>
                 </TextField>
               </Grid>
 
@@ -1487,6 +1570,165 @@ export default function PayrollSettlementPage() {
             value={editingAdvanceNotes}
             onChange={(e) => setEditingAdvanceNotes(e.target.value)}
           />
+        </Box>
+      </ResponsiveFormDrawer>
+
+      {/* ========================================================================= */}
+      {/* DRAWER: ABRIR / GENERAR PERIODOS DE NÓMINA (Fase 5)                      */}
+      {/* ========================================================================= */}
+      <ResponsiveFormDrawer
+        open={periodDrawerOpen}
+        onClose={() => setPeriodDrawerOpen(false)}
+        title={periodDrawerMode === "INDIVIDUAL" ? "Abrir Periodo de Nómina" : "Generación Anual de Periodos"}
+        subtitle="Configuración y apertura de ciclos quincenales o mensuales de liquidación"
+        actions={
+          <>
+            <Button variant="outlined" color="inherit" onClick={() => setPeriodDrawerOpen(false)}>
+              Cancelar
+            </Button>
+            <Button
+              variant="contained"
+              sx={{ bgcolor: "#7C3AED", "&:hover": { bgcolor: "#6D28D9" }, fontWeight: 700 }}
+              onClick={periodDrawerMode === "INDIVIDUAL" ? handleCreatePeriod : handleGenerateYearPeriods}
+              disabled={actionLoading}
+            >
+              {periodDrawerMode === "INDIVIDUAL" ? "Crear Periodo" : "Generar 12 Periodos"}
+            </Button>
+          </>
+        }
+      >
+        <Box sx={{ p: 2 }}>
+          <Tabs
+            value={periodDrawerMode === "INDIVIDUAL" ? 0 : 1}
+            onChange={(_, val) => setPeriodDrawerMode(val === 0 ? "INDIVIDUAL" : "YEAR_GENERATE")}
+            sx={{ mb: 3, borderBottom: "1px solid #E2E8F0" }}
+          >
+            <Tab label="Periodo Individual" sx={{ textTransform: "none", fontWeight: 700 }} />
+            <Tab label="Generador Anual (12 Meses)" sx={{ textTransform: "none", fontWeight: 700 }} />
+          </Tabs>
+
+          {periodDrawerMode === "INDIVIDUAL" ? (
+            <Grid container spacing={2}>
+              <Grid size={{ xs: 12, md: 6 }}>
+                <TextField
+                  fullWidth
+                  type="number"
+                  label="Código Numérico (Ej: 202611)"
+                  value={periodForm.code}
+                  onChange={(e) => setPeriodForm({ ...periodForm, code: parseInt(e.target.value) || 0 })}
+                  helperText="Formato sugerido: YYYYMM"
+                />
+              </Grid>
+              <Grid size={{ xs: 12, md: 6 }}>
+                <TextField
+                  fullWidth
+                  label="Etiqueta / Nombre Descriptivo"
+                  value={periodForm.label}
+                  onChange={(e) => setPeriodForm({ ...periodForm, label: e.target.value })}
+                  placeholder="Ej: Noviembre 2026"
+                />
+              </Grid>
+              <Grid size={{ xs: 12, md: 4 }}>
+                <TextField
+                  fullWidth
+                  type="number"
+                  label="Año"
+                  value={periodForm.year}
+                  onChange={(e) => setPeriodForm({ ...periodForm, year: parseInt(e.target.value) || 2026 })}
+                />
+              </Grid>
+              <Grid size={{ xs: 12, md: 4 }}>
+                <TextField
+                  fullWidth
+                  type="number"
+                  label="Mes (1..12)"
+                  value={periodForm.month}
+                  onChange={(e) => setPeriodForm({ ...periodForm, month: parseInt(e.target.value) || 1 })}
+                />
+              </Grid>
+              <Grid size={{ xs: 12, md: 4 }}>
+                <TextField
+                  fullWidth
+                  type="number"
+                  label="N° Sub-periodo"
+                  value={periodForm.periodNumber}
+                  onChange={(e) => setPeriodForm({ ...periodForm, periodNumber: parseInt(e.target.value) || 1 })}
+                  helperText="1 para mensual, 1 ó 2 para quincenal"
+                />
+              </Grid>
+              <Grid size={{ xs: 12, md: 6 }}>
+                <TextField
+                  fullWidth
+                  type="date"
+                  label="Fecha de Inicio"
+                  value={periodForm.startDate}
+                  onChange={(e) => setPeriodForm({ ...periodForm, startDate: e.target.value })}
+                  InputLabelProps={{ shrink: true }}
+                />
+              </Grid>
+              <Grid size={{ xs: 12, md: 6 }}>
+                <TextField
+                  fullWidth
+                  type="date"
+                  label="Fecha de Corte / Fin"
+                  value={periodForm.endDate}
+                  onChange={(e) => setPeriodForm({ ...periodForm, endDate: e.target.value })}
+                  InputLabelProps={{ shrink: true }}
+                />
+              </Grid>
+              <Grid size={{ xs: 12, md: 6 }}>
+                <TextField
+                  fullWidth
+                  type="date"
+                  label="Fecha Límite de Pago"
+                  value={periodForm.paymentDate}
+                  onChange={(e) => setPeriodForm({ ...periodForm, paymentDate: e.target.value })}
+                  InputLabelProps={{ shrink: true }}
+                />
+              </Grid>
+              <Grid size={{ xs: 12 }}>
+                <TextField
+                  fullWidth
+                  multiline
+                  rows={2}
+                  label="Notas u Observaciones del Periodo"
+                  value={periodForm.notes}
+                  onChange={(e) => setPeriodForm({ ...periodForm, notes: e.target.value })}
+                />
+              </Grid>
+            </Grid>
+          ) : (
+            <Box>
+              <Alert severity="info" sx={{ mb: 3 }}>
+                Este generador creará automáticamente los 12 periodos mensuales estándar (enero a diciembre) para el año especificado, con corte comercial al último día de cada mes.
+              </Alert>
+              <Grid container spacing={2}>
+                <Grid size={{ xs: 12, md: 6 }}>
+                  <TextField
+                    fullWidth
+                    type="number"
+                    label="Año a Generar"
+                    value={genYear}
+                    onChange={(e) => {
+                      const yr = parseInt(e.target.value) || 2026;
+                      setGenYear(yr);
+                      setGenBaseCode(yr * 100 + 1);
+                    }}
+                  />
+                </Grid>
+                <Grid size={{ xs: 12, md: 6 }}>
+                  <TextField
+                    fullWidth
+                    type="number"
+                    label="Código Base Inicial (Enero)"
+                    value={genBaseCode}
+                    onChange={(e) => setGenBaseCode(parseInt(e.target.value) || 202601)}
+                    helperText="Ej: 202601 generará 202601 .. 202612"
+                  />
+                </Grid>
+              </Grid>
+            </Box>
+          )}
         </Box>
       </ResponsiveFormDrawer>
     </Box>

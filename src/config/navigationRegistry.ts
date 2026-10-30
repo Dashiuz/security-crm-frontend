@@ -707,6 +707,17 @@ export const ERP_DIRECTIONS: ErpDirection[] = [
         features: ["payroll"],
         bulletColor: "#EC4899",
       },
+      {
+        id: "fin-payroll-benefits",
+        title: "Prestaciones y Liquidación",
+        description: "Libro de vacaciones, prima semestral, cesantías/intereses 12% y liquidación definitiva con paz y salvo",
+        status: "ACTIVE",
+        path: "/finance/payroll/benefits",
+        iconName: "ReceiptLongOutlined",
+        permissions: ["payroll:benefits:read", "payroll:benefits:manage"],
+        features: ["payroll"],
+        bulletColor: "#7C3AED",
+      },
     ],
   },
   {

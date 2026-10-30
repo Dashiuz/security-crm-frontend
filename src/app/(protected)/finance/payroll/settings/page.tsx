@@ -289,7 +289,7 @@ export default function PayrollSettingsPage() {
               }}
             >
               <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                <Typography sx={{ fontWeight: 700, display: "flex", alignItems: "center", gap: 1, fontSize: "0.9rem" }}>
+                <Typography component="div" sx={{ fontWeight: 700, display: "flex", alignItems: "center", gap: 1, fontSize: "0.9rem" }}>
                   <Box component="span" sx={{ color: noxiaPalette.primary.main, display: "flex" }}>
                     {t.icon}
                   </Box>

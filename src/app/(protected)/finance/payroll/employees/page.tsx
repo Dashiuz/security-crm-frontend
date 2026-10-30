@@ -78,6 +78,7 @@ import {
   PayrollSecurityAcademy,
   ArlRiskClass,
 } from "@/lib/api/payroll";
+import { payrollBenefitsApi } from "@/lib/api/payroll-benefits";
 import ResponsiveFormDrawer from "@/components/common/ResponsiveFormDrawer";
 import { noxiaPalette } from "@/theme/noxiaTheme";
 
@@ -173,6 +174,44 @@ export default function PayrollEmployeesPage() {
       setFeedback({ type: "error", message: err?.message || "Error al aplicar ajuste salarial" });
     } finally {
       setDossierLoading(false);
+    }
+  };
+
+  const handleDownloadVacationSlip = async (vacationId: string) => {
+    try {
+      const blob = await payrollBenefitsApi.downloadVacationSlipPdf(vacationId);
+      if (blob instanceof Blob && typeof window !== "undefined") {
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `comprobante-vacaciones-${vacationId.substring(0, 8)}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(url);
+      }
+      setFeedback({ type: "success", message: "Desprendible de vacaciones descargado con éxito." });
+    } catch (err: any) {
+      setFeedback({ type: "error", message: err?.message || "Error al descargar desprendible de vacaciones." });
+    }
+  };
+
+  const handleDownloadFinalSettlementPdf = async (settlementId: string) => {
+    try {
+      const blob = await payrollBenefitsApi.downloadFinalSettlementPdf(settlementId);
+      if (blob instanceof Blob && typeof window !== "undefined") {
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `acta-liquidacion-definitiva-${settlementId.substring(0, 8)}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(url);
+      }
+      setFeedback({ type: "success", message: "Acta de liquidación definitiva y paz y salvo descargada con éxito." });
+    } catch (err: any) {
+      setFeedback({ type: "error", message: err?.message || "Error al descargar acta de liquidación definitiva." });
     }
   };
 
@@ -2224,6 +2263,153 @@ export default function PayrollEmployeesPage() {
                                 sx={{ textTransform: "none", borderColor: "#DC2626", color: "#DC2626", fontWeight: 700, py: 0.2 }}
                               >
                                 Descargar PDF
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+
+                {/* 3. Desprendibles de Vacaciones (Fase 5) */}
+                <Typography variant="caption" sx={{ fontWeight: 700, color: "#0F172A", textTransform: "uppercase", display: "block", mt: 3, mb: 1.5 }}>
+                  Desprendibles de Vacaciones Oficiales (Disfrute y Compensación)
+                </Typography>
+
+                <TableContainer component={Paper} elevation={0} sx={{ border: "1px solid #E2E8F0", borderRadius: "8px", mb: 3 }}>
+                  <Table size="small">
+                    <TableHead sx={{ bgcolor: "#F8FAFC" }}>
+                      <TableRow>
+                        <TableCell sx={{ fontWeight: 700, fontSize: "0.72rem" }}>TIPO / MODALIDAD</TableCell>
+                        <TableCell sx={{ fontWeight: 700, fontSize: "0.72rem" }} align="center">PERIODO DISFRUTE</TableCell>
+                        <TableCell sx={{ fontWeight: 700, fontSize: "0.72rem" }} align="center">DÍAS HÁBILES / DINERO</TableCell>
+                        <TableCell sx={{ fontWeight: 700, fontSize: "0.72rem" }} align="right">BASE SALARIAL</TableCell>
+                        <TableCell sx={{ fontWeight: 700, fontSize: "0.72rem" }} align="right">NETO A PAGAR</TableCell>
+                        <TableCell sx={{ fontWeight: 700, fontSize: "0.72rem" }} align="center">ESTADO</TableCell>
+                        <TableCell sx={{ fontWeight: 700, fontSize: "0.72rem" }} align="center">DESPRENDIBLE PDF</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {(!dossier.vacationSettlements || dossier.vacationSettlements.length === 0) ? (
+                        <TableRow>
+                          <TableCell colSpan={7} align="center" sx={{ py: 3, color: "#64748B", fontSize: "0.8rem" }}>
+                            No hay liquidaciones de vacaciones registradas para este empleado.
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        dossier.vacationSettlements.map((vac: any) => (
+                          <TableRow key={vac.id} hover>
+                            <TableCell sx={{ fontWeight: 700, color: "#1E1B4B" }}>
+                              {vac.settlementType === "TIME_OFF" ? "Disfrute en Tiempo" : vac.settlementType === "MONEY_COMPENSATION" ? "Compensación Dinero" : "Mixto"}
+                            </TableCell>
+                            <TableCell align="center" sx={{ fontSize: "0.8rem" }}>
+                              {vac.startDate ? `${vac.startDate} al ${vac.endDate}` : "N/A (Compensadas)"}
+                            </TableCell>
+                            <TableCell align="center">
+                              <Chip
+                                label={`${vac.businessDaysTaken || 0}d hábiles / ${vac.moneyDaysPaid || 0}d dinero`}
+                                size="small"
+                                sx={{ height: 20, fontWeight: 700 }}
+                              />
+                            </TableCell>
+                            <TableCell align="right" sx={{ fontFamily: "'JetBrains Mono', monospace" }}>
+                              $${Number(vac.baseSalary).toLocaleString("es-CO")}
+                            </TableCell>
+                            <TableCell align="right" sx={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 800, color: "#7C3AED" }}>
+                              $${Number(vac.netPay).toLocaleString("es-CO")}
+                            </TableCell>
+                            <TableCell align="center">
+                              <Chip
+                                label={vac.status === "PAID" ? "PAGADO" : vac.status === "APPROVED" ? "APROBADO" : "BORRADOR"}
+                                size="small"
+                                color={vac.status === "PAID" ? "success" : "default"}
+                                sx={{ height: 20, fontWeight: 700 }}
+                              />
+                            </TableCell>
+                            <TableCell align="center">
+                              <Button
+                                size="small"
+                                variant="outlined"
+                                startIcon={<PictureAsPdfOutlined />}
+                                onClick={() => handleDownloadVacationSlip(vac.id)}
+                                sx={{ textTransform: "none", borderColor: "#7C3AED", color: "#7C3AED", fontWeight: 700, py: 0.2 }}
+                              >
+                                Desprendible PDF
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+
+                {/* 4. Actas de Liquidación Definitiva y Paz y Salvo (Fase 5) */}
+                <Typography variant="caption" sx={{ fontWeight: 700, color: "#0F172A", textTransform: "uppercase", display: "block", mb: 1.5 }}>
+                  Actas de Liquidación Definitiva de Contrato y Paz y Salvo Oficial
+                </Typography>
+
+                <TableContainer component={Paper} elevation={0} sx={{ border: "1px solid #E2E8F0", borderRadius: "8px" }}>
+                  <Table size="small">
+                    <TableHead sx={{ bgcolor: "#F8FAFC" }}>
+                      <TableRow>
+                        <TableCell sx={{ fontWeight: 700, fontSize: "0.72rem" }}>FECHA DE RETIRO</TableCell>
+                        <TableCell sx={{ fontWeight: 700, fontSize: "0.72rem" }}>MOTIVO / CAUSA</TableCell>
+                        <TableCell sx={{ fontWeight: 700, fontSize: "0.72rem" }} align="center">JUSTA CAUSA</TableCell>
+                        <TableCell sx={{ fontWeight: 700, fontSize: "0.72rem" }} align="right">TOTAL LIQUIDACIÓN</TableCell>
+                        <TableCell sx={{ fontWeight: 700, fontSize: "0.72rem" }} align="right">NETO DEFINITIVO</TableCell>
+                        <TableCell sx={{ fontWeight: 700, fontSize: "0.72rem" }} align="center">ESTADO</TableCell>
+                        <TableCell sx={{ fontWeight: 700, fontSize: "0.72rem" }} align="center">ACTA OFICIAL PDF</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {(!dossier.finalSettlements || dossier.finalSettlements.length === 0) ? (
+                        <TableRow>
+                          <TableCell colSpan={7} align="center" sx={{ py: 3, color: "#64748B", fontSize: "0.8rem" }}>
+                            El empleado no presenta liquidaciones de retiro o contrato finalizado.
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        dossier.finalSettlements.map((finalS: any) => (
+                          <TableRow key={finalS.id} hover>
+                            <TableCell sx={{ fontWeight: 700, color: "#1E1B4B" }}>
+                              {finalS.terminationDate || "N/A"}
+                            </TableCell>
+                            <TableCell sx={{ fontSize: "0.8rem" }}>
+                              {finalS.terminationReason || "Terminación de Contrato"}
+                            </TableCell>
+                            <TableCell align="center">
+                              <Chip
+                                label={finalS.isJustCause ? "CON JUSTA CAUSA" : "SIN JUSTA CAUSA"}
+                                size="small"
+                                color={finalS.isJustCause ? "default" : "warning"}
+                                sx={{ height: 20, fontWeight: 700 }}
+                              />
+                            </TableCell>
+                            <TableCell align="right" sx={{ fontFamily: "'JetBrains Mono', monospace" }}>
+                              $${Number(finalS.totalSettlement).toLocaleString("es-CO")}
+                            </TableCell>
+                            <TableCell align="right" sx={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 800, color: "#059669" }}>
+                              $${Number(finalS.netLiquidation).toLocaleString("es-CO")}
+                            </TableCell>
+                            <TableCell align="center">
+                              <Chip
+                                label={finalS.status === "PAID" ? "PAGADO" : finalS.status === "APPROVED" ? "APROBADO" : "BORRADOR"}
+                                size="small"
+                                color={finalS.status === "PAID" ? "success" : "default"}
+                                sx={{ height: 20, fontWeight: 700 }}
+                              />
+                            </TableCell>
+                            <TableCell align="center">
+                              <Button
+                                size="small"
+                                variant="contained"
+                                startIcon={<PictureAsPdfOutlined />}
+                                onClick={() => handleDownloadFinalSettlementPdf(finalS.id)}
+                                sx={{ textTransform: "none", bgcolor: "#1E1B4B", "&:hover": { bgcolor: "#0F172A" }, fontWeight: 700, py: 0.2 }}
+                              >
+                                Descargar Paz y Salvo
                               </Button>
                             </TableCell>
                           </TableRow>

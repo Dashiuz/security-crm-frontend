@@ -140,6 +140,8 @@ export interface EmployeeDossierResponse {
   internalTrainings: any[];
   salaryHistories?: any[];
   periodSettlements?: any[];
+  vacationSettlements?: any[];
+  finalSettlements?: any[];
   svspStatus: "VALID" | "EXPIRING_SOON" | "EXPIRED" | "MISSING";
   svspDaysRemaining: number | null;
   contractAlertStatus: "OK" | "PREAVISO_REQUIRED" | "EXPIRED";
