@@ -594,6 +594,17 @@ export default function PayrollSettingsPage() {
           </Grid>
 
           <Grid size={{ xs: 12, md: 4 }}>
+            <TextField
+              fullWidth
+              label="% Reconocimiento Empresa Incapacidad EG (Días 1-2)"
+              type="number"
+              value={settings.employerSickLeaveRatePct ?? 66.67}
+              onChange={(e) => setSettings({ ...settings, employerSickLeaveRatePct: Number(e.target.value) })}
+              helperText="66.67% (Ley Colombia) o 100% (Beneficio empresa)"
+            />
+          </Grid>
+
+          <Grid size={{ xs: 12, md: 4 }}>
             <FormControlLabel
               control={
                 <Switch

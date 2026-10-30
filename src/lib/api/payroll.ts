@@ -83,6 +83,9 @@ export interface PayrollSettings {
   scheduleLockDate?: string;
   activeYear: number;
   smmlv: number;
+  employerSickLeaveRatePct?: number;
+  epsSickLeaveRateDays3To90Pct?: number;
+  epsSickLeaveRateDays91To180Pct?: number;
   transportAllowance: number;
   uvtValue: number;
   weeklyWorkingHours: number;
