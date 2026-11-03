@@ -242,6 +242,37 @@ Diseñado para la creación y edición de entidades complejas, captura de datos,
 3. **Notificaciones Globales (Toasts)**: Todo resultado de mutación asíncrona despachará alertas mediante [`useNotification()`](file:///d:/projects/security-crm-frontend/src/providers/NotificationProvider.tsx) (`showSuccess`, `showError`, `showWarning`).
 4. **Protección Anti-Doble Submit**: Todo botón de envío debe quedar inhabilitado durante el proceso (`disabled={isSubmitting}`) y desplegar un spinner circular integrado.
 
+### J. Prevención de Errores de Hidratación en Next.js (Anidación Semántica de Tags HTML y MUI Typography)
+1. **Causa Raíz del Error de Hidratación (`In HTML, <div> cannot be a descendant of <p>`)**:
+   - En Next.js (SSR / Turbopack), el servidor renderiza el HTML inicial y el navegador cliente lo hidrata contra el Virtual DOM de React.
+   - Según el estándar HTML5 del W3C, la etiqueta `<p>` (párrafo) **sólo admite elementos en línea** (*phrasing/inline content* como `<span>`, `<strong>`, `<a>`). **Queda terminantemente prohibido anidar elementos de bloque** (`<div>`, `<section>`, `<article>`, etc.) dentro de un `<p>`.
+   - Cuando el servidor envía `<p><div>...</div></p>`, el parser del navegador corrige automáticamente el DOM forzando el cierre prematuro del `<p>` antes del `<div>`. Esto produce una discordancia irreversible entre el DOM real del cliente y el Virtual DOM del servidor, rompiendo la hidratación y arrojando el error en consola.
+2. **Trampa Frecuente con Material UI (`Typography` vs `Chip` / `Box`)**:
+   - Por defecto, los componentes `<Typography variant="body1">`, `variant="body2"`, `variant="caption"` y sin variante renderizan como etiquetas HTML `<p>`.
+   - Por defecto, los componentes `<Chip>`, `<Box>`, `<Card>`, `<Grid>` y `<Stack>` renderizan como etiquetas HTML `<div>`.
+   - Escribir `<Typography variant="body2">Estado: <Chip ... /></Typography>` produce exactamente `<p>...<div>...</div>...</p>`, activando el fallo de hidratación de forma inevitable.
+3. **Patrones Canónicos de Solución**:
+   - **Patrón A (Typography con `component="div"`)**: Forzar a `Typography` a renderizarse como `<div>` semántico manteniendo su estilo tipográfico:
+     ```tsx
+     <Typography
+       component="div"
+       variant="body2"
+       sx={{ color: "text.secondary", display: "flex", alignItems: "center", gap: 1 }}
+     >
+       <span>Estado:</span>
+       <Chip size="small" label={item.status} color="success" />
+     </Typography>
+     ```
+   - **Patrón B (Contenedor `Box` Flex con hermanos)**: Separar el texto y el `<Chip>` como elementos hermanos dentro de un contenedor flex:
+     ```tsx
+     <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+       <Typography variant="body2" sx={{ color: "text.secondary" }}>
+         Estado:
+       </Typography>
+       <Chip size="small" label={item.status} color="success" />
+     </Box>
+     ```
+
 ---
 
 ## 5. Reglas Normativas de Desarrollo (Do's & Don'ts)
@@ -256,6 +287,7 @@ Diseñado para la creación y edición de entidades complejas, captura de datos,
 | **Iconografía** | Utilizar exclusivamente iconos SVG de `@mui/icons-material`. | Usar emojis como iconos de interfaz (ej. 📝, 🚗, 👮‍♂️, ❌). |
 | **Permisos** | Evaluar permisos mediante `permissions.includes(...)` o helpers de contexto. | Evaluar si `user.role === 'ADMIN'` o quemar lógica de negocio en el componente. |
 | **Fechas** | Formatear siempre con `formatDate` o `formatDateTime` de `lib/formatters.ts`. | Mostrar fechas crudas ISO (`2026-10-20T14:32:00.000Z`) o usar `.toLocaleDateString()` sin zona horaria. |
+| **Hidratación y Semántica HTML** | Usar `<Typography component="div">` o contenedores flex `<Box>` hermanos al acompañar textos con `<Chip>`, badges, iconos o contenedores. | Anidar `<Chip>`, `<Box>` o cualquier elemento de bloque `<div>` dentro de `<Typography>` sin `component="div"`, ya que genera `<p><div>...</div></p>` y rompe la hidratación SSR en Next.js. |
 
 ---
 
