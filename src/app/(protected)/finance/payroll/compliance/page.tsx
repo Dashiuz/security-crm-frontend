@@ -558,11 +558,17 @@ export default function PayrollCompliancePage() {
             onChange={(e) => setSelectedPeriodId(e.target.value)}
             sx={{ minWidth: 260 }}
           >
-            {periods.map((p) => (
-              <MenuItem key={p.id} value={p.id}>
-                {p.label} (Cód: {p.code})
+            {periods.length === 0 ? (
+              <MenuItem value="" disabled>
+                Sin periodos configurados
               </MenuItem>
-            ))}
+            ) : (
+              periods.map((p) => (
+                <MenuItem key={p.id} value={p.id}>
+                  {p.label} (Cód: {p.code})
+                </MenuItem>
+              ))
+            )}
           </TextField>
 
           <Tooltip title="Actualizar datos">
