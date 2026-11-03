@@ -18,11 +18,6 @@ import {
   InputLabel,
   IconButton,
   Tooltip,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogContentText,
-  DialogActions,
   Accordion,
   AccordionSummary,
   AccordionDetails,
@@ -51,6 +46,7 @@ import {
 } from "@/lib/api/commercial-settings";
 import { useNotification } from "@/providers/NotificationProvider";
 import { noxiaPalette, jetBrainsMono } from "@/theme/noxiaTheme";
+import ResponsiveFormDrawer from "@/components/common/ResponsiveFormDrawer";
 
 interface SalaryMatrixTabProps {
   salaryMatrix: PositionSalaryMatrixItem[];
@@ -1167,40 +1163,46 @@ export default function SalaryMatrixTab({
         </Grid>
       </Box>
 
-      {/* Diálogo de Confirmación de Eliminación */}
-      <Dialog
+      {/* Drawer de Confirmación de Eliminación */}
+      <ResponsiveFormDrawer
         open={Boolean(deleteCandidate)}
         onClose={() => !isDeleting && setDeleteCandidate(null)}
-        PaperProps={{ sx: { borderRadius: 3, p: 1 } }}
+        title="Confirmar Eliminación"
+        subtitle="Eliminar permanentemente cargo operativo de la matriz salarial"
+        headerIcon={<DeleteOutline color="error" />}
+        width={{ xs: "100%", sm: 460 }}
+        actions={
+          <Box sx={{ display: "flex", gap: 1.5, justifyContent: "flex-end", width: "100%" }}>
+            <Button
+              onClick={() => setDeleteCandidate(null)}
+              disabled={isDeleting}
+              sx={{ textTransform: "none", color: "text.secondary" }}
+            >
+              Cancelar
+            </Button>
+            <Button
+              variant="contained"
+              color="error"
+              onClick={handleConfirmDelete}
+              disabled={isDeleting}
+              startIcon={isDeleting ? <CircularProgress size={16} color="inherit" /> : <DeleteOutline />}
+              sx={{ textTransform: "none", fontWeight: 700, borderRadius: 2 }}
+            >
+              {isDeleting ? "Eliminando..." : "Eliminar Cargo"}
+            </Button>
+          </Box>
+        }
       >
-        <DialogTitle sx={{ fontWeight: 800 }}>Confirmar Eliminación de Cargo</DialogTitle>
-        <DialogContent>
-          <DialogContentText>
+        <Box sx={{ p: 1 }}>
+          <Typography variant="body1" sx={{ color: "text.secondary", lineHeight: 1.6 }}>
             ¿Estás seguro de que deseas eliminar permanentemente el cargo operativo{" "}
-            <strong>&quot;{deleteCandidate?.position.positionTitle}&quot;</strong> de la matriz salarial?
-            Esta acción no se puede deshacer si ya está guardado en el servidor.
-          </DialogContentText>
-        </DialogContent>
-        <DialogActions sx={{ pb: 2, px: 3 }}>
-          <Button
-            onClick={() => setDeleteCandidate(null)}
-            disabled={isDeleting}
-            sx={{ textTransform: "none", color: "text.secondary" }}
-          >
-            Cancelar
-          </Button>
-          <Button
-            variant="contained"
-            color="error"
-            onClick={handleConfirmDelete}
-            disabled={isDeleting}
-            startIcon={isDeleting ? <CircularProgress size={16} color="inherit" /> : <DeleteOutline />}
-            sx={{ textTransform: "none", fontWeight: 700, borderRadius: 2 }}
-          >
-            {isDeleting ? "Eliminando..." : "Eliminar Cargo"}
-          </Button>
-        </DialogActions>
-      </Dialog>
+            <strong style={{ color: noxiaPalette.primary.main }}>
+              &quot;{deleteCandidate?.position.positionTitle}&quot;
+            </strong>{" "}
+            de la matriz salarial? Esta acción no se puede deshacer si ya está guardado en el servidor.
+          </Typography>
+        </Box>
+      </ResponsiveFormDrawer>
     </Box>
   );
 }

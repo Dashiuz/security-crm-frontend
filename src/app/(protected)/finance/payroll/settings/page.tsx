@@ -32,6 +32,7 @@ import {
   Accordion,
   AccordionSummary,
   AccordionDetails,
+  Divider,
 } from "@mui/material";
 import {
   TuneOutlined,
@@ -63,6 +64,9 @@ import {
   PayrollConceptNature,
   PayrollProportionality,
   ShiftModalityClass,
+  DianProviderMode,
+  DianEnvironmentType,
+  AccountingExportFormat,
 } from "@/lib/api/payroll";
 import ResponsiveFormDrawer from "@/components/common/ResponsiveFormDrawer";
 import { noxiaPalette } from "@/theme/noxiaTheme";
@@ -605,6 +609,28 @@ export default function PayrollSettingsPage() {
           </Grid>
 
           <Grid size={{ xs: 12, md: 4 }}>
+            <TextField
+              fullWidth
+              label="% EPS Incapacidad EG (Días 3 al 90)"
+              type="number"
+              value={settings.epsSickLeaveRateDays3To90Pct ?? 66.67}
+              onChange={(e) => setSettings({ ...settings, epsSickLeaveRateDays3To90Pct: Number(e.target.value) })}
+              helperText="66.67% (Art. 227 C.S.T.)"
+            />
+          </Grid>
+
+          <Grid size={{ xs: 12, md: 4 }}>
+            <TextField
+              fullWidth
+              label="% EPS Incapacidad EG (Días 91 al 180)"
+              type="number"
+              value={settings.epsSickLeaveRateDays91To180Pct ?? 50.0}
+              onChange={(e) => setSettings({ ...settings, epsSickLeaveRateDays91To180Pct: Number(e.target.value) })}
+              helperText="50.00% (Art. 227 C.S.T.)"
+            />
+          </Grid>
+
+          <Grid size={{ xs: 12, md: 4 }}>
             <FormControlLabel
               control={
                 <Switch
@@ -640,6 +666,126 @@ export default function PayrollSettingsPage() {
                 />
               }
               label="Control Tope 40% No Salarial UGPP (Ley 1393)"
+            />
+          </Grid>
+        </Grid>
+
+        <Divider sx={{ my: 4 }} />
+
+        <Box sx={{ mb: 3 }}>
+          <Typography variant="h6" sx={{ fontWeight: 800, color: noxiaPalette.secondary.main }}>
+            Cumplimiento Externo, DIAN e Interfaz Contable (Fase 6)
+          </Typography>
+          <Typography variant="body2" sx={{ color: "text.secondary" }}>
+            Proveedor predeterminado de Nómina Electrónica, ambiente DIAN y plantilla oficial de exportación contable
+          </Typography>
+        </Box>
+
+        <Grid container spacing={2.5}>
+          <Grid size={{ xs: 12, md: 6 }}>
+            <TextField
+              select
+              fullWidth
+              label="Proveedor Predeterminado Nómina Electrónica"
+              value={settings.defaultDianProviderMode || DianProviderMode.INTERNAL_DIAN_STANDARD}
+              onChange={(e) => setSettings({ ...settings, defaultDianProviderMode: e.target.value as DianProviderMode })}
+              helperText="Puede cambiarse dinámicamente en el módulo de transmisión"
+            >
+              <MenuItem value={DianProviderMode.INTERNAL_DIAN_STANDARD}>
+                Emisión Directa XML UBL 2.1 con CUNE SHA-384 (Estándar DIAN - $0 Costo)
+              </MenuItem>
+              <MenuItem value={DianProviderMode.DATAICO}>
+                Dataico (Proveedor Tecnológico Autorizado API REST)
+              </MenuItem>
+              <MenuItem value={DianProviderMode.THE_FACTORY_HKA}>
+                The Factory HKA (Proveedor Tecnológico Autorizado API REST)
+              </MenuItem>
+            </TextField>
+          </Grid>
+
+          <Grid size={{ xs: 12, md: 6 }}>
+            <TextField
+              select
+              fullWidth
+              label="Plantilla Contable Oficial Predeterminada"
+              value={settings.defaultAccountingFormat || AccountingExportFormat.WORLD_OFFICE}
+              onChange={(e) => setSettings({ ...settings, defaultAccountingFormat: e.target.value as AccountingExportFormat })}
+              helperText="Estructura oficial para importación masiva de comprobantes"
+            >
+              <MenuItem value={AccountingExportFormat.WORLD_OFFICE}>
+                Plantilla Oficial WORLD OFFICE (.CSV - Partida Doble)
+              </MenuItem>
+              <MenuItem value={AccountingExportFormat.HELISA}>
+                Plantilla Oficial HELISA GW / NIIF (.CSV - Partida Doble)
+              </MenuItem>
+            </TextField>
+          </Grid>
+
+          <Grid size={{ xs: 12, md: 4 }}>
+            <TextField
+              select
+              fullWidth
+              label="Ambiente DIAN"
+              value={settings.dianEnvironment || DianEnvironmentType.HABILITACION_2}
+              onChange={(e) => setSettings({ ...settings, dianEnvironment: e.target.value as DianEnvironmentType })}
+            >
+              <MenuItem value={DianEnvironmentType.HABILITACION_2}>
+                Ambiente de Habilitación / Pruebas (Set de Pruebas DIAN)
+              </MenuItem>
+              <MenuItem value={DianEnvironmentType.PRODUCCION_1}>
+                Ambiente de Producción Oficial DIAN
+              </MenuItem>
+            </TextField>
+          </Grid>
+
+          <Grid size={{ xs: 12, md: 4 }}>
+            <TextField
+              fullWidth
+              label="Prefijo Nómina Individual"
+              value={settings.dianPrefix ?? "NE"}
+              onChange={(e) => setSettings({ ...settings, dianPrefix: e.target.value })}
+              helperText="Ejemplo: NE, NOM"
+            />
+          </Grid>
+
+          <Grid size={{ xs: 12, md: 4 }}>
+            <TextField
+              fullWidth
+              label="Prefijo Nota de Ajuste"
+              value={settings.dianAdjustmentPrefix ?? "NA"}
+              onChange={(e) => setSettings({ ...settings, dianAdjustmentPrefix: e.target.value })}
+              helperText="Ejemplo: NA, NAJ"
+            />
+          </Grid>
+
+          <Grid size={{ xs: 12, md: 4 }}>
+            <TextField
+              fullWidth
+              label="ID de Software DIAN / PT"
+              value={settings.dianSoftwareId ?? ""}
+              onChange={(e) => setSettings({ ...settings, dianSoftwareId: e.target.value })}
+              placeholder="UUID o ID asignado"
+            />
+          </Grid>
+
+          <Grid size={{ xs: 12, md: 4 }}>
+            <TextField
+              fullWidth
+              label="PIN de Software DIAN / PT"
+              value={settings.dianSoftwarePin ?? ""}
+              onChange={(e) => setSettings({ ...settings, dianSoftwarePin: e.target.value })}
+              placeholder="PIN de 5 dígitos"
+            />
+          </Grid>
+
+          <Grid size={{ xs: 12, md: 4 }}>
+            <TextField
+              fullWidth
+              label="Token API / Clave Secreta Proveedor"
+              type="password"
+              value={settings.dianApiToken ?? ""}
+              onChange={(e) => setSettings({ ...settings, dianApiToken: e.target.value })}
+              placeholder="Bearer Token Dataico o The Factory HKA"
             />
           </Grid>
         </Grid>
@@ -742,21 +888,20 @@ export default function PayrollSettingsPage() {
                           c.nature === PayrollConceptNature.DEVENGO
                             ? "#ECFDF5"
                             : c.nature === PayrollConceptNature.DEDUCCION
-                            ? "#FFF1F2"
-                            : "#EEF2FF",
+                              ? "#FFF1F2"
+                              : "#EEF2FF",
                         color:
                           c.nature === PayrollConceptNature.DEVENGO
                             ? "#059669"
                             : c.nature === PayrollConceptNature.DEDUCCION
-                            ? "#E11D48"
-                            : "#4F46E5",
-                        border: `1px solid ${
-                          c.nature === PayrollConceptNature.DEVENGO
+                              ? "#E11D48"
+                              : "#4F46E5",
+                        border: `1px solid ${c.nature === PayrollConceptNature.DEVENGO
                             ? "#A7F3D0"
                             : c.nature === PayrollConceptNature.DEDUCCION
-                            ? "#FECDD3"
-                            : "#C7D2FE"
-                        }`,
+                              ? "#FECDD3"
+                              : "#C7D2FE"
+                          }`,
                       }}
                     />
                   </TableCell>
@@ -836,7 +981,7 @@ export default function PayrollSettingsPage() {
         <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 3, flexWrap: "wrap", gap: 2 }}>
           <Box>
             <Typography variant="h6" sx={{ fontWeight: 800, color: noxiaPalette.secondary.main }}>
-              Modalidades de Turno y Desglose de Sueldo Garantizado (Pronos)
+              Modalidades de Turno y Desglose de Sueldo Garantizado
             </Typography>
             <Typography variant="body2" sx={{ color: "text.secondary" }}>
               Distribución porcentual del excedente sobre el SMMLV entre conceptos suplementarios (suma = 100.00%)

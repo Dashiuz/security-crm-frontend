@@ -79,6 +79,7 @@ import {
   ArlRiskClass,
 } from "@/lib/api/payroll";
 import { payrollBenefitsApi } from "@/lib/api/payroll-benefits";
+import { payrollComplianceApi } from "@/lib/api/payroll-compliance";
 import ResponsiveFormDrawer from "@/components/common/ResponsiveFormDrawer";
 import { noxiaPalette } from "@/theme/noxiaTheme";
 
@@ -222,6 +223,40 @@ export default function PayrollEmployeesPage() {
       setFeedback({ type: "success", message: "Desprendible de nómina descargado con éxito." });
     } catch (err: any) {
       setFeedback({ type: "error", message: err?.message || "Error al descargar desprendible de nómina" });
+    }
+  };
+
+  const handleDownloadLaborCertificate = async (includeAverageSalary: boolean = false) => {
+    if (!selectedEmployeeId) return;
+    try {
+      setFeedback({ type: "success", message: "Generando constancia laboral oficial con verificación QR..." });
+      await payrollComplianceApi.downloadLaborCertificatePdf({
+        employeeId: selectedEmployeeId,
+        addressedTo: "A QUIEN PUEDA INTERESAR",
+        includeAverageSalary,
+      });
+      setFeedback({ type: "success", message: "Constancia laboral descargada exitosamente." });
+    } catch (err: any) {
+      setFeedback({ type: "error", message: err?.message || "Error al generar constancia laboral" });
+    }
+  };
+
+  const handleDownloadForm220 = async (taxYear: number = 2026) => {
+    if (!selectedEmployeeId) return;
+    try {
+      setFeedback({ type: "success", message: `Generando Certificado Formulario 220 DIAN para el año ${taxYear}...` });
+      const certs = await payrollComplianceApi.generateForm220Certificates({
+        year: taxYear,
+        employeeId: selectedEmployeeId,
+      });
+      if (certs && certs.length > 0) {
+        await payrollComplianceApi.downloadForm220Pdf(certs[0].id, dossier?.employee?.document || "doc");
+        setFeedback({ type: "success", message: `Formulario 220 (${taxYear}) descargado exitosamente.` });
+      } else {
+        setFeedback({ type: "error", message: "No se encontró certificado 220 para este empleado y año." });
+      }
+    } catch (err: any) {
+      setFeedback({ type: "error", message: err?.message || "Error al descargar Certificado 220 DIAN" });
     }
   };
 
@@ -2418,6 +2453,83 @@ export default function PayrollEmployeesPage() {
                     </TableBody>
                   </Table>
                 </TableContainer>
+
+                {/* 5. Certificados Tributarios y Constancias Laborales (Fase 6) */}
+                <Typography variant="caption" sx={{ fontWeight: 700, color: "#0F172A", textTransform: "uppercase", display: "block", mt: 3, mb: 1.5 }}>
+                  Certificados Tributarios y Constancias Laborales (Fase 6)
+                </Typography>
+
+                <Paper elevation={0} sx={{ p: 2.5, border: "1px solid #E2E8F0", borderRadius: "8px", bgcolor: "#F8FAFC" }}>
+                  <Grid container spacing={2} alignItems="center">
+                    <Grid size={{ xs: 12, md: 6 }}>
+                      <Box sx={{ p: 2, bgcolor: "#FFFFFF", borderRadius: 2, border: "1px solid #E2E8F0", height: "100%", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+                        <Box sx={{ mb: 2 }}>
+                          <Typography variant="subtitle2" sx={{ fontWeight: 800, color: "#1E1B4B", display: "flex", alignItems: "center", gap: 1 }}>
+                            <PictureAsPdfOutlined sx={{ color: "#DC2626", fontSize: 20 }} />
+                            Formulario 220 DIAN
+                          </Typography>
+                          <Typography variant="caption" sx={{ color: "#64748B", display: "block", mt: 0.5 }}>
+                            Certificado Oficial de Ingresos y Retenciones por Rentas de Trabajo y Pensiones (Art. 378 E.T.) con código QR.
+                          </Typography>
+                        </Box>
+                        <Box sx={{ display: "flex", gap: 1 }}>
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            startIcon={<PictureAsPdfOutlined />}
+                            onClick={() => handleDownloadForm220(2025)}
+                            sx={{ textTransform: "none", borderColor: "#DC2626", color: "#DC2626", fontWeight: 700, fontSize: "0.75rem" }}
+                          >
+                            Descargar 2025
+                          </Button>
+                          <Button
+                            size="small"
+                            variant="contained"
+                            startIcon={<PictureAsPdfOutlined />}
+                            onClick={() => handleDownloadForm220(2026)}
+                            sx={{ textTransform: "none", bgcolor: "#DC2626", "&:hover": { bgcolor: "#B91C1C" }, fontWeight: 700, fontSize: "0.75rem" }}
+                          >
+                            Descargar 2026
+                          </Button>
+                        </Box>
+                      </Box>
+                    </Grid>
+
+                    <Grid size={{ xs: 12, md: 6 }}>
+                      <Box sx={{ p: 2, bgcolor: "#FFFFFF", borderRadius: 2, border: "1px solid #E2E8F0", height: "100%", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+                        <Box sx={{ mb: 2 }}>
+                          <Typography variant="subtitle2" sx={{ fontWeight: 800, color: "#1E1B4B", display: "flex", alignItems: "center", gap: 1 }}>
+                            <VerifiedUserOutlined sx={{ color: "#2563EB", fontSize: 20 }} />
+                            Constancia Laboral Oficial
+                          </Typography>
+                          <Typography variant="caption" sx={{ color: "#64748B", display: "block", mt: 0.5 }}>
+                            Certificación con cargo, puesto de seguridad, salario, tipo de contrato y QR de verificación de autenticidad.
+                          </Typography>
+                        </Box>
+                        <Box sx={{ display: "flex", gap: 1 }}>
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            startIcon={<PictureAsPdfOutlined />}
+                            onClick={() => handleDownloadLaborCertificate(false)}
+                            sx={{ textTransform: "none", borderColor: "#2563EB", color: "#2563EB", fontWeight: 700, fontSize: "0.75rem" }}
+                          >
+                            Básico Contractual
+                          </Button>
+                          <Button
+                            size="small"
+                            variant="contained"
+                            startIcon={<PictureAsPdfOutlined />}
+                            onClick={() => handleDownloadLaborCertificate(true)}
+                            sx={{ textTransform: "none", bgcolor: "#2563EB", "&:hover": { bgcolor: "#1D4ED8" }, fontWeight: 700, fontSize: "0.75rem" }}
+                          >
+                            Con Promedio Salarial
+                          </Button>
+                        </Box>
+                      </Box>
+                    </Grid>
+                  </Grid>
+                </Paper>
               </Box>
             )}
           </Box>

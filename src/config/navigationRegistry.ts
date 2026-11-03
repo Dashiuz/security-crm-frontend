@@ -718,6 +718,17 @@ export const ERP_DIRECTIONS: ErpDirection[] = [
         features: ["payroll"],
         bulletColor: "#7C3AED",
       },
+      {
+        id: "fin-payroll-compliance",
+        title: "Cumplimiento y DIAN",
+        description: "Planilla PILA Res. 2388, Nómina Electrónica UBL 2.1, Interfaz Contable, Certificados 220 y Matriz BI",
+        status: "ACTIVE",
+        path: "/finance/payroll/compliance",
+        iconName: "FactCheckOutlined",
+        permissions: ["payroll:compliance:read", "payroll:compliance:manage"],
+        features: ["payroll"],
+        bulletColor: "#2563EB",
+      },
     ],
   },
   {

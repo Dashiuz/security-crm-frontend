@@ -567,7 +567,7 @@ export default function PayrollBenefitsPage() {
 
       {/* 4 Executive KPI Cards */}
       <Grid container spacing={2} sx={{ mb: 3 }}>
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <Card sx={{ p: 2, borderRadius: 2, border: "1px solid #E2E8F0", boxShadow: "none" }}>
             <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, mb: 1 }}>
               <Box sx={{ p: 1, borderRadius: 1.5, bgcolor: "#EFF6FF", color: "#2563EB" }}>
@@ -586,7 +586,7 @@ export default function PayrollBenefitsPage() {
           </Card>
         </Grid>
 
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <Card sx={{ p: 2, borderRadius: 2, border: "1px solid #E2E8F0", boxShadow: "none" }}>
             <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, mb: 1 }}>
               <Box sx={{ p: 1, borderRadius: 1.5, bgcolor: "#F5F3FF", color: "#7C3AED" }}>
@@ -605,7 +605,7 @@ export default function PayrollBenefitsPage() {
           </Card>
         </Grid>
 
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <Card sx={{ p: 2, borderRadius: 2, border: "1px solid #E2E8F0", boxShadow: "none" }}>
             <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, mb: 1 }}>
               <Box sx={{ p: 1, borderRadius: 1.5, bgcolor: "#ECFDF5", color: "#059669" }}>
@@ -624,7 +624,7 @@ export default function PayrollBenefitsPage() {
           </Card>
         </Grid>
 
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <Card sx={{ p: 2, borderRadius: 2, border: "1px solid #E2E8F0", boxShadow: "none" }}>
             <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, mb: 1 }}>
               <Box sx={{ p: 1, borderRadius: 1.5, bgcolor: "#FFF1F2", color: "#E11D48" }}>
@@ -869,7 +869,7 @@ export default function PayrollBenefitsPage() {
             {/* Parameters Bar */}
             <Card sx={{ p: 2, mb: 3, bgcolor: "#F8FAFC", border: "1px solid #E2E8F0", boxShadow: "none" }}>
               <Grid container spacing={2} alignItems="center">
-                <Grid item xs={12} sm={6} md={2}>
+                <Grid size={{ xs: 12, sm: 6, md: 2 }}>
                   <TextField
                     select
                     fullWidth
@@ -882,7 +882,7 @@ export default function PayrollBenefitsPage() {
                     <MenuItem value="PRIMA_SECOND_SEMESTER">2do Semestre (Jul - Dic)</MenuItem>
                   </TextField>
                 </Grid>
-                <Grid item xs={12} sm={6} md={2}>
+                <Grid size={{ xs: 12, sm: 6, md: 2 }}>
                   <TextField
                     fullWidth
                     type="number"
@@ -892,7 +892,7 @@ export default function PayrollBenefitsPage() {
                     onChange={(e) => setSelectedPrimaYear(Number(e.target.value))}
                   />
                 </Grid>
-                <Grid item xs={12} sm={6} md={2.5}>
+                <Grid size={{ xs: 12, sm: 6, md: 2.5 }}>
                   <TextField
                     fullWidth
                     type="date"
@@ -903,7 +903,7 @@ export default function PayrollBenefitsPage() {
                     InputLabelProps={{ shrink: true }}
                   />
                 </Grid>
-                <Grid item xs={12} sm={6} md={2.5}>
+                <Grid size={{ xs: 12, sm: 6, md: 2.5 }}>
                   <TextField
                     fullWidth
                     type="date"
@@ -914,7 +914,7 @@ export default function PayrollBenefitsPage() {
                     InputLabelProps={{ shrink: true }}
                   />
                 </Grid>
-                <Grid item xs={12} md={3} sx={{ display: "flex", gap: 1 }}>
+                <Grid size={{ xs: 12, md: 3 }} sx={{ display: "flex", gap: 1 }}>
                   <Button
                     fullWidth
                     variant="contained"
@@ -1052,7 +1052,7 @@ export default function PayrollBenefitsPage() {
             {/* Parameters Bar */}
             <Card sx={{ p: 2, mb: 3, bgcolor: "#F8FAFC", border: "1px solid #E2E8F0", boxShadow: "none" }}>
               <Grid container spacing={2} alignItems="center">
-                <Grid item xs={12} sm={6} md={3}>
+                <Grid size={{ xs: 12, sm: 6, md: 3 }}>
                   <TextField
                     fullWidth
                     type="number"
@@ -1062,7 +1062,7 @@ export default function PayrollBenefitsPage() {
                     onChange={(e) => setSelectedSeveranceYear(Number(e.target.value))}
                   />
                 </Grid>
-                <Grid item xs={12} sm={6} md={3}>
+                <Grid size={{ xs: 12, sm: 6, md: 3 }}>
                   <TextField
                     fullWidth
                     type="date"
@@ -1073,7 +1073,7 @@ export default function PayrollBenefitsPage() {
                     InputLabelProps={{ shrink: true }}
                   />
                 </Grid>
-                <Grid item xs={12} sm={6} md={3}>
+                <Grid size={{ xs: 12, sm: 6, md: 3 }}>
                   <TextField
                     fullWidth
                     type="date"
@@ -1084,7 +1084,7 @@ export default function PayrollBenefitsPage() {
                     InputLabelProps={{ shrink: true }}
                   />
                 </Grid>
-                <Grid item xs={12} md={3}>
+                <Grid size={{ xs: 12, md: 3 }}>
                   <Button
                     fullWidth
                     variant="contained"
@@ -1136,7 +1136,7 @@ export default function PayrollBenefitsPage() {
                 {/* Funds Summary Cards */}
                 <Grid container spacing={2} sx={{ mb: 3 }}>
                   {(activeSeveranceBatch.fundsSummary || []).map((fund, idx) => (
-                    <Grid item xs={12} sm={6} md={3} key={idx}>
+                    <Grid size={{ xs: 12, sm: 6, md: 3 }} key={idx}>
                       <Card sx={{ p: 2, border: "1px solid #E2E8F0", boxShadow: "none" }}>
                         <Typography variant="caption" sx={{ fontWeight: 700, color: "#64748B", textTransform: "uppercase" }}>
                           {fund.entityName}
@@ -1358,7 +1358,7 @@ export default function PayrollBenefitsPage() {
           </TextField>
 
           <Grid container spacing={2}>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 select
                 fullWidth
@@ -1371,7 +1371,7 @@ export default function PayrollBenefitsPage() {
                 <MenuItem value="COMPENSATED_IN_CASH">Compensadas en Dinero (Art. 189 CST)</MenuItem>
               </TextField>
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
                 type="number"
@@ -1381,7 +1381,7 @@ export default function PayrollBenefitsPage() {
                 onChange={(e) => setBusinessDays(Number(e.target.value))}
               />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
                 type="date"
@@ -1392,7 +1392,7 @@ export default function PayrollBenefitsPage() {
                 InputLabelProps={{ shrink: true }}
               />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
                 type="number"
@@ -1411,31 +1411,31 @@ export default function PayrollBenefitsPage() {
                 Resultado del Cálculo y Calendario de Vacaciones
               </Typography>
               <Grid container spacing={1.5}>
-                <Grid item xs={6} sm={4}>
+                <Grid size={{ xs: 6, sm: 4 }}>
                   <Typography variant="caption" sx={{ color: "#64748B" }}>Fin de Disfrute:</Typography>
                   <Typography variant="body2" sx={{ fontWeight: 700 }}>{vacationSimResult.enjoymentEndDate}</Typography>
                 </Grid>
-                <Grid item xs={6} sm={4}>
+                <Grid size={{ xs: 6, sm: 4 }}>
                   <Typography variant="caption" sx={{ color: "#64748B" }}>Fecha Regreso al Puesto:</Typography>
                   <Typography variant="body2" sx={{ fontWeight: 800, color: "#7C3AED" }}>
                     {vacationSimResult.returnDate}
                   </Typography>
                 </Grid>
-                <Grid item xs={6} sm={4}>
+                <Grid size={{ xs: 6, sm: 4 }}>
                   <Typography variant="caption" sx={{ color: "#64748B" }}>Días Calendario Pagados:</Typography>
                   <Typography variant="body2" sx={{ fontWeight: 700 }}>{vacationSimResult.calendarDaysPaid} días</Typography>
                 </Grid>
-                <Grid item xs={6} sm={4}>
+                <Grid size={{ xs: 6, sm: 4 }}>
                   <Typography variant="caption" sx={{ color: "#64748B" }}>Base Vacaciones:</Typography>
                   <Typography variant="body2">${vacationSimResult.totalVacationBase.toLocaleString("es-CO")}</Typography>
                 </Grid>
-                <Grid item xs={6} sm={4}>
+                <Grid size={{ xs: 6, sm: 4 }}>
                   <Typography variant="caption" sx={{ color: "#64748B" }}>Deducción Salud + Pensión:</Typography>
                   <Typography variant="body2" sx={{ color: "#E11D48" }}>
                     -${(vacationSimResult.healthDeductionAmount + vacationSimResult.pensionDeductionAmount).toLocaleString("es-CO")}
                   </Typography>
                 </Grid>
-                <Grid item xs={6} sm={4}>
+                <Grid size={{ xs: 6, sm: 4 }}>
                   <Typography variant="caption" sx={{ color: "#64748B" }}>Neto a Pagar:</Typography>
                   <Typography variant="h6" sx={{ fontWeight: 800, color: "#059669" }}>
                     ${vacationSimResult.netPayAmount.toLocaleString("es-CO")}
@@ -1592,7 +1592,7 @@ export default function PayrollBenefitsPage() {
           </TextField>
 
           <Grid container spacing={2}>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 select
                 fullWidth
@@ -1608,7 +1608,7 @@ export default function PayrollBenefitsPage() {
                 ))}
               </TextField>
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
                 type="date"
@@ -1638,7 +1638,7 @@ export default function PayrollBenefitsPage() {
           </Box>
 
           <Grid container spacing={2}>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
                 type="number"
@@ -1648,7 +1648,7 @@ export default function PayrollBenefitsPage() {
                 onChange={(e) => setFinalOtherEarnings(Number(e.target.value))}
               />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
                 size="small"
@@ -1657,7 +1657,7 @@ export default function PayrollBenefitsPage() {
                 onChange={(e) => setFinalOtherEarningsConcept(e.target.value)}
               />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
                 type="number"
@@ -1667,7 +1667,7 @@ export default function PayrollBenefitsPage() {
                 onChange={(e) => setFinalOtherDeductions(Number(e.target.value))}
               />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
                 size="small"
@@ -1685,37 +1685,37 @@ export default function PayrollBenefitsPage() {
                 Liquidación Definitiva Calculada
               </Typography>
               <Grid container spacing={1.5}>
-                <Grid item xs={6} sm={4}>
+                <Grid size={{ xs: 6, sm: 4 }}>
                   <Typography variant="caption" sx={{ color: "#64748B" }}>Días Netos Servicio:</Typography>
                   <Typography variant="body2" sx={{ fontWeight: 700 }}>{finalSimResult.netServiceDaysTotal} días</Typography>
                 </Grid>
-                <Grid item xs={6} sm={4}>
+                <Grid size={{ xs: 6, sm: 4 }}>
                   <Typography variant="caption" sx={{ color: "#64748B" }}>Cesantías + Intereses:</Typography>
                   <Typography variant="body2" sx={{ fontWeight: 700 }}>
                     ${(finalSimResult.cesantiasAmount + finalSimResult.interestsCesantiasAmount).toLocaleString("es-CO")}
                   </Typography>
                 </Grid>
-                <Grid item xs={6} sm={4}>
+                <Grid size={{ xs: 6, sm: 4 }}>
                   <Typography variant="caption" sx={{ color: "#64748B" }}>Prima Proporcional:</Typography>
                   <Typography variant="body2" sx={{ fontWeight: 700 }}>${finalSimResult.primaAmount.toLocaleString("es-CO")}</Typography>
                 </Grid>
-                <Grid item xs={6} sm={4}>
+                <Grid size={{ xs: 6, sm: 4 }}>
                   <Typography variant="caption" sx={{ color: "#64748B" }}>Vacaciones en Dinero:</Typography>
                   <Typography variant="body2" sx={{ fontWeight: 700 }}>${finalSimResult.vacationAmount.toLocaleString("es-CO")}</Typography>
                 </Grid>
-                <Grid item xs={6} sm={4}>
+                <Grid size={{ xs: 6, sm: 4 }}>
                   <Typography variant="caption" sx={{ color: "#64748B" }}>Indemnización Art. 64:</Typography>
                   <Typography variant="body2" sx={{ fontWeight: 700, color: "#E11D48" }}>
                     ${finalSimResult.indemnificationAmount.toLocaleString("es-CO")}
                   </Typography>
                 </Grid>
-                <Grid item xs={6} sm={4}>
+                <Grid size={{ xs: 6, sm: 4 }}>
                   <Typography variant="caption" sx={{ color: "#64748B" }}>Cruce Préstamos:</Typography>
                   <Typography variant="body2" sx={{ color: "#E11D48" }}>
                     -${finalSimResult.loansDeductedAmount.toLocaleString("es-CO")}
                   </Typography>
                 </Grid>
-                <Grid item xs={12}>
+                <Grid size={{ xs: 12 }}>
                   <Divider sx={{ my: 1 }} />
                   <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                     <Typography variant="subtitle1" sx={{ fontWeight: 800 }}>

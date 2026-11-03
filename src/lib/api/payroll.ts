@@ -56,6 +56,43 @@ export enum ShiftModalityClass {
   ADMINISTRATIVE = "ADMINISTRATIVE",
 }
 
+export enum DianProviderMode {
+  INTERNAL_DIAN_STANDARD = "INTERNAL_DIAN_STANDARD",
+  DATAICO = "DATAICO",
+  THE_FACTORY_HKA = "THE_FACTORY_HKA",
+}
+
+export enum DianEnvironmentType {
+  HABILITACION_2 = "HABILITACION_2",
+  PRODUCCION_1 = "PRODUCCION_1",
+}
+
+export enum ElectronicPayrollStatus {
+  DRAFT = "DRAFT",
+  VALIDATED = "VALIDATED",
+  TRANSMITTED_ACCEPTED = "TRANSMITTED_ACCEPTED",
+  REJECTED = "REJECTED",
+  REPLACED_BY_NOTE = "REPLACED_BY_NOTE",
+}
+
+export enum ElectronicDocumentType {
+  INDIVIDUAL_PAYROLL = "INDIVIDUAL_PAYROLL",
+  ADJUSTMENT_NOTE_REPLACE = "ADJUSTMENT_NOTE_REPLACE",
+  ADJUSTMENT_NOTE_DELETE = "ADJUSTMENT_NOTE_DELETE",
+}
+
+export enum AccountingExportFormat {
+  WORLD_OFFICE = "WORLD_OFFICE",
+  HELISA = "HELISA",
+}
+
+export enum PilaBatchStatus {
+  DRAFT = "DRAFT",
+  VALIDATED = "VALIDATED",
+  EXPORTED = "EXPORTED",
+  PAID_FILED = "PAID_FILED",
+}
+
 export interface PayrollSettings {
   id: string;
   tenantId: string;
@@ -106,6 +143,17 @@ export interface PayrollSettings {
   ccfPct: number;
   senaPct: number;
   icbfPct: number;
+
+  // Fase 6 (SPEC-ADM-033)
+  defaultDianProviderMode?: DianProviderMode;
+  defaultAccountingFormat?: AccountingExportFormat;
+  dianEnvironment?: DianEnvironmentType;
+  dianPrefix?: string;
+  dianAdjustmentPrefix?: string;
+  dianNextConsecutive?: number;
+  dianSoftwareId?: string;
+  dianSoftwarePin?: string;
+  dianApiToken?: string;
 }
 
 export interface PayrollHoliday {
