@@ -68,6 +68,10 @@ const CATEGORY_LABELS: Record<string, string> = {
   role: "Roles",
   permission: "Permisos",
   tenant: "Empresas",
+  commercial: "Gestión Comercial",
+  format: "Formatos Universales",
+  signatures: "Firmas Digitales",
+  payroll: "Nómina y Liquidación",
   godlike: "SuperAdmin (Godlike)",
 };
 
@@ -85,6 +89,10 @@ const CATEGORY_ORDER: Record<string, number> = {
   role: 11,
   permission: 12,
   tenant: 13,
+  commercial: 14,
+  format: 15,
+  signatures: 16,
+  payroll: 17,
   godlike: 99,
 };
 

@@ -73,6 +73,7 @@ import {
   ExpandLess,
 } from "@mui/icons-material";
 import NotionProposalBlock from "./NotionProposalBlock";
+import ResponsiveFormDrawer from "@/components/common/ResponsiveFormDrawer";
 import FormatSelectionModal from "@/components/format-engine/drawers/FormatSelectionModal";
 import {
   FormatCategory,
@@ -3769,63 +3770,65 @@ export default function CanvasProposalWorkspace({
         </DialogActions>
       </Dialog>
 
-      {/* 10. DIALOG: Firmante Ad-hoc */}
-      <Dialog open={adHocDialogOpen} onClose={() => setAdHocDialogOpen(false)} maxWidth="xs" fullWidth>
-        <DialogTitle component="div" sx={{ fontWeight: 800 }}>
-          <Typography variant="h6" fontWeight={800}>
-            Agregar Firmante Ad-hoc
-          </Typography>
-        </DialogTitle>
-        <DialogContent dividers>
-          <Stack spacing={2} sx={{ mt: 1 }}>
-            <TextField
-              size="small"
-              fullWidth
-              label="Nombre Completo *"
-              value={newAdHocSigner.fullName}
-              onChange={(e) => setNewAdHocSigner({ ...newAdHocSigner, fullName: e.target.value })}
-            />
-            <TextField
-              size="small"
-              fullWidth
-              label="Cargo o Rol *"
-              value={newAdHocSigner.jobTitle}
-              onChange={(e) => setNewAdHocSigner({ ...newAdHocSigner, jobTitle: e.target.value })}
-            />
-            <TextField
-              size="small"
-              fullWidth
-              label="Cédula de Ciudadanía"
-              value={newAdHocSigner.documentNumber}
-              onChange={(e) => setNewAdHocSigner({ ...newAdHocSigner, documentNumber: e.target.value })}
-            />
-          </Stack>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setAdHocDialogOpen(false)}>Cancelar</Button>
-          <Button
-            variant="contained"
-            onClick={() => {
-              if (!newAdHocSigner.fullName.trim() || !newAdHocSigner.jobTitle.trim()) {
-                showError("Por favor ingrese el nombre y cargo.");
-                return;
-              }
-              const created = {
-                id: `adhoc-${Date.now()}`,
-                fullName: newAdHocSigner.fullName.trim(),
-                jobTitle: newAdHocSigner.jobTitle.trim(),
-                documentNumber: newAdHocSigner.documentNumber.trim() || undefined,
-              };
-              setAdHocSigners((prev) => [...prev, created]);
-              setShowSignatures(true);
-              setNewAdHocSigner({ fullName: "", jobTitle: "", documentNumber: "" });
-              setAdHocDialogOpen(false);
-            }}
-          >
-            Agregar Firmante
-          </Button>
-        </DialogActions>
-      </Dialog>
+      {/* 10. DRAWER: Firmante Ad-hoc */}
+      <ResponsiveFormDrawer
+        open={adHocDialogOpen}
+        onClose={() => setAdHocDialogOpen(false)}
+        title="Agregar Firmante Ad-hoc"
+        subtitle="Registrar firmante externo para esta propuesta"
+        headerIcon={<PersonAdd />}
+        width={{ xs: "100%", sm: 440 }}
+        actions={
+          <Box sx={{ display: "flex", gap: 1.5, justifyContent: "flex-end", width: "100%" }}>
+            <Button onClick={() => setAdHocDialogOpen(false)}>Cancelar</Button>
+            <Button
+              variant="contained"
+              onClick={() => {
+                if (!newAdHocSigner.fullName.trim() || !newAdHocSigner.jobTitle.trim()) {
+                  showError("Por favor ingrese el nombre y cargo.");
+                  return;
+                }
+                const created = {
+                  id: `adhoc-${Date.now()}`,
+                  fullName: newAdHocSigner.fullName.trim(),
+                  jobTitle: newAdHocSigner.jobTitle.trim(),
+                  documentNumber: newAdHocSigner.documentNumber.trim() || undefined,
+                };
+                setAdHocSigners((prev) => [...prev, created]);
+                setShowSignatures(true);
+                setNewAdHocSigner({ fullName: "", jobTitle: "", documentNumber: "" });
+                setAdHocDialogOpen(false);
+              }}
+            >
+              Agregar Firmante
+            </Button>
+          </Box>
+        }
+      >
+        <Stack spacing={2.5} sx={{ p: 1 }}>
+          <TextField
+            size="small"
+            fullWidth
+            label="Nombre Completo *"
+            value={newAdHocSigner.fullName}
+            onChange={(e) => setNewAdHocSigner({ ...newAdHocSigner, fullName: e.target.value })}
+          />
+          <TextField
+            size="small"
+            fullWidth
+            label="Cargo o Rol *"
+            value={newAdHocSigner.jobTitle}
+            onChange={(e) => setNewAdHocSigner({ ...newAdHocSigner, jobTitle: e.target.value })}
+          />
+          <TextField
+            size="small"
+            fullWidth
+            label="Cédula de Ciudadanía"
+            value={newAdHocSigner.documentNumber}
+            onChange={(e) => setNewAdHocSigner({ ...newAdHocSigner, documentNumber: e.target.value })}
+          />
+        </Stack>
+      </ResponsiveFormDrawer>
     </Box>
   );
 }

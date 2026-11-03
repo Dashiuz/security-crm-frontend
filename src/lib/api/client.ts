@@ -142,6 +142,26 @@ export class HttpClient {
     return this.request<T>(endpoint, { ...options, method: "GET" });
   }
 
+  static async getBlob(endpoint: string, options?: RequestInit): Promise<Blob> {
+    const url = `${API_BASE_URL}${endpoint}`;
+    const token = tokenStore.getToken();
+    const headers: Record<string, string> = {};
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+    if (options?.headers) {
+      Object.assign(headers, options.headers);
+    }
+    const response = await fetch(url, {
+      ...options,
+      method: "GET",
+      headers,
+      credentials: "include",
+    });
+    if (!response.ok) {
+      throw new ApiError(`Error al descargar archivo (${response.status})`, response.status);
+    }
+    return response.blob();
+  }
+
   static post<T>(endpoint: string, body?: any, options?: RequestInit) {
     return this.request<T>(endpoint, {
       ...options,
