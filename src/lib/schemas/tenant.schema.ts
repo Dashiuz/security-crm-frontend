@@ -18,7 +18,7 @@ export const tenantGeneralSchema = z.object({
     .max(50, "Máximo 50 caracteres")
     .regex(/^[a-z0-9-]+$/, "Solo letras minúsculas, números y guiones (-)"),
   isActive: z.boolean(),
-  logoUrl: z.string().max(255).optional().or(z.literal("")),
+  logoUrl: z.string().max(2000).optional().or(z.literal("")),
   primaryColor: z.string().max(20).optional().or(z.literal("")),
   secondaryColor: z.string().max(20).optional().or(z.literal("")),
   sidebarColor: z.string().max(20).optional().or(z.literal("")),

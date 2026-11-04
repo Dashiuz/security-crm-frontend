@@ -3,8 +3,8 @@ import Providers from "@/components/Providers";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Noxia CRM",
-  description: "Enterprise CRM for Private Security",
+  title: "Loro ERP",
+  description: "Enterprise Security & Operations Management",
 };
 
 export default function RootLayout({

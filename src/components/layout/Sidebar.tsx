@@ -491,7 +491,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
           />
         ) : null}
         <Typography variant="h6" color="primary" sx={{ fontWeight: "bold" }}>
-          {tenant?.name || "NOXIA"}
+          {tenant?.name || "LORO ERP"}
         </Typography>
       </Toolbar>
       <Divider />

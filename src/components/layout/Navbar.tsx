@@ -28,7 +28,7 @@ import {
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/AuthContext";
 import { AuthService } from "@/lib/api/auth";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useTenant } from "@/providers/TenantProvider";
 import { useNavigation } from "@/providers/NavigationContext";
 import { HttpClient } from "@/lib/api/client";
@@ -52,6 +52,11 @@ export default function Navbar({
   const { setToolsDrawerOpen } = useNavigation();
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [signatureDrawerOpen, setSignatureDrawerOpen] = useState(false);
+  const [logoError, setLogoError] = useState(false);
+
+  useEffect(() => {
+    setLogoError(false);
+  }, [tenant?.logoUrl]);
 
   const handleSaveUserSignature = async (dataUrl: string, method: SignatureCreationMode) => {
     await HttpClient.post("/users/me/signature", { signatureDataUrl: dataUrl, method });
@@ -101,6 +106,36 @@ export default function Navbar({
           <MenuIcon />
         </IconButton>
         <Box sx={{ flexGrow: 1, display: "flex", alignItems: "center", gap: { xs: 1, sm: 2, md: 3 }, minWidth: 0, overflow: "hidden" }}>
+          {tenant?.logoUrl && !logoError && (
+            <Box
+              sx={{
+                width: 28,
+                height: 28,
+                borderRadius: 1.5,
+                bgcolor: "#ffffff",
+                p: 0.3,
+                display: { xs: "none", sm: "flex" },
+                alignItems: "center",
+                justifyContent: "center",
+                flexShrink: 0,
+                overflow: "hidden",
+                boxShadow: "0 1px 3px rgba(0,0,0,0.15)",
+              }}
+            >
+              <Box
+                component="img"
+                src={tenant.logoUrl}
+                alt={tenant.name}
+                onError={() => setLogoError(true)}
+                sx={{
+                  maxWidth: "100%",
+                  maxHeight: "100%",
+                  objectFit: "contain",
+                }}
+              />
+            </Box>
+          )}
+
           <Typography
             variant="h6"
             noWrap
@@ -113,7 +148,7 @@ export default function Navbar({
               textOverflow: "ellipsis",
             }}
           >
-            {tenant?.name || "NOXIA CRM"}
+            {tenant?.name || "LORO ERP"}
           </Typography>
 
           {Boolean(session?.user?.clientName || session?.user?.client?.name) && (

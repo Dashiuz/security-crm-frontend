@@ -357,6 +357,9 @@ export const CommercialSettingsApi = {
   deleteValueAdded: (id: string) =>
     HttpClient.delete<{ success: boolean; message: string }>(`/commercial/settings/value-added/${id}`),
 
+  getSkin: () =>
+    HttpClient.get<TenantDocumentSkin>("/commercial/settings/document-skin"),
+
   updateDocumentSkin: (data: Partial<TenantDocumentSkin>) =>
     HttpClient.patch<TenantDocumentSkin>("/commercial/settings/document-skin", data),
 

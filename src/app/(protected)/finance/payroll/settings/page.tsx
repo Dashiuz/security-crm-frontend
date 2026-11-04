@@ -75,7 +75,7 @@ const TAB_CONFIG = [
   { label: "Parámetros Legales y Políticas", icon: <GavelOutlined fontSize="small" /> },
   { label: "Conceptos y Matriz de Bases", icon: <ReceiptLongOutlined fontSize="small" /> },
   { label: "Modalidades de Turno (100%)", icon: <AccessTimeOutlined fontSize="small" /> },
-  { label: "Catálogos Maestros Pronos", icon: <CategoryOutlined fontSize="small" /> },
+  { label: "Catálogos Maestros", icon: <CategoryOutlined fontSize="small" /> },
   { label: "Calendario Festivos Emiliani", icon: <CalendarMonthOutlined fontSize="small" /> },
 ];
 
@@ -244,7 +244,7 @@ export default function PayrollSettingsPage() {
                 Configuración y Catálogos de Nómina
               </Typography>
               <Typography variant="body2" sx={{ color: "text.secondary" }}>
-                Parámetros legales vigentes, conceptos contables PUC, matriz de bases Pronos y modalidades de turno
+                Parámetros legales vigentes, conceptos contables PUC, matriz de bases de cálculo y modalidades de turno
               </Typography>
             </Box>
           </Box>
@@ -383,7 +383,7 @@ export default function PayrollSettingsPage() {
       >
         <Box sx={{ display: "flex", flexDirection: "column", gap: 2.5, pt: 1 }}>
           <TextField
-            label="Código de Concepto (Pronos)"
+            label="Código de Concepto"
             type="number"
             value={editingConcept?.code || ""}
             onChange={(e) => setEditingConcept({ ...editingConcept, code: Number(e.target.value) })}
@@ -800,7 +800,7 @@ export default function PayrollSettingsPage() {
         <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2.5, flexWrap: "wrap", gap: 2 }}>
           <Box>
             <Typography variant="h6" sx={{ fontWeight: 800, color: noxiaPalette.secondary.main }}>
-              Catálogo de Conceptos Contables y Banderas de Base (Pronos)
+              Catálogo de Conceptos Contables y Banderas de Base
             </Typography>
             <Typography variant="body2" sx={{ color: "text.secondary" }}>
               Cuentas PUC 5105/7205, códigos DIAN NIE y 10 banderas de inclusión en bases de cálculo
@@ -1069,7 +1069,7 @@ export default function PayrollSettingsPage() {
     );
   }
 
-  // --- TAB 4: CATÁLOGOS OFICIALES PRONOS ---
+  // --- TAB 4: CATÁLOGOS MAESTROS OFICIALES ---
   function renderTabOfficialCatalogs() {
     return (
       <Paper elevation={0} sx={{ p: 3, border: "1px solid #E2E8F0", borderRadius: 3, bgcolor: "#FFFFFF" }}>
@@ -1144,7 +1144,7 @@ export default function PayrollSettingsPage() {
           {/* Causales de Retiro */}
           <Grid size={{ xs: 12, md: 6 }}>
             <Typography variant="subtitle2" sx={{ color: noxiaPalette.primary.main, fontWeight: 700, mb: 1.5, textTransform: "uppercase" }}>
-              Causales de Retiro B.D.N Pronos ({exitReasons.length})
+              Causales de Retiro B.D.N ({exitReasons.length})
             </Typography>
             <TableContainer sx={{ border: "1px solid #E2E8F0", borderRadius: 2, maxHeight: 300 }}>
               <Table size="small">

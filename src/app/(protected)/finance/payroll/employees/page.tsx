@@ -1492,7 +1492,7 @@ export default function PayrollEmployeesPage() {
                       select
                       size="small"
                       fullWidth
-                      label="Causal de Retiro (Pronos B.D.N)"
+                      label="Causal de Retiro (B.D.N)"
                       value={profileForm.exitReasonId || ""}
                       onChange={(e) => setProfileForm({ ...profileForm, exitReasonId: e.target.value })}
                     >
