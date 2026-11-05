@@ -335,13 +335,14 @@ export const ERP_DIRECTIONS: ErpDirection[] = [
     shortTitle: "Programación",
     description: "Mallas 24/7, asignación de puestos, control de horas y algoritmo ideal",
     iconName: "CalendarMonthOutlined",
+    path: "/scheduling/shifts",
     items: [
       {
         id: "sch-shift-management",
         title: "Malla de Turnos Operativos",
         description: "Matriz interactiva 24/7 en esquemas 2x2x2, 4x2 y control de horas",
         status: "ACTIVE",
-        path: "/finance/payroll/shifts",
+        path: "/scheduling/shifts",
         iconName: "GridOnOutlined",
         permissions: ["payroll:shifts:read", "payroll:shifts:manage"],
         features: ["payroll"],
@@ -352,7 +353,7 @@ export const ERP_DIRECTIONS: ErpDirection[] = [
         title: "Asignación y Rotación de Guardias",
         description: "Rotación de puestos y vinculación por rangos de fecha",
         status: "ACTIVE",
-        path: "/finance/payroll/shifts?tab=rotation",
+        path: "/scheduling/shifts?tab=rotation",
         iconName: "PersonAddAlt1Outlined",
         permissions: ["payroll:shifts:read", "payroll:shifts:manage"],
         features: ["payroll"],
@@ -736,23 +737,9 @@ export const ERP_DIRECTIONS: ErpDirection[] = [
     order: 11,
     title: "Configuraciones y Gobierno",
     shortTitle: "Ajustes",
-    description: "Firma digital, credenciales, usuarios, roles RBAC y parámetros de tenant",
+    description: "Credenciales, usuarios, roles RBAC y parámetros de tenant",
     iconName: "SettingsOutlined",
     items: [
-      {
-        id: "cfg-signature",
-        title: "Firma Digital",
-        description: "Configuración y rúbrica digital para actas, minutas y contratos",
-        status: "ROADMAP",
-        iconName: "DrawOutlined",
-        roadmapDetails: {
-          overview: "Firma electrónica con validez probatoria.",
-          keyPoints: [
-            "Captura de trazo digital y estampado cronológico.",
-            "Incrustación en actas de entrega, minutas y promesas de compra.",
-          ],
-        },
-      },
       {
         id: "cfg-users",
         title: "Gestión de Usuarios",
@@ -811,13 +798,13 @@ export const ERP_DIRECTIONS: ErpDirection[] = [
  */
 export const GENERAL_TOOLS: GeneralToolItem[] = [
   {
-    id: "tool-canva",
-    title: "Canva de Seguridad",
-    description: "Lienzo CAD interactivo con georreferenciación Mapbox y simbología perimetral",
-    iconName: "PaletteOutlined",
-    category: "canvas",
+    id: "tool-barcodes",
+    title: "Elaboración de Códigos de Barra",
+    description: "Generación canónica e impresión de etiquetas de barras Code-128 y EAN-13 para inventarios y dotación",
+    iconName: "ViewWeekOutlined",
+    category: "qr",
     actionType: "LINK",
-    targetPath: "/administrative/clients",
+    targetPath: "/tools/codes?type=BARCODE_128",
     status: "ACTIVE",
   },
   {
@@ -826,8 +813,26 @@ export const GENERAL_TOOLS: GeneralToolItem[] = [
     description: "Creación instantánea de QR para puntos de ronda, credenciales de personal y activos",
     iconName: "QrCode2Outlined",
     category: "qr",
-    actionType: "MODAL",
+    actionType: "LINK",
+    targetPath: "/tools/codes?type=QR_CODE",
     status: "ACTIVE",
+  },
+  {
+    id: "tool-forms",
+    title: "Elaboración de Formularios",
+    description: "Constructor de formularios dinámicos y encuestas de inspección en campo",
+    iconName: "DynamicFormOutlined",
+    category: "documents",
+    actionType: "LINK",
+    targetPath: "/tools/forms",
+    status: "ROADMAP",
+    roadmapDetails: {
+      overview: "Constructor no-code de formularios y listas de chequeo.",
+      keyPoints: [
+        "Campos dinámicos, firmas digitales y captura de evidencias.",
+        "Integración con minutas y auditorías de servicio.",
+      ],
+    },
   },
   {
     id: "tool-templates",

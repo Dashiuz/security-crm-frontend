@@ -30,6 +30,7 @@ import {
   SettingsOutlined as SettingsIcon,
   Logout as LogoutIcon,
   Shield as ShieldIcon,
+  DashboardRounded as DashboardIcon,
   ExpandLess,
   ExpandMore,
   Close as CloseIcon,
@@ -80,6 +81,11 @@ export default function DualRailNavigation() {
 
   // Accordion expanded state for mobile drawer (keyed by direction ID)
   const [mobileExpandedDirections, setMobileExpandedDirections] = useState<Record<string, boolean>>({});
+  const [mobileLogoError, setMobileLogoError] = useState(false);
+
+  useEffect(() => {
+    setMobileLogoError(false);
+  }, [tenant?.logoUrl]);
 
   // Auto-expand current direction when route changes
   useEffect(() => {
@@ -146,6 +152,7 @@ export default function DualRailNavigation() {
       return "commercial";
     }
     if (pathname.startsWith("/operation")) return "operations";
+    if (pathname.startsWith("/scheduling")) return "scheduling";
     if (pathname.startsWith("/administrative/pqrs")) return "quality";
     if (pathname.startsWith("/finance")) return "finance";
     if (
@@ -289,10 +296,13 @@ export default function DualRailNavigation() {
       <Box sx={{ p: 1, overflowY: "auto", flexGrow: 1, bgcolor: "background.paper" }}>
         <List disablePadding>
           {currentDirection?.items.map((item) => {
+            const [itemBasePath, itemQuery] = (item.path || "").split("?");
             const isActive = item.path
               ? item.path === "/dashboard"
                 ? pathname === "/dashboard"
-                : pathname.startsWith(item.path)
+                : itemQuery
+                  ? pathname === itemBasePath && (typeof window !== "undefined" && window.location.search.includes(itemQuery))
+                  : pathname === itemBasePath && (typeof window !== "undefined" && window.location.search.includes("tab=") ? false : pathname.startsWith(itemBasePath))
               : false;
 
             const isRoadmap = item.status === "ROADMAP";
@@ -427,7 +437,7 @@ export default function DualRailNavigation() {
         }}
       >
         <Typography variant="caption" color="text.secondary">
-          {isSystemMaster ? "Noxia SaaS Master" : "Noxia ERP 2026"}
+          {isSystemMaster ? "Loro SaaS Master" : "Loro ERP 2026"}
         </Typography>
         <Chip
           label="Ctrl + B"
@@ -467,7 +477,7 @@ export default function DualRailNavigation() {
             boxShadow: "2px 0 8px rgba(15, 23, 42, 0.15)",
           }}
         >
-          {/* Top Logo / Shield Isotype (Funciona como botón del Dashboard) */}
+          {/* Top Dashboard Button (Panel Principal) */}
           <Tooltip title="Panel Principal (Dashboard)" placement="right" arrow>
             <Box
               sx={{
@@ -497,7 +507,7 @@ export default function DualRailNavigation() {
               }}
               onClick={() => handleSelectDirection("dashboard")}
             >
-              <ShieldIcon fontSize="small" />
+              <DashboardIcon fontSize="small" sx={{ color: "#ffffff" }} />
             </Box>
           </Tooltip>
 
@@ -681,18 +691,34 @@ export default function DualRailNavigation() {
                 width: 36,
                 height: 36,
                 borderRadius: 2,
-                bgcolor: "primary.main",
+                bgcolor: tenant?.logoUrl && !mobileLogoError ? "#ffffff" : "primary.main",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
                 flexShrink: 0,
+                p: tenant?.logoUrl && !mobileLogoError ? 0.4 : 0,
+                overflow: "hidden",
               }}
             >
-              <ShieldIcon fontSize="small" />
+              {tenant?.logoUrl && !mobileLogoError ? (
+                <Box
+                  component="img"
+                  src={tenant.logoUrl}
+                  alt={tenant?.name || "Logo"}
+                  onError={() => setMobileLogoError(true)}
+                  sx={{
+                    maxWidth: "100%",
+                    maxHeight: "100%",
+                    objectFit: "contain",
+                  }}
+                />
+              ) : (
+                <DashboardIcon fontSize="small" sx={{ color: "#ffffff" }} />
+              )}
             </Box>
             <Box sx={{ minWidth: 0 }}>
               <Typography variant="subtitle2" sx={{ fontWeight: 800, color: "#ffffff" }} noWrap>
-                {tenant?.name || "NOXIA"}
+                {tenant?.name || "LORO ERP"}
               </Typography>
               <Typography variant="caption" sx={{ color: "rgba(255,255,255,0.7)", display: "block" }} noWrap>
                 {isSystemMaster ? "Consola SaaS Master" : (tenant?.profile?.legalName || "ERP de Seguridad")}
@@ -813,10 +839,13 @@ export default function DualRailNavigation() {
                     <Collapse in={isExpanded} timeout="auto" unmountOnExit>
                       <List component="div" disablePadding sx={{ pl: 4, pr: 0.5, py: 0.5 }}>
                         {dir.items.map((subItem) => {
+                          const [subItemBasePath, subItemQuery] = (subItem.path || "").split("?");
                           const isSubActive = subItem.path
                             ? subItem.path === "/dashboard"
                               ? pathname === "/dashboard"
-                              : pathname.startsWith(subItem.path)
+                              : subItemQuery
+                                ? pathname === subItemBasePath && (typeof window !== "undefined" && window.location.search.includes(subItemQuery))
+                                : pathname === subItemBasePath && (typeof window !== "undefined" && window.location.search.includes("tab=") ? false : pathname.startsWith(subItemBasePath))
                             : false;
                           const isRoadmap = subItem.status === "ROADMAP";
 

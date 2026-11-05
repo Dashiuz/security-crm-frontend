@@ -20,6 +20,8 @@ import {
   Tooltip,
   CircularProgress,
   Alert,
+  TextField,
+  MenuItem,
   Dialog,
   DialogTitle,
   DialogContent,
@@ -119,6 +121,57 @@ export default function ClientCommercialDossierPage() {
   const [previewProposal, setPreviewProposal] = useState<CommercialProposalDto | null>(null);
   const [wonTargetProposal, setWonTargetProposal] = useState<CommercialProposalDto | null>(null);
   const [transitioningWon, setTransitioningWon] = useState(false);
+
+  // Follow-up interaction drawer states
+  const [followUpDrawerOpen, setFollowUpDrawerOpen] = useState(false);
+  const [savingFollowUp, setSavingFollowUp] = useState(false);
+  const [followUpForm, setFollowUpForm] = useState({
+    contactChannel: "PHONE_CALL",
+    interactionDate: new Date().toISOString().split("T")[0],
+    contactPersonName: "",
+    contactPersonRole: "",
+    managementSummary: "",
+    nextContactDate: "",
+    statusAfterFollowUp: "PENDING",
+  });
+
+  const handleSaveFollowUp = async () => {
+    if (!followUpForm.contactPersonName.trim() || !followUpForm.managementSummary.trim()) {
+      showError("Por favor completa el nombre de contacto y el resumen de la gestión.");
+      return;
+    }
+    setSavingFollowUp(true);
+    try {
+      await commercialCrmApi.createFollowUp({
+        clientId,
+        contactChannel: followUpForm.contactChannel as any,
+        interactionDate: new Date(followUpForm.interactionDate).toISOString(),
+        contactPersonName: followUpForm.contactPersonName.trim(),
+        contactPersonRole: followUpForm.contactPersonRole.trim() || undefined,
+        managementSummary: followUpForm.managementSummary.trim(),
+        nextContactDate: followUpForm.nextContactDate
+          ? new Date(followUpForm.nextContactDate).toISOString()
+          : undefined,
+        statusAfterFollowUp: followUpForm.statusAfterFollowUp as any,
+      });
+      showSuccess("Novedad registrada en la bitácora exitosamente.");
+      setFollowUpDrawerOpen(false);
+      setFollowUpForm({
+        contactChannel: "PHONE_CALL",
+        interactionDate: new Date().toISOString().split("T")[0],
+        contactPersonName: "",
+        contactPersonRole: "",
+        managementSummary: "",
+        nextContactDate: "",
+        statusAfterFollowUp: "PENDING",
+      });
+      loadDossierData();
+    } catch (err: any) {
+      showError(err.message || "Error al registrar la novedad en bitácora.");
+    } finally {
+      setSavingFollowUp(false);
+    }
+  };
 
   const loadDossierData = useCallback(async () => {
     if (!clientId) return;
@@ -230,7 +283,7 @@ export default function ClientCommercialDossierPage() {
               },
             }}
           >
-            + Nueva Cotización
+            Nueva Cotización
           </Button>
         </Box>
       </Box>
@@ -384,7 +437,7 @@ export default function ClientCommercialDossierPage() {
                       onClick={() => router.push(`/commercial/proposals/new?clientId=${clientId}`)}
                       sx={{ textTransform: "none", fontWeight: 700, borderRadius: 2 }}
                     >
-                      + Crear Primera Cotización
+                      Crear Primera Cotización
                     </Button>
                   </Box>
                 ) : (
@@ -455,8 +508,8 @@ export default function ClientCommercialDossierPage() {
                                     prop.pnlStatus === "PROFITABLE"
                                       ? "success"
                                       : prop.pnlStatus === "WARNING_LOW_MARGIN"
-                                      ? "warning"
-                                      : "error"
+                                        ? "warning"
+                                        : "error"
                                   }
                                   sx={{ fontWeight: 700 }}
                                 />
@@ -529,7 +582,7 @@ export default function ClientCommercialDossierPage() {
                       onClick={() => router.push(`/commercial/service-orders?clientId=${clientId}`)}
                       sx={{ textTransform: "none", fontWeight: 700, borderRadius: 2 }}
                     >
-                      + Emitir Primera Orden de Servicio
+                      Emitir Primera Orden de Servicio
                     </Button>
                   </Box>
                 ) : (
@@ -571,8 +624,8 @@ export default function ClientCommercialDossierPage() {
                                 {os.orderType === "NEW_SITE"
                                   ? "Nueva Instalación"
                                   : os.orderType === "CONTRACT_RENEWAL"
-                                  ? "Renovación Contractual"
-                                  : "Adición de Puesto"}
+                                    ? "Renovación Contractual"
+                                    : "Adición de Puesto"}
                               </TableCell>
                               <TableCell sx={{ fontSize: "0.85rem" }}>
                                 <Chip
@@ -618,6 +671,39 @@ export default function ClientCommercialDossierPage() {
             {/* TAB 2: BITÁCORA CRM */}
             {activeTab === 2 && (
               <>
+                <Box
+                  sx={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    mb: 3,
+                    flexWrap: "wrap",
+                    gap: 2,
+                  }}
+                >
+                  <Box>
+                    <Typography variant="h6" sx={{ fontWeight: 800 }}>
+                      Bitácora de Novedades y Seguimiento CRM
+                    </Typography>
+                    <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                      Registro cronológico de gestiones, llamadas, visitas y novedades administrativas del cliente.
+                    </Typography>
+                  </Box>
+                  <Button
+                    variant="contained"
+                    startIcon={<AddIcon />}
+                    onClick={() => setFollowUpDrawerOpen(true)}
+                    sx={{
+                      borderRadius: 2,
+                      textTransform: "none",
+                      fontWeight: 700,
+                      background: "linear-gradient(135deg, #7C3AED 0%, #6D28D9 100%)",
+                    }}
+                  >
+                    Registrar Novedad / Gestión
+                  </Button>
+                </Box>
+
                 {followUps.length === 0 ? (
                   <Box sx={{ textAlign: "center", py: 6 }}>
                     <GroupsIcon sx={{ fontSize: 48, color: "text.secondary", opacity: 0.4, mb: 1.5 }} />
@@ -661,17 +747,17 @@ export default function ClientCommercialDossierPage() {
                               fu.statusAfterFollowUp === "WON"
                                 ? "Ganado / Cerrado"
                                 : fu.statusAfterFollowUp === "PENDING"
-                                ? "En Seguimiento"
-                                : fu.statusAfterFollowUp === "LOST"
-                                ? "Perdido vs Competencia"
-                                : "Cancelado"
+                                  ? "En Seguimiento"
+                                  : fu.statusAfterFollowUp === "LOST"
+                                    ? "Perdido vs Competencia"
+                                    : "Cancelado"
                             }
                             color={
                               fu.statusAfterFollowUp === "WON"
                                 ? "success"
                                 : fu.statusAfterFollowUp === "PENDING"
-                                ? "warning"
-                                : "default"
+                                  ? "warning"
+                                  : "default"
                             }
                             sx={{ fontWeight: 700 }}
                           />
@@ -840,8 +926,8 @@ export default function ClientCommercialDossierPage() {
                         wonTargetProposal.pnlStatus === "PROFITABLE"
                           ? "success"
                           : wonTargetProposal.pnlStatus === "WARNING_LOW_MARGIN"
-                          ? "warning"
-                          : "error"
+                            ? "warning"
+                            : "error"
                       }
                       sx={{ fontWeight: 700, fontSize: "0.78rem" }}
                     />
@@ -959,8 +1045,8 @@ export default function ClientCommercialDossierPage() {
                 bodyHtml={
                   previewProposal.draftSnapshotJson?.clauseBlocks
                     ? previewProposal.draftSnapshotJson.clauseBlocks
-                        .map((b: any) => `<h3>${b.title || ""}</h3>${b.content}`)
-                        .join("<br/>")
+                      .map((b: any) => `<h3>${b.title || ""}</h3>${b.content}`)
+                      .join("<br/>")
                     : "<p>Propuesta técnica y económica generada.</p>"
                 }
                 serviceItems={previewProposal.items?.map((it: any) => ({
@@ -985,6 +1071,131 @@ export default function ClientCommercialDossierPage() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* ResponsiveFormDrawer: Registrar Novedad / Gestión en Bitácora */}
+      <ResponsiveFormDrawer
+        open={followUpDrawerOpen}
+        onClose={() => setFollowUpDrawerOpen(false)}
+        title="Registrar Novedad / Gestión Administrativa"
+        subtitle={`Registro cronológico de novedades y gestiones para ${client?.name || "este cliente"}`}
+        isSubmitting={savingFollowUp}
+        submitButtonText="Guardar en Bitácora"
+        formId="client-followup-form"
+        width={{ xs: "100%", md: 560 }}
+      >
+        <Box
+          component="form"
+          id="client-followup-form"
+          onSubmit={(e) => {
+            e.preventDefault();
+            handleSaveFollowUp();
+          }}
+          sx={{ display: "flex", flexDirection: "column", gap: 2.5, pt: 1 }}
+        >
+          <Grid container spacing={2}>
+            <Grid size={{ xs: 12, sm: 6 }}>
+              <TextField
+                select
+                fullWidth
+                size="small"
+                label="Canal de Interacción *"
+                value={followUpForm.contactChannel}
+                onChange={(e) =>
+                  setFollowUpForm({ ...followUpForm, contactChannel: e.target.value })
+                }
+              >
+                {Object.entries(CHANNEL_NAMES).map(([k, label]) => (
+                  <MenuItem key={k} value={k}>
+                    {label}
+                  </MenuItem>
+                ))}
+              </TextField>
+            </Grid>
+            <Grid size={{ xs: 12, sm: 6 }}>
+              <TextField
+                fullWidth
+                size="small"
+                type="date"
+                label="Fecha de la Gestión *"
+                InputLabelProps={{ shrink: true }}
+                value={followUpForm.interactionDate}
+                onChange={(e) =>
+                  setFollowUpForm({ ...followUpForm, interactionDate: e.target.value })
+                }
+              />
+            </Grid>
+            <Grid size={{ xs: 12, sm: 6 }}>
+              <TextField
+                fullWidth
+                size="small"
+                label="Persona Contactada *"
+                placeholder="ej. Juan Pérez (Administrador)"
+                value={followUpForm.contactPersonName}
+                onChange={(e) =>
+                  setFollowUpForm({ ...followUpForm, contactPersonName: e.target.value })
+                }
+                required
+              />
+            </Grid>
+            <Grid size={{ xs: 12, sm: 6 }}>
+              <TextField
+                fullWidth
+                size="small"
+                label="Cargo / Rol de la Persona"
+                placeholder="ej. Administrador, Consejo, Revisor Fiscal"
+                value={followUpForm.contactPersonRole}
+                onChange={(e) =>
+                  setFollowUpForm({ ...followUpForm, contactPersonRole: e.target.value })
+                }
+              />
+            </Grid>
+            <Grid size={{ xs: 12 }}>
+              <TextField
+                fullWidth
+                size="small"
+                multiline
+                rows={4}
+                label="Detalle de la Novedad / Gestión *"
+                placeholder="Describa los puntos tratados, acuerdos, quejas, compromisos u observaciones del cliente..."
+                value={followUpForm.managementSummary}
+                onChange={(e) =>
+                  setFollowUpForm({ ...followUpForm, managementSummary: e.target.value })
+                }
+                required
+              />
+            </Grid>
+            <Grid size={{ xs: 12, sm: 6 }}>
+              <TextField
+                fullWidth
+                size="small"
+                type="date"
+                label="Próximo Seguimiento (Opcional)"
+                InputLabelProps={{ shrink: true }}
+                value={followUpForm.nextContactDate}
+                onChange={(e) =>
+                  setFollowUpForm({ ...followUpForm, nextContactDate: e.target.value })
+                }
+              />
+            </Grid>
+            <Grid size={{ xs: 12, sm: 6 }}>
+              <TextField
+                select
+                fullWidth
+                size="small"
+                label="Estado de la Gestión"
+                value={followUpForm.statusAfterFollowUp}
+                onChange={(e) =>
+                  setFollowUpForm({ ...followUpForm, statusAfterFollowUp: e.target.value })
+                }
+              >
+                <MenuItem value="PENDING">En Seguimiento</MenuItem>
+                <MenuItem value="WON">Acordado / Resuelto</MenuItem>
+                <MenuItem value="LOST">Descartado</MenuItem>
+              </TextField>
+            </Grid>
+          </Grid>
+        </Box>
+      </ResponsiveFormDrawer>
     </Box>
   );
 }

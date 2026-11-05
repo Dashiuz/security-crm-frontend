@@ -355,7 +355,7 @@ export default function GlobalCommandPalette({
           color: "text.secondary",
         }}
       >
-        <Typography variant="caption">Noxia Global Command Palette</Typography>
+        <Typography variant="caption">Loro Global Command Palette</Typography>
         <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
           <Chip
             icon={<EnterIcon sx={{ fontSize: "0.8rem !important" }} />}

@@ -618,7 +618,7 @@ export default function PayrollDependenciesPage() {
         open={simulationDrawerOpen}
         onClose={() => setSimulationDrawerOpen(false)}
         title="Simulación de Desglose de Nómina"
-        subtitle={simulatingDep?.name || "Desglose por modalidad Pronos"}
+        subtitle={simulatingDep?.name || "Desglose por modalidad de turno"}
         headerIcon={<CalculateOutlined sx={{ color: noxiaPalette.primary.main }} />}
         width={{ xs: "100%", md: 540 }}
       >

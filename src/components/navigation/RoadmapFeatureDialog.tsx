@@ -90,7 +90,7 @@ export default function RoadmapFeatureDialog({
             </Typography>
             <Stack direction="row" spacing={1} sx={{ mt: 0.5 }}>
               <Chip
-                label={direction?.title || "ERP Noxia"}
+                label={direction?.title || "Loro ERP"}
                 size="small"
                 sx={{
                   bgcolor: "secondary.main",
@@ -217,7 +217,7 @@ export default function RoadmapFeatureDialog({
         >
           <Typography variant="caption" sx={{ color: "text.secondary", display: "block" }}>
             💡 <strong>Alineación Metodológica SDD</strong>: Esta vista forma parte del roadmap
-            oficial de Noxia ERP. Se construirá con pruebas unitarias (&gt;= 80%) y modelos
+            oficial de Loro ERP. Se construirá con pruebas unitarias (&gt;= 80%) y modelos
             Prisma dedicados al iniciar su ciclo de desarrollo.
           </Typography>
         </Box>

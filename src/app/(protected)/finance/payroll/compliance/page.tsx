@@ -942,7 +942,7 @@ export default function PayrollCompliancePage() {
         {/* Acceso Rápido y Guía Operativa */}
         <Paper elevation={0} sx={{ p: 3, border: "1px solid #E2E8F0", borderRadius: 3, bgcolor: "#FFFFFF" }}>
           <Typography variant="h6" sx={{ fontWeight: 800, color: noxiaPalette.secondary.main, mb: 1 }}>
-            Flujo de Cumplimiento Mensual (PRONOS NOXIA)
+            Flujo de Cumplimiento Mensual de Nómina (NOXIA)
           </Typography>
           <Typography variant="body2" sx={{ color: "text.secondary", mb: 3 }}>
             Ejecute en orden los pasos para dar cierre legal, fiscal y contable al periodo liquidado:

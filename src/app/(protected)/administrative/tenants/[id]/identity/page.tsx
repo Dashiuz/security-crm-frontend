@@ -24,6 +24,7 @@ import {
   BusinessRounded as BusinessIcon,
 } from "@mui/icons-material";
 import { useTenantDetail } from "../TenantContext";
+import TenantLogoUploader from "@/components/administrative/TenantLogoUploader";
 import {
   tenantGeneralSchema,
   TenantGeneralFormData,
@@ -103,7 +104,8 @@ export default function TenantIdentityPage() {
 
         <form onSubmit={form.handleSubmit(onSubmit)}>
           <Grid container spacing={2.5}>
-            <Grid size={{ xs: 12, md: 8 }}>
+            {/* Row 1: Balanced 3-column header (5 + 4 + 3 = 12 cols, all 56px height) */}
+            <Grid size={{ xs: 12, md: 5 }}>
               <Controller
                 name="name"
                 control={form.control}
@@ -122,41 +124,6 @@ export default function TenantIdentityPage() {
 
             <Grid size={{ xs: 12, md: 4 }}>
               <Controller
-                name="isActive"
-                control={form.control}
-                render={({ field }) => (
-                  <Box
-                    sx={{
-                      p: 1.5,
-                      border: `1px solid ${theme.palette.divider}`,
-                      borderRadius: 2,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      height: "100%",
-                      bgcolor: "background.paper",
-                    }}
-                  >
-                    <Box>
-                      <Typography variant="subtitle2" fontWeight={600}>
-                        Estado de Operación
-                      </Typography>
-                      <Typography variant="caption" color="text.secondary">
-                        {field.value ? "Habilitado (Activo)" : "Deshabilitado"}
-                      </Typography>
-                    </Box>
-                    <Switch
-                      checked={field.value}
-                      onChange={(e) => field.onChange(e.target.checked)}
-                      color="success"
-                    />
-                  </Box>
-                )}
-              />
-            </Grid>
-
-            <Grid size={{ xs: 12, md: 6 }}>
-              <Controller
                 name="slug"
                 control={form.control}
                 render={({ field, fieldState }) => (
@@ -168,24 +135,65 @@ export default function TenantIdentityPage() {
                     error={Boolean(fieldState.error)}
                     helperText={
                       fieldState.error?.message ||
-                      "Solo letras minúsculas, números y guiones"
+                      "Solo minúsculas, números y guiones"
                     }
                   />
                 )}
               />
             </Grid>
 
-            <Grid size={{ xs: 12, md: 6 }}>
+            <Grid size={{ xs: 12, md: 3 }}>
+              <Controller
+                name="isActive"
+                control={form.control}
+                render={({ field }) => (
+                  <Box
+                    sx={{
+                      px: 2,
+                      py: 1,
+                      border: `1px solid ${theme.palette.divider}`,
+                      borderRadius: 1,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      height: "56px",
+                      bgcolor: "background.paper",
+                      boxSizing: "border-box",
+                    }}
+                  >
+                    <Box>
+                      <Typography variant="body2" fontWeight={600} lineHeight={1.2}>
+                        Estado
+                      </Typography>
+                      <Typography
+                        variant="caption"
+                        color={field.value ? "success.main" : "text.secondary"}
+                        fontWeight={600}
+                      >
+                        {field.value ? "Habilitado (Activo)" : "Deshabilitado"}
+                      </Typography>
+                    </Box>
+                    <Switch
+                      checked={field.value}
+                      onChange={(e) => field.onChange(e.target.checked)}
+                      color="success"
+                      size="small"
+                    />
+                  </Box>
+                )}
+              />
+            </Grid>
+
+            {/* Row 2: Full-Width Horizontal Logo Asset Card (12 cols) */}
+            <Grid size={{ xs: 12 }}>
               <Controller
                 name="logoUrl"
                 control={form.control}
-                render={({ field, fieldState }) => (
-                  <TextField
-                    {...field}
-                    label="URL del Logotipo"
-                    fullWidth
-                    error={Boolean(fieldState.error)}
-                    helperText={fieldState.error?.message || "Enlace HTTPS a imagen PNG o SVG"}
+                render={({ field }) => (
+                  <TenantLogoUploader
+                    tenantId={tenant?.id || ""}
+                    value={field.value}
+                    onChange={(newUrl) => field.onChange(newUrl)}
                   />
                 )}
               />
