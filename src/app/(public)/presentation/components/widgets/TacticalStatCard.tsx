@@ -28,20 +28,20 @@ export default function TacticalStatCard({
   };
 
   return (
-    <Box className="bento-card" sx={{ flex: 1, minWidth: 200 }}>
-      <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", mb: 1 }}>
-        {badgeText && <span className={badgeClasses[badgeType]}>{badgeText}</span>}
+    <Box className="bento-card" sx={{ flex: 1, minWidth: { xs: 0, sm: 200 }, p: { xs: 2.5, md: 3.5 } }}>
+      <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", mb: 1.5 }}>
+        {badgeText && <span className={badgeClasses[badgeType]} style={{ fontSize: "13.5px", padding: "4px 12px" }}>{badgeText}</span>}
         {icon && <Box sx={{ color: "rgba(167, 139, 250, 0.8)", display: "flex" }}>{icon}</Box>}
       </Box>
       <Typography
         variant="h3"
         sx={{
           fontFamily: "'JetBrains Mono', monospace",
-          fontWeight: 800,
+          fontWeight: 900,
           color: "#FFFFFF",
-          fontSize: { xs: "28px", md: "36px" },
-          lineHeight: 1.1,
-          mb: 0.5,
+          fontSize: { xs: "36px", sm: "44px", md: "52px", lg: "60px" },
+          lineHeight: 1.05,
+          mb: 1,
         }}
       >
         {value}
@@ -49,10 +49,10 @@ export default function TacticalStatCard({
       <Typography
         variant="body2"
         sx={{
-          fontWeight: 600,
-          color: "#E2E8F0",
-          fontSize: "14px",
-          mb: sublabel ? 0.2 : 0,
+          fontWeight: 850,
+          color: "#FFFFFF",
+          fontSize: { xs: "17px", md: "20px", lg: "22px" },
+          mb: sublabel ? 0.8 : 0,
         }}
       >
         {label}
@@ -61,8 +61,9 @@ export default function TacticalStatCard({
         <Typography
           variant="caption"
           sx={{
-            color: "#94A3B8",
-            fontSize: "12px",
+            color: "#CBD5E1",
+            fontSize: { xs: "14.5px", md: "17px", lg: "18.5px" },
+            lineHeight: 1.45,
             display: "block",
           }}
         >
@@ -72,4 +73,3 @@ export default function TacticalStatCard({
     </Box>
   );
 }
-

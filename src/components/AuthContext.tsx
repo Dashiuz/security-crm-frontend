@@ -21,6 +21,13 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+const PUBLIC_ROUTES = ["/login", "/presentation", "/sign", "/verify"];
+
+const isPublicRoute = (path: string | null) => {
+  if (!path) return false;
+  return PUBLIC_ROUTES.some((route) => path.startsWith(route));
+};
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<SessionInfo | null>(null);
   const [loading, setLoading] = useState(true);
@@ -42,7 +49,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(data);
     } catch (error) {
       setSession(null);
-      if (!pathname.startsWith("/login")) {
+      if (!isPublicRoute(pathname)) {
         router.push("/login");
       }
     } finally {
@@ -70,7 +77,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     refreshSession: fetchSession,
   };
 
-  if (loading && !pathname.startsWith("/login")) {
+  if (loading && !isPublicRoute(pathname)) {
     return (
       <Box
         sx={{

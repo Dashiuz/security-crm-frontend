@@ -20,31 +20,31 @@ export default function TacticalComparisonRow({
       sx={{
         display: "grid",
         gridTemplateColumns: { xs: "1fr", md: "1.2fr 2fr 2fr" },
-        gap: 2,
+        gap: { xs: 1.5, md: 3 },
         alignItems: "center",
-        p: "10px 16px",
-        borderRadius: "8px",
-        backgroundColor: "rgba(18, 14, 40, 0.6)",
-        border: "1px solid rgba(124, 58, 237, 0.15)",
+        p: { xs: "14px 18px", md: "18px 26px" },
+        borderRadius: "14px",
+        backgroundColor: "rgba(18, 14, 40, 0.78)",
+        border: "1.5px solid rgba(124, 58, 237, 0.28)",
         "&:hover": {
-          backgroundColor: "rgba(28, 22, 60, 0.7)",
-          borderColor: "rgba(124, 58, 237, 0.35)",
+          backgroundColor: "rgba(28, 22, 60, 0.88)",
+          borderColor: "rgba(124, 58, 237, 0.55)",
         },
       }}
     >
-      <Typography sx={{ fontWeight: 700, color: "#F1F5F9", fontSize: "14px" }}>
+      <Typography sx={{ fontWeight: 850, color: "#FFFFFF", fontSize: { xs: "17px", md: "20px", lg: "22px" } }}>
         {title}
       </Typography>
 
       {/* Traditional */}
-      <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+      <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
         <Box
           sx={{
-            width: 22,
-            height: 22,
+            width: 28,
+            height: 28,
             borderRadius: "50%",
-            backgroundColor: "rgba(239, 68, 68, 0.15)",
-            border: "1px solid rgba(239, 68, 68, 0.4)",
+            backgroundColor: "rgba(239, 68, 68, 0.18)",
+            border: "1.5px solid rgba(239, 68, 68, 0.45)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
@@ -52,22 +52,22 @@ export default function TacticalComparisonRow({
             flexShrink: 0,
           }}
         >
-          <CloseIcon sx={{ fontSize: 14 }} />
+          <CloseIcon sx={{ fontSize: 18 }} />
         </Box>
-        <Typography sx={{ color: "#94A3B8", fontSize: "13px", lineHeight: 1.3 }}>
+        <Typography sx={{ color: "#CBD5E1", fontSize: { xs: "15px", md: "18px", lg: "19.5px" }, lineHeight: 1.4 }}>
           {traditional}
         </Typography>
       </Box>
 
       {/* Loro ERP */}
-      <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+      <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
         <Box
           sx={{
-            width: 22,
-            height: 22,
+            width: 28,
+            height: 28,
             borderRadius: "50%",
-            backgroundColor: "rgba(16, 185, 129, 0.15)",
-            border: "1px solid rgba(16, 185, 129, 0.4)",
+            backgroundColor: "rgba(16, 185, 129, 0.18)",
+            border: "1.5px solid rgba(16, 185, 129, 0.45)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
@@ -75,13 +75,12 @@ export default function TacticalComparisonRow({
             flexShrink: 0,
           }}
         >
-          <CheckIcon sx={{ fontSize: 14 }} />
+          <CheckIcon sx={{ fontSize: 18 }} />
         </Box>
-        <Typography sx={{ color: "#34D399", fontWeight: 600, fontSize: "13px", lineHeight: 1.3 }}>
+        <Typography sx={{ color: "#34D399", fontWeight: 800, fontSize: { xs: "15px", md: "18px", lg: "19.5px" }, lineHeight: 1.4 }}>
           {loro}
         </Typography>
       </Box>
     </Box>
   );
 }
-
