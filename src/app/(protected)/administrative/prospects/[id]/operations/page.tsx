@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   Box,
   Typography,
@@ -16,6 +16,7 @@ import {
   Chip,
   IconButton,
   Divider,
+  Tooltip,
 } from "@mui/material";
 import {
   EditRounded as EditIcon,
@@ -24,7 +25,8 @@ import {
   DoorFrontRounded as DoorFrontIcon,
   PhotoCameraRounded as CameraIcon,
   DeleteRounded as DeleteIcon,
-  CloudUploadRounded as CloudUploadIcon,
+  CheckCircleRounded as CheckCircleIcon,
+  OpenInNewRounded as OpenInNewIcon,
 } from "@mui/icons-material";
 import ResponsiveFormDrawer from "@/components/common/ResponsiveFormDrawer";
 import { StorageApi, MediaTypeCategory } from "@/lib/api/storage";
@@ -97,11 +99,28 @@ export default function ProspectOperationsPage() {
     exclusivePetEntry: false,
     exclusiveDeliveryEntry: false,
     sharedPetDeliveryEntry: true,
-    pedestrianEntry: true,
+    noExclusiveEntries: false,
   });
 
-  const [entryImages, setEntryImages] = useState<Record<string, string>>({});
-  const [uploadingImage, setUploadingImage] = useState(false);
+  const [entryImages, setEntryImages] = useState<Record<string, any>>({});
+  const [uploadingKeys, setUploadingKeys] = useState<Record<string, boolean>>({});
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  const [activeImageKey, setActiveImageKey] = useState<string | null>(null);
+
+  useEffect(() => {
+    const input = imageInputRef.current;
+    if (!input) return;
+    const handleCancel = () => {
+      if (activeImageKey) {
+        setUploadingKeys((prev) => ({ ...prev, [activeImageKey]: false }));
+        setActiveImageKey(null);
+      }
+    };
+    input.addEventListener("cancel", handleCancel);
+    return () => {
+      input.removeEventListener("cancel", handleCancel);
+    };
+  }, [activeImageKey]);
 
   // Sync state with prospect data
   useEffect(() => {
@@ -200,34 +219,99 @@ export default function ProspectOperationsPage() {
     if (success) setActiveDrawer(null);
   };
 
-  // Upload Photo for an entry
-  const handleFileUpload = async (entryKey: string, file: File) => {
+  // Upload handler for access points
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !activeImageKey) return;
+
     try {
-      setUploadingImage(true);
-      const res = await StorageApi.uploadMedia({
+      setUploadingKeys((prev) => ({ ...prev, [activeImageKey]: true }));
+      const uploaded = await StorageApi.uploadMedia({
         file,
         entityType: MediaTypeCategory.CLIENT,
         entityId: prospectId,
         clientId: prospectId,
-        subType: `entry_${entryKey}`,
+        subType: `entry_${activeImageKey}`,
       });
-      const url = res.url || res.s3Key;
       setEntryImages((prev) => ({
         ...prev,
-        [entryKey]: url,
+        [activeImageKey]: {
+          mediaId: uploaded.id,
+          fileName: uploaded.fileName,
+          url: uploaded.presignedUrl || uploaded.url,
+        },
       }));
-      showSuccess(`Foto subida exitosamente para el acceso.`);
+      showSuccess(`Fotografía de acceso "${file.name}" adjuntada correctamente.`);
     } catch (err: any) {
-      showError(err?.message || "Error al subir la imagen");
+      showError(err?.message || "Error al subir fotografía de acceso.");
     } finally {
-      setUploadingImage(false);
+      setUploadingKeys((prev) => ({
+        ...prev,
+        [activeImageKey]: false,
+      }));
     }
   };
 
-  const handleRemoveImage = (entryKey: string) => {
+  const triggerUpload = (key: string) => {
+    setActiveImageKey(key);
+    if (imageInputRef.current) {
+      imageInputRef.current.value = "";
+      imageInputRef.current.click();
+    }
+  };
+
+  const handleRemovePhoto = (key: string) => {
     setEntryImages((prev) => {
-      const next = { ...prev };
-      delete next[entryKey];
+      const copy = { ...prev };
+      delete copy[key];
+      return copy;
+    });
+  };
+
+  const handleEntryToggle = (key: string, checked: boolean) => {
+    setEntriesForm((prev) => {
+      const next: any = { ...prev, [key]: checked };
+
+      if (key === "noExclusiveEntries" && checked) {
+        next.exclusivePetEntry = false;
+        next.exclusiveDeliveryEntry = false;
+        next.sharedPetDeliveryEntry = false;
+        setEntryImages((prevImgs) => {
+          const copy = { ...prevImgs };
+          delete copy["exclusivePetEntry"];
+          delete copy["exclusiveDeliveryEntry"];
+          delete copy["sharedPetDeliveryEntry"];
+          return copy;
+        });
+      }
+
+      if (
+        (key === "exclusivePetEntry" ||
+          key === "exclusiveDeliveryEntry" ||
+          key === "sharedPetDeliveryEntry") &&
+        checked
+      ) {
+        next.noExclusiveEntries = false;
+      }
+
+      if (key === "separateVehicleEntryExit" && checked) {
+        next.sharedVehicleEntryExit = false;
+      } else if (key === "sharedVehicleEntryExit" && checked) {
+        next.separateVehicleEntryExit = false;
+      }
+
+      if (key === "sharedPetDeliveryEntry" && checked) {
+        next.exclusivePetEntry = false;
+        next.exclusiveDeliveryEntry = false;
+      } else if (
+        (key === "exclusivePetEntry" || key === "exclusiveDeliveryEntry") &&
+        checked
+      ) {
+        if (next.exclusivePetEntry && next.exclusiveDeliveryEntry) {
+          next.sharedPetDeliveryEntry = false;
+        }
+      }
+
       return next;
     });
   };
@@ -295,6 +379,13 @@ export default function ProspectOperationsPage() {
 
   return (
     <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
+      <input
+        type="file"
+        ref={imageInputRef}
+        style={{ display: "none" }}
+        accept="image/*,application/pdf"
+        onChange={handleFileChange}
+      />
       {/* Title */}
       <Box>
         <Typography variant="h5" fontWeight={700}>
@@ -422,7 +513,7 @@ export default function ProspectOperationsPage() {
         </Grid>
       </Paper>
 
-      {/* Card 3: Puntos de Acceso Físico y Garitas */}
+      {/* Card 3: Puntos de Acceso Físico y Evidencia */}
       <Paper
         elevation={0}
         sx={{
@@ -431,11 +522,18 @@ export default function ProspectOperationsPage() {
           border: `1px solid ${theme.palette.divider}`,
         }}
       >
-        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 2 }}>
+        <Box
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            mb: 2,
+          }}
+        >
           <Box sx={{ display: "flex", alignItems: "center", gap: 1.2 }}>
             <DoorFrontIcon color="primary" />
             <Typography variant="subtitle1" fontWeight={700}>
-              Puntos de Acceso Físico y Evidencia
+              Control de Accesos y Puntos de Entrada (7 Opciones con Evidencia)
             </Typography>
           </Box>
           {permissions.canEdit && (
@@ -451,44 +549,130 @@ export default function ProspectOperationsPage() {
           )}
         </Box>
 
-        <Grid container spacing={2}>
-          <Grid size={{ xs: 12, sm: 6 }}>
-            <Box sx={{ display: "flex", flexDirection: "column", gap: 1.2 }}>
-              <Chip
-                label={`Entrada Principal: ${entriesForm.mainEntry ? "Activa / Habilitada" : "No"}`}
-                color={entriesForm.mainEntry ? "success" : "default"}
-                variant="outlined"
-              />
-              <Chip
-                label={`Vehicular: ${entriesForm.separateVehicleEntryExit ? "Entrada/Salida Separada" : "Compartida"}`}
-                color="info"
-                variant="outlined"
-              />
-              <Chip
-                label={`Acceso Peatonal: ${entriesForm.pedestrianEntry ? "Independiente" : "Integrado"}`}
-                variant="outlined"
-              />
-              <Chip
-                label={`Acceso Mascotas y Domiciliarios: ${entriesForm.sharedPetDeliveryEntry ? "Compartido" : "Exclusivos"}`}
-                variant="outlined"
-              />
-            </Box>
-          </Grid>
-          <Grid size={{ xs: 12, sm: 6 }}>
-            <Typography variant="subtitle2" fontWeight={600} sx={{ mb: 1 }}>
-              Evidencias Fotográficas de Puntos de Control:
+        <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1.2, mb: 2 }}>
+          <Chip
+            icon={entryImages.mainEntry ? <CheckCircleIcon /> : undefined}
+            label={
+              entriesForm.mainEntry
+                ? entryImages.mainEntry
+                  ? "1. Peatonal Principal (Foto adjunta)"
+                  : "1. Peatonal Principal: Sí"
+                : "1. Peatonal Principal: No"
+            }
+            variant="outlined"
+            color={entriesForm.mainEntry ? "primary" : "default"}
+          />
+          {entriesForm.separateVehicleEntryExit && (
+            <Chip
+              icon={
+                entryImages.separateVehicleEntryExit ? (
+                  <CheckCircleIcon />
+                ) : undefined
+              }
+              label={
+                entryImages.separateVehicleEntryExit
+                  ? "2. Vehicular Separado (Foto adjunta)"
+                  : "2. Vehicular Separado"
+              }
+              variant="outlined"
+              color="primary"
+            />
+          )}
+          {entriesForm.sharedVehicleEntryExit && (
+            <Chip
+              icon={
+                entryImages.sharedVehicleEntryExit ? (
+                  <CheckCircleIcon />
+                ) : undefined
+              }
+              label={
+                entryImages.sharedVehicleEntryExit
+                  ? "3. Vehicular Compartido (Foto adjunta)"
+                  : "3. Vehicular Compartido"
+              }
+              variant="outlined"
+              color="primary"
+            />
+          )}
+          {entriesForm.exclusivePetEntry && (
+            <Chip
+              icon={
+                entryImages.exclusivePetEntry ? (
+                  <CheckCircleIcon />
+                ) : undefined
+              }
+              label={
+                entryImages.exclusivePetEntry
+                  ? "4. Entrada Mascotas (Foto adjunta)"
+                  : "4. Entrada Mascotas"
+              }
+              variant="outlined"
+              color="primary"
+            />
+          )}
+          {entriesForm.exclusiveDeliveryEntry && (
+            <Chip
+              icon={
+                entryImages.exclusiveDeliveryEntry ? (
+                  <CheckCircleIcon />
+                ) : undefined
+              }
+              label={
+                entryImages.exclusiveDeliveryEntry
+                  ? "5. Entrada Domiciliarios (Foto adjunta)"
+                  : "5. Entrada Domiciliarios"
+              }
+              variant="outlined"
+              color="primary"
+            />
+          )}
+          {entriesForm.sharedPetDeliveryEntry && (
+            <Chip
+              icon={
+                entryImages.sharedPetDeliveryEntry ? (
+                  <CheckCircleIcon />
+                ) : undefined
+              }
+              label={
+                entryImages.sharedPetDeliveryEntry
+                  ? "6. Mascotas y Domiciliarios (Foto adjunta)"
+                  : "6. Mascotas y Domiciliarios"
+              }
+              variant="outlined"
+              color="primary"
+            />
+          )}
+          {entriesForm.noExclusiveEntries && (
+            <Chip
+              label="7. Sin entradas exclusivas"
+              variant="outlined"
+              color="warning"
+            />
+          )}
+        </Box>
+
+        {Object.keys(entryImages).length > 0 && (
+          <Box sx={{ mt: 2 }}>
+            <Typography
+              variant="caption"
+              color="text.secondary"
+              fontWeight={700}
+              sx={{ textTransform: "uppercase", display: "block", mb: 1 }}
+            >
+              Evidencias Fotográficas Adjuntas
             </Typography>
-            {Object.keys(entryImages).length === 0 ? (
-              <Typography variant="body2" color="text.secondary">
-                No hay fotografías adjuntas para los accesos. Puede anexarlas editando los accesos.
-              </Typography>
-            ) : (
-              <Box sx={{ display: "flex", gap: 1.5, flexWrap: "wrap" }}>
-                {Object.entries(entryImages).map(([key, imgUrl]) => (
+            <Box sx={{ display: "flex", gap: 1.5, flexWrap: "wrap" }}>
+              {Object.entries(entryImages).map(([key, imgData]) => {
+                const url =
+                  typeof imgData === "string" ? imgData : imgData?.url;
+                const fileName =
+                  typeof imgData === "object" ? imgData?.fileName : key;
+                return (
                   <Box
                     key={key}
                     sx={{
                       p: 1,
+                      px: 1.5,
                       borderRadius: 2,
                       border: `1px solid ${theme.palette.divider}`,
                       bgcolor: "background.paper",
@@ -499,14 +683,27 @@ export default function ProspectOperationsPage() {
                   >
                     <CameraIcon fontSize="small" color="primary" />
                     <Typography variant="caption" fontWeight={600}>
-                      {key}
+                      {key}: {fileName || "foto"}
                     </Typography>
+                    {url && (
+                      <Tooltip title="Ver Fotografía">
+                        <IconButton
+                          size="small"
+                          component="a"
+                          href={url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          <OpenInNewIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                    )}
                   </Box>
-                ))}
-              </Box>
-            )}
-          </Grid>
-        </Grid>
+                );
+              })}
+            </Box>
+          </Box>
+        )}
       </Paper>
 
       {/* Drawer 1: Editar Estructura */}
@@ -806,16 +1003,16 @@ export default function ProspectOperationsPage() {
         </Box>
       </ResponsiveFormDrawer>
 
-      {/* Drawer 3: Editar Puntos de Acceso */}
+      {/* Drawer 3: Editar Puntos de Acceso Físico (7 Opciones con Evidencia) */}
       <ResponsiveFormDrawer
         open={activeDrawer === "entries"}
         onClose={() => !saving && setActiveDrawer(null)}
-        title="Editar Puntos de Acceso Físico"
-        subtitle="Configure los accesos vehiculares, peatonales y anexar fotos."
+        title="Control de Accesos y Puntos de Entrada"
+        subtitle="Configure los accesos peatonales, vehiculares y anexar evidencias fotográficas."
         isSubmitting={saving}
-        submitButtonText="Guardar Cambios"
+        submitButtonText="Guardar Accesos"
         formId="entries-form"
-        width={{ xs: "100%", sm: 540 }}
+        width={{ xs: "100%", sm: 580 }}
       >
         <Box
           component="form"
@@ -824,121 +1021,441 @@ export default function ProspectOperationsPage() {
             e.preventDefault();
             handleSaveEntries();
           }}
-          sx={{ p: 2, display: "flex", flexDirection: "column", gap: 2 }}
+          sx={{ p: 2, display: "flex", flexDirection: "column", gap: 2.5 }}
         >
-          <FormControlLabel
-            control={
-              <Checkbox
-                checked={entriesForm.mainEntry}
-                onChange={(e) => setEntriesForm({ ...entriesForm, mainEntry: e.target.checked })}
-              />
-            }
-            label="Entrada Principal Activa"
-          />
-
-          <FormControlLabel
-            control={
-              <Checkbox
-                checked={entriesForm.separateVehicleEntryExit}
-                onChange={(e) =>
-                  setEntriesForm({
-                    ...entriesForm,
-                    separateVehicleEntryExit: e.target.checked,
-                    sharedVehicleEntryExit: !e.target.checked,
-                  })
-                }
-              />
-            }
-            label="Entrada y Salida Vehicular Separada"
-          />
-
-          <FormControlLabel
-            control={
-              <Checkbox
-                checked={entriesForm.sharedVehicleEntryExit}
-                onChange={(e) =>
-                  setEntriesForm({
-                    ...entriesForm,
-                    sharedVehicleEntryExit: e.target.checked,
-                    separateVehicleEntryExit: !e.target.checked,
-                  })
-                }
-              />
-            }
-            label="Entrada y Salida Vehicular Compartida (Mismo carril)"
-          />
-
-          <FormControlLabel
-            control={
-              <Checkbox
-                checked={entriesForm.pedestrianEntry}
-                onChange={(e) => setEntriesForm({ ...entriesForm, pedestrianEntry: e.target.checked })}
-              />
-            }
-            label="Acceso Peatonal Independiente"
-          />
-
-          <Divider sx={{ my: 1 }} />
-          <Typography variant="subtitle2" fontWeight={600}>
-            Anexar Evidencia Fotográfica de Accesos:
-          </Typography>
-
-          {["mainEntry", "vehicleEntry", "pedestrianEntry", "deliveryEntry"].map((key) => (
-            <Box
-              key={key}
-              sx={{
-                p: 1.5,
-                borderRadius: 2,
-                border: `1px solid ${theme.palette.divider}`,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-              }}
+          {/* Sección 1: Accesos Peatonales y Vehiculares */}
+          <Paper variant="outlined" sx={{ p: 2, borderRadius: 2 }}>
+            <Typography
+              variant="caption"
+              color="text.secondary"
+              fontWeight={700}
+              sx={{ textTransform: "uppercase", display: "block", mb: 1.5 }}
             >
-              <Typography variant="body2" fontWeight={500}>
-                {key === "mainEntry"
-                  ? "Entrada Principal"
-                  : key === "vehicleEntry"
-                  ? "Acceso Vehicular"
-                  : key === "pedestrianEntry"
-                  ? "Acceso Peatonal"
-                  : "Acceso Domicilios / Mascotas"}
-              </Typography>
+              Accesos Peatonales y Vehiculares
+            </Typography>
+            <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+              {/* Opción 1: Entrada Principal Peatonal */}
+              <Box>
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      checked={Boolean(entriesForm.mainEntry)}
+                      onChange={(e) =>
+                        handleEntryToggle("mainEntry", e.target.checked)
+                      }
+                    />
+                  }
+                  label="1. Entrada Principal (Peatonal)"
+                />
+                {entriesForm.mainEntry && (
+                  <Box sx={{ ml: 4, mt: 0.5, display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
+                    <Button
+                      size="small"
+                      variant={entryImages["mainEntry"] ? "contained" : "outlined"}
+                      color={entryImages["mainEntry"] ? "success" : "primary"}
+                      startIcon={entryImages["mainEntry"] ? <CheckCircleIcon /> : <CameraIcon />}
+                      onClick={() => triggerUpload("mainEntry")}
+                      disabled={uploadingKeys["mainEntry"]}
+                    >
+                      {uploadingKeys["mainEntry"]
+                        ? "Subiendo Archivo..."
+                        : entryImages["mainEntry"]
+                          ? "Archivo Adjuntado (Cambiar)"
+                          : "Adjuntar Archivo"}
+                    </Button>
+                    {entryImages["mainEntry"] && (
+                      <>
+                        <Tooltip title="Ver Fotografía">
+                          <IconButton
+                            size="small"
+                            component="a"
+                            href={
+                              typeof entryImages["mainEntry"] === "string"
+                                ? entryImages["mainEntry"]
+                                : entryImages["mainEntry"].url
+                            }
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            <OpenInNewIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                        <IconButton
+                          size="small"
+                          color="error"
+                          onClick={() => handleRemovePhoto("mainEntry")}
+                        >
+                          <DeleteIcon fontSize="small" />
+                        </IconButton>
+                      </>
+                    )}
+                  </Box>
+                )}
+              </Box>
 
-              {entryImages[key] ? (
-                <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                  <Chip size="small" label="Foto adjuntada" color="success" />
-                  <IconButton
-                    size="small"
-                    color="error"
-                    onClick={() => handleRemoveImage(key)}
-                  >
-                    <DeleteIcon fontSize="small" />
-                  </IconButton>
-                </Box>
-              ) : (
-                <Button
-                  component="label"
-                  size="small"
-                  variant="outlined"
-                  startIcon={<CloudUploadIcon />}
-                  disabled={uploadingImage}
-                  sx={{ textTransform: "none" }}
-                >
-                  Subir Foto
-                  <input
-                    type="file"
-                    accept="image/*"
-                    hidden
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) handleFileUpload(key, file);
-                    }}
-                  />
-                </Button>
-              )}
+              {/* Opción 2: Vehicular separada */}
+              <Box>
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      checked={Boolean(entriesForm.separateVehicleEntryExit)}
+                      disabled={Boolean(entriesForm.sharedVehicleEntryExit)}
+                      onChange={(e) =>
+                        handleEntryToggle(
+                          "separateVehicleEntryExit",
+                          e.target.checked,
+                        )
+                      }
+                    />
+                  }
+                  label="2. Vehicular separada para entrada y salida"
+                />
+                {entriesForm.separateVehicleEntryExit && (
+                  <Box sx={{ ml: 4, mt: 0.5, display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
+                    <Button
+                      size="small"
+                      variant={entryImages["separateVehicleEntryExit"] ? "contained" : "outlined"}
+                      color={entryImages["separateVehicleEntryExit"] ? "success" : "primary"}
+                      startIcon={entryImages["separateVehicleEntryExit"] ? <CheckCircleIcon /> : <CameraIcon />}
+                      onClick={() => triggerUpload("separateVehicleEntryExit")}
+                      disabled={uploadingKeys["separateVehicleEntryExit"]}
+                    >
+                      {uploadingKeys["separateVehicleEntryExit"]
+                        ? "Subiendo Archivo..."
+                        : entryImages["separateVehicleEntryExit"]
+                          ? "Archivo Adjuntado (Cambiar)"
+                          : "Adjuntar Archivo"}
+                    </Button>
+                    {entryImages["separateVehicleEntryExit"] && (
+                      <>
+                        <Tooltip title="Ver Fotografía">
+                          <IconButton
+                            size="small"
+                            component="a"
+                            href={
+                              typeof entryImages["separateVehicleEntryExit"] === "string"
+                                ? entryImages["separateVehicleEntryExit"]
+                                : entryImages["separateVehicleEntryExit"].url
+                            }
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            <OpenInNewIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                        <IconButton
+                          size="small"
+                          color="error"
+                          onClick={() => handleRemovePhoto("separateVehicleEntryExit")}
+                        >
+                          <DeleteIcon fontSize="small" />
+                        </IconButton>
+                      </>
+                    )}
+                  </Box>
+                )}
+              </Box>
+
+              {/* Opción 3: Vehicular compartida */}
+              <Box>
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      checked={Boolean(entriesForm.sharedVehicleEntryExit)}
+                      disabled={Boolean(entriesForm.separateVehicleEntryExit)}
+                      onChange={(e) =>
+                        handleEntryToggle(
+                          "sharedVehicleEntryExit",
+                          e.target.checked,
+                        )
+                      }
+                    />
+                  }
+                  label="3. Vehicular compartida para entrada y salida"
+                />
+                {entriesForm.sharedVehicleEntryExit && (
+                  <Box sx={{ ml: 4, mt: 0.5, display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
+                    <Button
+                      size="small"
+                      variant={entryImages["sharedVehicleEntryExit"] ? "contained" : "outlined"}
+                      color={entryImages["sharedVehicleEntryExit"] ? "success" : "primary"}
+                      startIcon={entryImages["sharedVehicleEntryExit"] ? <CheckCircleIcon /> : <CameraIcon />}
+                      onClick={() => triggerUpload("sharedVehicleEntryExit")}
+                      disabled={uploadingKeys["sharedVehicleEntryExit"]}
+                    >
+                      {uploadingKeys["sharedVehicleEntryExit"]
+                        ? "Subiendo Archivo..."
+                        : entryImages["sharedVehicleEntryExit"]
+                          ? "Archivo Adjuntado (Cambiar)"
+                          : "Adjuntar Archivo"}
+                    </Button>
+                    {entryImages["sharedVehicleEntryExit"] && (
+                      <>
+                        <Tooltip title="Ver Fotografía">
+                          <IconButton
+                            size="small"
+                            component="a"
+                            href={
+                              typeof entryImages["sharedVehicleEntryExit"] === "string"
+                                ? entryImages["sharedVehicleEntryExit"]
+                                : entryImages["sharedVehicleEntryExit"].url
+                            }
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            <OpenInNewIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                        <IconButton
+                          size="small"
+                          color="error"
+                          onClick={() => handleRemovePhoto("sharedVehicleEntryExit")}
+                        >
+                          <DeleteIcon fontSize="small" />
+                        </IconButton>
+                      </>
+                    )}
+                  </Box>
+                )}
+              </Box>
             </Box>
-          ))}
+          </Paper>
+
+          {/* Sección 2: Accesos Especializados y Exclusivos */}
+          <Paper variant="outlined" sx={{ p: 2, borderRadius: 2 }}>
+            <Typography
+              variant="caption"
+              color="text.secondary"
+              fontWeight={700}
+              sx={{ textTransform: "uppercase", display: "block", mb: 1.5 }}
+            >
+              Accesos Especializados y Exclusivos
+            </Typography>
+            <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+              {/* Opción 4: Entrada exclusiva mascotas */}
+              <Box>
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      checked={Boolean(entriesForm.exclusivePetEntry)}
+                      disabled={
+                        Boolean(entriesForm.noExclusiveEntries) ||
+                        Boolean(entriesForm.sharedPetDeliveryEntry)
+                      }
+                      onChange={(e) =>
+                        handleEntryToggle("exclusivePetEntry", e.target.checked)
+                      }
+                    />
+                  }
+                  label="4. Entrada exclusiva mascotas"
+                />
+                {entriesForm.exclusivePetEntry && (
+                  <Box sx={{ ml: 4, mt: 0.5, display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
+                    <Button
+                      size="small"
+                      variant={entryImages["exclusivePetEntry"] ? "contained" : "outlined"}
+                      color={entryImages["exclusivePetEntry"] ? "success" : "primary"}
+                      startIcon={entryImages["exclusivePetEntry"] ? <CheckCircleIcon /> : <CameraIcon />}
+                      onClick={() => triggerUpload("exclusivePetEntry")}
+                      disabled={uploadingKeys["exclusivePetEntry"]}
+                    >
+                      {uploadingKeys["exclusivePetEntry"]
+                        ? "Subiendo Archivo..."
+                        : entryImages["exclusivePetEntry"]
+                          ? "Archivo Adjuntado (Cambiar)"
+                          : "Adjuntar Archivo"}
+                    </Button>
+                    {entryImages["exclusivePetEntry"] && (
+                      <>
+                        <Tooltip title="Ver Fotografía">
+                          <IconButton
+                            size="small"
+                            component="a"
+                            href={
+                              typeof entryImages["exclusivePetEntry"] === "string"
+                                ? entryImages["exclusivePetEntry"]
+                                : entryImages["exclusivePetEntry"].url
+                            }
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            <OpenInNewIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                        <IconButton
+                          size="small"
+                          color="error"
+                          onClick={() => handleRemovePhoto("exclusivePetEntry")}
+                        >
+                          <DeleteIcon fontSize="small" />
+                        </IconButton>
+                      </>
+                    )}
+                  </Box>
+                )}
+              </Box>
+
+              {/* Opción 5: Entrada exclusiva domiciliarios */}
+              <Box>
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      checked={Boolean(entriesForm.exclusiveDeliveryEntry)}
+                      disabled={
+                        Boolean(entriesForm.noExclusiveEntries) ||
+                        Boolean(entriesForm.sharedPetDeliveryEntry)
+                      }
+                      onChange={(e) =>
+                        handleEntryToggle(
+                          "exclusiveDeliveryEntry",
+                          e.target.checked,
+                        )
+                      }
+                    />
+                  }
+                  label="5. Entrada exclusiva domiciliarios"
+                />
+                {entriesForm.exclusiveDeliveryEntry && (
+                  <Box sx={{ ml: 4, mt: 0.5, display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
+                    <Button
+                      size="small"
+                      variant={entryImages["exclusiveDeliveryEntry"] ? "contained" : "outlined"}
+                      color={entryImages["exclusiveDeliveryEntry"] ? "success" : "primary"}
+                      startIcon={entryImages["exclusiveDeliveryEntry"] ? <CheckCircleIcon /> : <CameraIcon />}
+                      onClick={() => triggerUpload("exclusiveDeliveryEntry")}
+                      disabled={uploadingKeys["exclusiveDeliveryEntry"]}
+                    >
+                      {uploadingKeys["exclusiveDeliveryEntry"]
+                        ? "Subiendo Archivo..."
+                        : entryImages["exclusiveDeliveryEntry"]
+                          ? "Archivo Adjuntado (Cambiar)"
+                          : "Adjuntar Archivo"}
+                    </Button>
+                    {entryImages["exclusiveDeliveryEntry"] && (
+                      <>
+                        <Tooltip title="Ver Fotografía">
+                          <IconButton
+                            size="small"
+                            component="a"
+                            href={
+                              typeof entryImages["exclusiveDeliveryEntry"] === "string"
+                                ? entryImages["exclusiveDeliveryEntry"]
+                                : entryImages["exclusiveDeliveryEntry"].url
+                            }
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            <OpenInNewIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                        <IconButton
+                          size="small"
+                          color="error"
+                          onClick={() => handleRemovePhoto("exclusiveDeliveryEntry")}
+                        >
+                          <DeleteIcon fontSize="small" />
+                        </IconButton>
+                      </>
+                    )}
+                  </Box>
+                )}
+              </Box>
+
+              {/* Opción 6: Entrada compartida mascotas y domiciliarios */}
+              <Box>
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      checked={Boolean(entriesForm.sharedPetDeliveryEntry)}
+                      disabled={
+                        Boolean(entriesForm.noExclusiveEntries) ||
+                        (Boolean(entriesForm.exclusivePetEntry) &&
+                          Boolean(entriesForm.exclusiveDeliveryEntry))
+                      }
+                      onChange={(e) =>
+                        handleEntryToggle(
+                          "sharedPetDeliveryEntry",
+                          e.target.checked,
+                        )
+                      }
+                    />
+                  }
+                  label="6. Entrada compartida para mascotas y domiciliarios"
+                />
+                {entriesForm.sharedPetDeliveryEntry && (
+                  <Box sx={{ ml: 4, mt: 0.5, display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
+                    <Button
+                      size="small"
+                      variant={entryImages["sharedPetDeliveryEntry"] ? "contained" : "outlined"}
+                      color={entryImages["sharedPetDeliveryEntry"] ? "success" : "primary"}
+                      startIcon={entryImages["sharedPetDeliveryEntry"] ? <CheckCircleIcon /> : <CameraIcon />}
+                      onClick={() => triggerUpload("sharedPetDeliveryEntry")}
+                      disabled={uploadingKeys["sharedPetDeliveryEntry"]}
+                    >
+                      {uploadingKeys["sharedPetDeliveryEntry"]
+                        ? "Subiendo Archivo..."
+                        : entryImages["sharedPetDeliveryEntry"]
+                          ? "Archivo Adjuntado (Cambiar)"
+                          : "Adjuntar Archivo"}
+                    </Button>
+                    {entryImages["sharedPetDeliveryEntry"] && (
+                      <>
+                        <Tooltip title="Ver Fotografía">
+                          <IconButton
+                            size="small"
+                            component="a"
+                            href={
+                              typeof entryImages["sharedPetDeliveryEntry"] === "string"
+                                ? entryImages["sharedPetDeliveryEntry"]
+                                : entryImages["sharedPetDeliveryEntry"].url
+                            }
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            <OpenInNewIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                        <IconButton
+                          size="small"
+                          color="error"
+                          onClick={() => handleRemovePhoto("sharedPetDeliveryEntry")}
+                        >
+                          <DeleteIcon fontSize="small" />
+                        </IconButton>
+                      </>
+                    )}
+                  </Box>
+                )}
+              </Box>
+
+              {/* Opción 7: Sin entradas exclusivas */}
+              <Divider sx={{ my: 0.5 }} />
+              <Box>
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      checked={Boolean(entriesForm.noExclusiveEntries)}
+                      onChange={(e) =>
+                        handleEntryToggle(
+                          "noExclusiveEntries",
+                          e.target.checked,
+                        )
+                      }
+                      color="warning"
+                    />
+                  }
+                  label={
+                    <Typography
+                      variant="body2"
+                      sx={{ fontWeight: 700, color: "warning.main" }}
+                    >
+                      7. Sin entradas exclusivas
+                    </Typography>
+                  }
+                />
+              </Box>
+            </Box>
+          </Paper>
         </Box>
       </ResponsiveFormDrawer>
     </Box>
