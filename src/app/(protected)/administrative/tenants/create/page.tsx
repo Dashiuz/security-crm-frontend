@@ -37,6 +37,7 @@ import {
 import { HttpClient } from "@/lib/api/client";
 import { useNotification } from "@/providers/NotificationProvider";
 import WizardStepper, { WizardStep } from "@/components/common/WizardStepper";
+import TenantLogoUploader from "@/components/administrative/TenantLogoUploader";
 import {
   tenantGeneralSchema,
   TenantGeneralFormData,
@@ -309,7 +310,8 @@ export default function CreateTenantPage() {
           </Typography>
 
           <Grid container spacing={3}>
-            <Grid size={{ xs: 12, md: 8 }}>
+            {/* Row 1: Balanced 3-column header (5 + 4 + 3 = 12 cols, all 56px height) */}
+            <Grid size={{ xs: 12, md: 5 }}>
               <Controller
                 name="name"
                 control={generalForm.control}
@@ -328,39 +330,6 @@ export default function CreateTenantPage() {
             </Grid>
 
             <Grid size={{ xs: 12, md: 4 }}>
-              <Controller
-                name="isActive"
-                control={generalForm.control}
-                render={({ field }) => (
-                  <Box
-                    sx={{
-                      p: 1.5,
-                      border: "1px solid",
-                      borderColor: "divider",
-                      borderRadius: 2,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      height: "100%",
-                    }}
-                  >
-                    <Box>
-                      <Typography variant="subtitle2">Estado Operativo</Typography>
-                      <Typography variant="caption" color="text.secondary">
-                        {field.value ? "Empresa Activa" : "Empresa Inactiva"}
-                      </Typography>
-                    </Box>
-                    <Switch
-                      checked={field.value}
-                      onChange={(e) => field.onChange(e.target.checked)}
-                      color="success"
-                    />
-                  </Box>
-                )}
-              />
-            </Grid>
-
-            <Grid size={{ xs: 12, md: 6 }}>
               <Controller
                 name="slug"
                 control={generalForm.control}
@@ -392,18 +361,58 @@ export default function CreateTenantPage() {
               />
             </Grid>
 
-            <Grid size={{ xs: 12, md: 6 }}>
+            <Grid size={{ xs: 12, md: 3 }}>
+              <Controller
+                name="isActive"
+                control={generalForm.control}
+                render={({ field }) => (
+                  <Box
+                    sx={{
+                      px: 2,
+                      py: 1,
+                      border: "1px solid",
+                      borderColor: "divider",
+                      borderRadius: 1,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      height: "56px",
+                      boxSizing: "border-box",
+                    }}
+                  >
+                    <Box>
+                      <Typography variant="body2" fontWeight={600} lineHeight={1.2}>
+                        Estado
+                      </Typography>
+                      <Typography
+                        variant="caption"
+                        color={field.value ? "success.main" : "text.secondary"}
+                        fontWeight={600}
+                      >
+                        {field.value ? "Empresa Activa" : "Inactiva"}
+                      </Typography>
+                    </Box>
+                    <Switch
+                      checked={field.value}
+                      onChange={(e) => field.onChange(e.target.checked)}
+                      color="success"
+                      size="small"
+                    />
+                  </Box>
+                )}
+              />
+            </Grid>
+
+            {/* Row 2: Full-Width Horizontal Logo Asset Card (12 cols) */}
+            <Grid size={{ xs: 12 }}>
               <Controller
                 name="logoUrl"
                 control={generalForm.control}
-                render={({ field, fieldState }) => (
-                  <TextField
-                    {...field}
-                    label="URL del Logo"
-                    fullWidth
-                    error={Boolean(fieldState.error)}
-                    helperText={fieldState.error?.message || "URL pública del logotipo (PNG o SVG)"}
-                    placeholder="https://miservidor.com/logo.png"
+                render={({ field }) => (
+                  <TenantLogoUploader
+                    tenantId="new"
+                    value={field.value}
+                    onChange={(newUrl) => field.onChange(newUrl)}
                   />
                 )}
               />

@@ -37,6 +37,10 @@ interface ChameleonPdfPreviewProps {
   proposalNumber?: string;
   date?: string;
   bodyHtml?: string;
+  documentTitle?: string;
+  documentBadgeText?: string;
+  showHeader?: boolean;
+  showRecipientBox?: boolean;
   blocks?: Array<{
     id?: string;
     type: string;
@@ -86,6 +90,10 @@ export default function ChameleonPdfPreview({
   proposalNumber = "PROP-2026-0042",
   date = new Date().toLocaleDateString("es-CO", { year: "numeric", month: "long", day: "numeric" }),
   bodyHtml = "<p>Por medio de la presente, nos complace presentarles nuestra propuesta formal de servicios de vigilancia y seguridad privada armada y no armada...</p>",
+  documentTitle = "OFERTA TÉCNICO-COMERCIAL DE SEGURIDAD PRIVADA",
+  documentBadgeText,
+  showHeader = true,
+  showRecipientBox = true,
   blocks,
   serviceItems = [
     {
@@ -221,7 +229,7 @@ export default function ChameleonPdfPreview({
                 </Typography>
               </Box>
               <Box sx={{ bgcolor: "#ffffff", color: primaryColor, px: 1.5, py: 0.75, borderRadius: 1, fontWeight: 800 }}>
-                PROPUESTA ECONÓMICA
+                {documentBadgeText || "PROPUESTA ECONÓMICA"}
               </Box>
             </Box>
             <Box sx={{ height: 4, bgcolor: accentColor }} />
@@ -239,7 +247,7 @@ export default function ChameleonPdfPreview({
             </Typography>
             <Divider sx={{ borderColor: accentColor, width: 80, mx: "auto", borderWidth: 2, mb: 1.5 }} />
             <Typography variant="overline" sx={{ fontWeight: 700, letterSpacing: "0.15em", color: "text.secondary" }}>
-              OFERTA COMERCIAL INSTITUCIONAL DE SEGURIDAD PRIVADA
+              {documentTitle}
             </Typography>
           </Box>
         );
@@ -289,7 +297,7 @@ export default function ChameleonPdfPreview({
             <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
               <Box>
                 <Typography variant="overline" sx={{ fontWeight: 800, letterSpacing: "0.1em", color: primaryColor, display: "block" }}>
-                  OFERTA TÉCNICO-COMERCIAL DE SEGURIDAD PRIVADA
+                  {documentTitle}
                 </Typography>
                 <Typography variant="caption" sx={{ color: "text.secondary" }}>
                   Régimen Especial SVSP • Ley 356 de 1994
@@ -591,42 +599,44 @@ export default function ChameleonPdfPreview({
               {/* Header según posición de la página */}
               {isFirstPage ? (
                 <>
-                  {renderHeader()}
+                  {showHeader && renderHeader()}
                   {/* Meta Destinatario */}
-                  <Box
-                    sx={{
-                      mb: 3,
-                      p: 2,
-                      bgcolor: "rgba(241, 245, 249, 0.7)",
-                      borderRadius: 1.5,
-                      borderLeft: `4px solid ${primaryColor}`,
-                    }}
-                  >
-                    <Grid container spacing={1.5}>
-                      <Grid size={{ xs: 12, sm: 7 }}>
-                        <Typography variant="caption" sx={{ color: "text.secondary", display: "block" }}>
-                          Señores / Razón Social:
-                        </Typography>
-                        <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
-                          {clientName}
-                        </Typography>
-                        <Typography variant="caption" color="text.secondary">
-                          NIT: {clientNit} • {clientCity}
-                        </Typography>
+                  {showRecipientBox && (
+                    <Box
+                      sx={{
+                        mb: 3,
+                        p: 2,
+                        bgcolor: "rgba(241, 245, 249, 0.7)",
+                        borderRadius: 1.5,
+                        borderLeft: `4px solid ${primaryColor}`,
+                      }}
+                    >
+                      <Grid container spacing={1.5}>
+                        <Grid size={{ xs: 12, sm: 7 }}>
+                          <Typography variant="caption" sx={{ color: "text.secondary", display: "block" }}>
+                            Señores / Razón Social:
+                          </Typography>
+                          <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                            {clientName}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            NIT: {clientNit} • {clientCity}
+                          </Typography>
+                        </Grid>
+                        <Grid size={{ xs: 12, sm: 5 }} sx={{ textAlign: { xs: "left", sm: "right" } }}>
+                          <Typography variant="caption" sx={{ color: "text.secondary", display: "block" }}>
+                            Fecha de Emisión:
+                          </Typography>
+                          <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                            {date}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            Validez: 15 Días Calendario
+                          </Typography>
+                        </Grid>
                       </Grid>
-                      <Grid size={{ xs: 12, sm: 5 }} sx={{ textAlign: { xs: "left", sm: "right" } }}>
-                        <Typography variant="caption" sx={{ color: "text.secondary", display: "block" }}>
-                          Fecha de Emisión:
-                        </Typography>
-                        <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                          {date}
-                        </Typography>
-                        <Typography variant="caption" color="text.secondary">
-                          Validez: 15 Días Calendario
-                        </Typography>
-                      </Grid>
-                    </Grid>
-                  </Box>
+                    </Box>
+                  )}
                 </>
               ) : (
                 /* Cabecera Páginas Continuación */

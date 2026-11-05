@@ -133,7 +133,7 @@ export const noxiaTheme = createTheme({
           WebkitFontSmoothing: "antialiased",
           MozOsxFontSmoothing: "grayscale",
         },
-        ".noxia-mono": {
+        ".noxia-mono, .loro-mono": {
           fontFamily: `${jetBrainsMono.style.fontFamily}, monospace !important`,
           fontVariantNumeric: "tabular-nums",
           letterSpacing: "-0.01em",

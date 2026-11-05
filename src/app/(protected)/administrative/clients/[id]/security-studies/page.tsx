@@ -307,6 +307,7 @@ export default function ClientSecurityStudiesPage({ params }: PageProps) {
             showSuccess("¡Geofence aprobado y guardado en el cliente!");
             setGeofenceEditorActive(false);
             await fetchStudies();
+            handleOpenCreateDialog();
           }}
           onClose={() => {
             setGeofenceEditorActive(false);

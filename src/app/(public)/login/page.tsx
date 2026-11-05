@@ -59,10 +59,10 @@ export default function LoginPage() {
             fontWeight="bold"
             color="primary"
           >
-            NOXIA
+            LORO ERP
           </Typography>
           <Typography variant="body1" color="text.secondary">
-            CRM para Empresas de Seguridad
+            Gestión Integral para Empresas de Seguridad
           </Typography>
         </Box>
 
@@ -125,7 +125,7 @@ export default function LoginPage() {
           align="center"
           sx={{ mt: 4 }}
         >
-          © {new Date().getFullYear()} Noxia Security. Todos los derechos
+          © {new Date().getFullYear()} Loro Security. Todos los derechos
           reservados.
         </Typography>
       </Container>

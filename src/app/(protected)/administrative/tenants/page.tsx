@@ -6,7 +6,7 @@ import { useNotification } from "@/providers/NotificationProvider";
 import DataTable from "@/components/common/DataTable";
 import { HttpClient } from "@/lib/api/client";
 import { AuthService } from "@/lib/api/auth";
-import { Box, Typography, Chip } from "@mui/material";
+import { Box, Typography, Chip, Avatar } from "@mui/material";
 import { GridActionsCellItem } from "@mui/x-data-grid";
 import {
   Login as LoginIcon,
@@ -136,7 +136,31 @@ export default function TenantsPage() {
   };
 
   const columns = [
-    { field: "name", headerName: "Nombre de la Empresa", flex: 1.2 },
+    {
+      field: "name",
+      headerName: "Nombre de la Empresa",
+      flex: 1.3,
+      renderCell: (params: any) => (
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1.2, height: "100%" }}>
+          <Avatar
+            src={params.row.logoUrl || undefined}
+            alt={params.row.name}
+            sx={{
+              width: 28,
+              height: 28,
+              fontSize: "0.75rem",
+              fontWeight: 700,
+              bgcolor: params.row.primaryColor || "primary.main",
+            }}
+          >
+            {params.row.name?.charAt(0)?.toUpperCase()}
+          </Avatar>
+          <Typography variant="body2" fontWeight={600} noWrap>
+            {params.row.name}
+          </Typography>
+        </Box>
+      ),
+    },
     { field: "slug", headerName: "Slug", flex: 0.9 },
     {
       field: "planTier",

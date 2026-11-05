@@ -36,7 +36,10 @@ export default function PublicVerifyPage({
   const [error, setError] = useState<string | null>(null);
   const [verificationData, setVerificationData] = useState<any>(null);
 
-  const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api/v1";
+  const apiBase =
+    process.env.NEXT_PUBLIC_API_BASE_URL ||
+    process.env.NEXT_PUBLIC_API_URL ||
+    "http://localhost:3000/api";
 
   useEffect(() => {
     async function verify() {
@@ -77,7 +80,7 @@ export default function PublicVerifyPage({
               Verificación No Exitosa
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-              El código de verificación escaneado no coincide con ningún documento sellado en la base de datos de Noxia ERP.
+              El código de verificación escaneado no coincide con ningún documento sellado en la base de datos de Loro ERP.
             </Typography>
             <Alert severity="warning">
               Advertencia: Este documento podría ser apócrifo, haber sido revocado o haber sufrido alteraciones en sus registros.
@@ -122,7 +125,7 @@ export default function PublicVerifyPage({
               DOCUMENTO OFICIAL VERIFICADO
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-              Acreditación de Autenticidad e Integridad Criptográfica • Noxia ERP
+              Acreditación de Autenticidad e Integridad Criptográfica • Loro ERP
             </Typography>
             <Chip
               label="HUELLA DIGITAL VÁLIDA (LEY 527 DE 1999)"

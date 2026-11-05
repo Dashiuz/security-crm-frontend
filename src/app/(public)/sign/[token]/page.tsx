@@ -50,7 +50,10 @@ export default function PublicSignPage({
   const [submitting, setSubmitting] = useState(false);
   const [signSuccessResult, setSignSuccessResult] = useState<any>(null);
 
-  const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api/v1";
+  const apiBase =
+    process.env.NEXT_PUBLIC_API_BASE_URL ||
+    process.env.NEXT_PUBLIC_API_URL ||
+    "http://localhost:3000/api";
 
   // Load document on mount
   useEffect(() => {
