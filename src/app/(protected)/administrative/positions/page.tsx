@@ -21,7 +21,7 @@ import {
   DeleteForever as DeleteForeverIcon,
 } from "@mui/icons-material";
 
-export const OPERATIONAL_CATEGORIES = [
+const OPERATIONAL_CATEGORIES = [
   { value: "DIRECTOR", label: "Director / Gerencial", color: "error" },
   { value: "COORDINATOR", label: "Coordinador", color: "warning" },
   { value: "SUPERVISOR", label: "Supervisor", color: "info" },

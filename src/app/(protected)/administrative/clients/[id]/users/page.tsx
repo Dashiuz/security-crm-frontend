@@ -47,7 +47,7 @@ import PromptConfirmDialog from "@/components/common/PromptConfirmDialog";
 import { HttpClient } from "@/lib/api/client";
 import { useNotification } from "@/providers/NotificationProvider";
 
-export enum DigitalAccountStatus {
+enum DigitalAccountStatus {
   ACTIVE = "ACTIVE",
   DISABLED = "DISABLED",
   NO_ACCOUNT = "NO_ACCOUNT",
