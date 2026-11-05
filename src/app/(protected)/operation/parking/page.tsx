@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { usePathname } from "next/navigation";
 import { useNotification } from "@/providers/NotificationProvider";
 import { useAuth } from "@/components/AuthContext";
 import DataTable from "@/components/common/DataTable";
@@ -57,11 +58,9 @@ import { formatDate, formatTime, formatDateTime, formatTimeToHHmm } from "@/lib/
 import ResponsiveFormDrawer from "@/components/common/ResponsiveFormDrawer";
 import dayjs from "dayjs";
 
-interface ParkingPageProps {
-  isInternal?: boolean;
-}
-
-export default function ParkingPage({ isInternal = false }: ParkingPageProps) {
+export default function ParkingPage() {
+  const pathname = usePathname();
+  const isInternal = pathname?.includes("/operation/internal") ?? false;
   const [selectedClientFilter, setSelectedClientFilter] = useState<ClientOption | null>(null);
   const [filters, setFilters] = useState<MinutaFilterValues>({});
 

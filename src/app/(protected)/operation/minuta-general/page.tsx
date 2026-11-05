@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { usePathname } from "next/navigation";
 import { useNotification } from "@/providers/NotificationProvider";
 import { useAuth } from "@/components/AuthContext";
 import DataTable from "@/components/common/DataTable";
@@ -70,11 +71,9 @@ const GUARD_POST_OPTIONS = [
   "Otro",
 ];
 
-interface MinutaGeneralPageProps {
-  isInternal?: boolean;
-}
-
-export default function MinutaGeneralPage({ isInternal = false }: MinutaGeneralPageProps) {
+export default function MinutaGeneralPage() {
+  const pathname = usePathname();
+  const isInternal = pathname?.includes("/operation/internal") ?? false;
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [photoFiles, setPhotoFiles] = useState<File[]>([]);
