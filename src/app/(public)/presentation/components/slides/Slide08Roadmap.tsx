@@ -34,7 +34,7 @@ export default function Slide08Roadmap() {
     },
     {
       title: "Programaciones Dinámicas con el 'Guarda Ideal'",
-      desc: "Asignación ágil y programaciones dinámicas de turnos: si un cliente le pide un vigilante con libreta de primera clase o curso de escolta, el sistema se lo encuentra y programa en segundos.",
+      desc: "Asignación ágil y programaciones dinámicas de turnos: si un cliente le pide un vigilante con perfil específico, el sistema lo encuentra y programa en segundos.",
       icon: <AiIcon sx={{ color: "#34D399" }} />,
       tag: "RAPIDEZ",
     },
@@ -46,7 +46,7 @@ export default function Slide08Roadmap() {
     },
     {
       title: "Cursos y Capacitación en Video",
-      desc: "Videos cortos y evaluaciones desde el celular para que sus guardas refuercen atención al cliente, primeros auxilios y protocolos de seguridad.",
+      desc: "Videos cortos y evaluaciones desde el celular para que sus guardas refuercen atención al cliente, primeros auxilios y protocolos del puesto.",
       icon: <ElearningIcon sx={{ color: "#F472B6" }} />,
       tag: "MEJOR SERVICIO",
     },
@@ -54,21 +54,46 @@ export default function Slide08Roadmap() {
 
   return (
     <section>
-      <Box sx={{ height: "100%", display: "flex", flexDirection: "column", justifyContent: "center" }}>
+      <Box
+        sx={{
+          width: "100%",
+          maxWidth: 1660,
+          mx: "auto",
+          display: "flex",
+          flexDirection: "column",
+          justifyContent: "center",
+          py: { xs: 2, md: 1 },
+        }}
+      >
         {/* Header */}
-        <Box sx={{ mb: 3 }}>
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1 }}>
-            <span className="tactical-pill tactical-pill-violet">
-              <RoadmapIcon sx={{ fontSize: 14 }} /> LO QUE VIENE MUY PRONTO
+        <Box sx={{ mb: { xs: 2, md: 3 } }}>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, mb: 1.5, flexWrap: "wrap" }}>
+            <span className="tactical-pill tactical-pill-violet" style={{ fontSize: "15px", padding: "6px 16px" }}>
+              <RoadmapIcon sx={{ fontSize: 18 }} /> LO QUE VIENE MUY PRONTO
             </span>
-            <span className="tactical-pill tactical-pill-emerald">
-              <PatrolIcon sx={{ fontSize: 14 }} /> SIEMPRE MEJORANDO
+            <span className="tactical-pill tactical-pill-emerald" style={{ fontSize: "15px", padding: "6px 16px" }}>
+              <PatrolIcon sx={{ fontSize: 18 }} /> SIEMPRE MEJORANDO
             </span>
           </Box>
-          <Typography variant="h3" sx={{ fontWeight: 900, color: "#FFFFFF", fontSize: { xs: "28px", md: "38px" } }}>
+          <Typography
+            variant="h2"
+            sx={{
+              fontWeight: 900,
+              color: "#FFFFFF",
+              fontSize: { xs: "28px", sm: "36px", md: "46px", lg: "54px" },
+              lineHeight: 1.12,
+              mb: 1,
+            }}
+          >
             Nuevas Funciones para Seguir Facilitando su Trabajo
           </Typography>
-          <Typography sx={{ color: "#CBD5E1", fontSize: "16px" }}>
+          <Typography
+            sx={{
+              color: "#E2E8F0",
+              fontSize: { xs: "17px", sm: "20px", md: "23px", lg: "26px" },
+              lineHeight: 1.45,
+            }}
+          >
             Un sistema que crece con su empresa: continuamente agregamos herramientas prácticas para que su operación sea la más moderna del mercado.
           </Typography>
         </Box>
@@ -78,7 +103,7 @@ export default function Slide08Roadmap() {
           sx={{
             display: "grid",
             gridTemplateColumns: { xs: "1fr", sm: "repeat(2, 1fr)", md: "repeat(3, 1fr)" },
-            gap: 2,
+            gap: { xs: 2, md: 2.8 },
           }}
         >
           {items.map((item, i) => (
@@ -86,22 +111,22 @@ export default function Slide08Roadmap() {
               key={i}
               className="bento-card"
               sx={{
-                p: 2,
+                p: { xs: 2.2, md: 3 },
                 display: "flex",
                 flexDirection: "column",
-                borderTop: "3px solid rgba(124, 58, 237, 0.4)",
+                borderTop: "5px solid rgba(124, 58, 237, 0.55)",
               }}
             >
-              <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1 }}>
-                <Box>{item.icon}</Box>
-                <span className="tactical-pill tactical-pill-violet" style={{ fontSize: "9.5px", padding: "1px 7px" }}>
+              <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1.5, flexWrap: "wrap", gap: 0.8 }}>
+                <Box sx={{ "& svg": { fontSize: { xs: 32, md: 38 } } }}>{item.icon}</Box>
+                <span className="tactical-pill tactical-pill-violet" style={{ fontSize: "12.5px", padding: "3px 10px" }}>
                   {item.tag}
                 </span>
               </Box>
-              <Typography sx={{ fontWeight: 800, color: "#FFFFFF", fontSize: "15px", mb: 0.5 }}>
+              <Typography sx={{ fontWeight: 850, color: "#FFFFFF", fontSize: { xs: "19px", md: "22px", lg: "24px" }, mb: 1, lineHeight: 1.2 }}>
                 {item.title}
               </Typography>
-              <Typography sx={{ color: "#CBD5E1", fontSize: "12.5px", lineHeight: 1.4 }}>
+              <Typography sx={{ color: "#E2E8F0", fontSize: { xs: "15.5px", md: "18px", lg: "19.5px" }, lineHeight: 1.48 }}>
                 {item.desc}
               </Typography>
             </Box>

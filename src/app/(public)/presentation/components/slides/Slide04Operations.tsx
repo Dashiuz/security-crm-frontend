@@ -6,57 +6,88 @@ import {
   MenuBook as LogbookIcon,
   Mic as MicIcon,
   NotificationsActive as AlertIcon,
-  LocalPostOffice as MailIcon,
-  DirectionsCar as CarIcon,
-  Badge as VisitorIcon,
   FlashOn as FlashIcon,
+  Timeline as TraceIcon,
+  FolderDelete as NoPaperIcon,
+  OndemandVideo as LiveTrainingIcon,
+  FactCheck as GuideIcon,
 } from "@mui/icons-material";
 
 export default function Slide04Operations() {
   const minutas = [
     {
-      title: "Control de Visitantes",
-      desc: "El guarda anota la cédula, toma la foto y el sistema verifica con el apartamento que autoriza el ingreso.",
-      icon: <VisitorIcon />,
+      title: "Registros Digitales de Inicio a Fin",
+      desc: "Trazabilidad completa de la información desde que el guarda recibe hasta que entrega el turno, con dictado por voz y fotos en tiempo real.",
+      icon: <TraceIcon />,
     },
     {
-      title: "Control de Paquetes",
-      desc: "Foto de la guía de la encomienda. El residente firma en el celular al recibirlo y queda constancia real.",
-      icon: <MailIcon />,
+      title: "Reducción de Espacio y Papel de Minutas",
+      desc: "Elimine bodegas llenas de cuadernos de papel manchados. Todo el historial del conjunto o empresa se consulta en segundos desde el celular.",
+      icon: <NoPaperIcon />,
     },
     {
-      title: "Control de Parqueaderos",
-      desc: "Registro de placas, tipo de vehículo y hora exacta de entrada y salida para evitar pérdidas y confusiones.",
-      icon: <CarIcon />,
+      title: "Capacitaciones en Vivo por Plataformas",
+      desc: "Formación continua y directa con su equipo operativo a través de plataformas digitales para mantener la excelencia en el servicio.",
+      icon: <LiveTrainingIcon />,
     },
     {
-      title: "Minuta General del Turno",
-      desc: "Novedades desde el minuto cero: el vigilante dicta con su voz y el sistema transcribe el texto al instante.",
-      icon: <LogbookIcon />,
+      title: "Capacitaciones en Puesto con Temas Reales",
+      desc: "Guías prácticas generadas con las situaciones y consignas reales de cada puesto, para que el guarda sepa siempre cómo actuar.",
+      icon: <GuideIcon />,
     },
   ];
 
   return (
     <section>
-      <Box sx={{ height: "100%", display: "flex", flexDirection: "column", justifyContent: "center" }}>
+      <Box
+        sx={{
+          width: "100%",
+          maxWidth: 1660,
+          mx: "auto",
+          display: "flex",
+          flexDirection: "column",
+          justifyContent: "center",
+          py: { xs: 2, md: 1 },
+        }}
+      >
         {/* Header */}
-        <Box sx={{ mb: 3 }}>
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1, flexWrap: "wrap" }}>
-            <span className="tactical-pill tactical-pill-violet">
-              <LogbookIcon sx={{ fontSize: 14 }} /> OPERACIÓN EN PORTERÍAS
+        <Box sx={{ mb: { xs: 2, md: 3 } }}>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, mb: 1.5, flexWrap: "wrap" }}>
+            <span className="tactical-pill tactical-pill-violet" style={{ fontSize: "15px", padding: "6px 16px" }}>
+              <LogbookIcon sx={{ fontSize: 18 }} /> DESDE OPERACIONES
             </span>
-            <span className="tactical-pill tactical-pill-emerald">
-              <FlashIcon sx={{ fontSize: 14 }} /> NOVEDADES DESDE EL MINUTO CERO
+            <span className="tactical-pill tactical-pill-emerald" style={{ fontSize: "15px", padding: "6px 16px" }}>
+              <FlashIcon sx={{ fontSize: 18 }} /> NOVEDADES DESDE EL MINUTO CERO
             </span>
-            <span className="tactical-pill tactical-pill-amber">
-              <MicIcon sx={{ fontSize: 14 }} /> DICTADO POR VOZ FÁCIL
+            <span className="tactical-pill tactical-pill-amber" style={{ fontSize: "15px", padding: "6px 16px" }}>
+              <MicIcon sx={{ fontSize: 18 }} /> DICTADO POR VOZ Y TRAZABILIDAD
             </span>
           </Box>
-          <Typography variant="h3" sx={{ fontWeight: 900, color: "#FFFFFF", fontSize: { xs: "26px", md: "36px" }, mb: 0.8 }}>
-            Novedades desde el Minuto Cero: Minutas con Fotos y Dictado por Voz
+          <Typography
+            variant="h2"
+            sx={{
+              fontWeight: 900,
+              color: "#FFFFFF",
+              fontSize: { xs: "28px", sm: "36px", md: "46px", lg: "52px" },
+              lineHeight: 1.12,
+              mb: 1,
+            }}
+          >
+            La Operación Nace desde las Anotaciones del Guarda y el Día a Día
           </Typography>
-          <Typography sx={{ color: "#CBD5E1", fontSize: "15.5px" }}>
-            Desde el primer minuto del servicio, el guarda reporta lo que sucede en tiempo real: habla a la aplicación, adjunta fotografías de evidencia y la gerencia se entera de inmediato.
+          <Typography
+            sx={{
+              color: "#E2E8F0",
+              fontSize: { xs: "17px", sm: "20px", md: "23px", lg: "26px" },
+              lineHeight: 1.42,
+              maxWidth: 1500,
+            }}
+          >
+            Novedades desde el minuto cero con trazabilidad total, capacitación en el puesto y{" "}
+            <Box component="span" sx={{ color: "#C4B5FD", fontWeight: 800 }}>
+              “todo lo que sabes que es importante para ti”
+            </Box>
+            .
           </Typography>
         </Box>
 
@@ -65,8 +96,8 @@ export default function Slide04Operations() {
           sx={{
             display: "grid",
             gridTemplateColumns: { xs: "1fr", sm: "repeat(2, 1fr)", md: "repeat(4, 1fr)" },
-            gap: 2,
-            mb: 3,
+            gap: { xs: 2, md: 2.8 },
+            mb: { xs: 2, md: 3 },
           }}
         >
           {minutas.map((m, i) => (
@@ -74,17 +105,17 @@ export default function Slide04Operations() {
               key={i}
               className="bento-card"
               sx={{
-                p: 2.2,
+                p: { xs: 2.2, md: 3 },
                 display: "flex",
                 flexDirection: "column",
-                borderTop: "3px solid #7C3AED",
+                borderTop: "5px solid #8B5CF6",
               }}
             >
-              <Box sx={{ color: "#A78BFA", mb: 1.5 }}>{m.icon}</Box>
-              <Typography sx={{ fontWeight: 800, color: "#FFFFFF", fontSize: "15px", mb: 0.8 }}>
+              <Box sx={{ color: "#A78BFA", mb: 1.5, "& svg": { fontSize: { xs: 32, md: 38 } } }}>{m.icon}</Box>
+              <Typography sx={{ fontWeight: 850, color: "#FFFFFF", fontSize: { xs: "19px", md: "22px", lg: "24px" }, mb: 1.2, lineHeight: 1.2 }}>
                 {m.title}
               </Typography>
-              <Typography sx={{ color: "#CBD5E1", fontSize: "12.8px", lineHeight: 1.45 }}>
+              <Typography sx={{ color: "#E2E8F0", fontSize: { xs: "15.5px", md: "18px", lg: "20px" }, lineHeight: 1.48 }}>
                 {m.desc}
               </Typography>
             </Box>
@@ -93,23 +124,23 @@ export default function Slide04Operations() {
 
         {/* Escalation Alert Bar */}
         <Box
-          className="bento-card"
+          className="bento-card bento-hero"
           sx={{
-            p: 2,
+            p: { xs: 2.5, md: 3 },
             display: "flex",
-            alignItems: "center",
-            gap: 2,
-            backgroundColor: "rgba(30, 20, 60, 0.7)",
-            border: "1px solid rgba(139, 92, 246, 0.4)",
+            flexDirection: { xs: "column", sm: "row" },
+            alignItems: { xs: "flex-start", sm: "center" },
+            gap: 2.5,
+            borderLeft: "6px solid #F59E0B",
           }}
         >
-          <AlertIcon sx={{ color: "#F59E0B", fontSize: 26, flexShrink: 0 }} />
+          <AlertIcon sx={{ color: "#F59E0B", fontSize: { xs: 36, md: 46 }, flexShrink: 0 }} />
           <Box>
-            <Typography sx={{ fontWeight: 700, color: "#FFFFFF", fontSize: "14px" }}>
-              Alertas Automáticas para Incidentes Graves
+            <Typography sx={{ fontWeight: 900, color: "#FFFFFF", fontSize: { xs: "18px", md: "22px", lg: "24px" }, mb: 0.5 }}>
+              Alertas CRÍTICAS Directas a los que Debemos Actuar
             </Typography>
-            <Typography sx={{ color: "#CBD5E1", fontSize: "12.5px" }}>
-              Si ocurre una novedad delicada (un conato de robo, daño o emergencia), el sistema le avisa de inmediato al supervisor y a la gerencia por correo y notificación en la aplicación.
+            <Typography sx={{ color: "#E2E8F0", fontSize: { xs: "15.5px", md: "19px", lg: "21px" }, lineHeight: 1.45 }}>
+              Ante cualquier novedad urgente o incidente delicado en el conjunto, el sistema envía alerta inmediata a quienes deben tomar acción (supervisores, coordinación y gerencia).
             </Typography>
           </Box>
         </Box>

@@ -2,19 +2,19 @@
 
 import { createTheme, alpha } from "@mui/material/styles";
 import type {} from "@mui/x-data-grid/themeAugmentation";
-import { Plus_Jakarta_Sans, JetBrains_Mono } from "next/font/google";
+export const plusJakartaSans = {
+  style: {
+    fontFamily: "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+  },
+  className: "font-plus-jakarta-sans",
+};
 
-export const plusJakartaSans = Plus_Jakarta_Sans({
-  weight: ["300", "400", "500", "600", "700", "800"],
-  subsets: ["latin"],
-  display: "swap",
-});
-
-export const jetBrainsMono = JetBrains_Mono({
-  weight: ["400", "500", "600", "700"],
-  subsets: ["latin"],
-  display: "swap",
-});
+export const jetBrainsMono = {
+  style: {
+    fontFamily: "'JetBrains Mono', monospace",
+  },
+  className: "font-jetbrains-mono",
+};
 
 /**
  * Paleta Oficial Noxia: "Deep Violet Tactical Enterprise"
