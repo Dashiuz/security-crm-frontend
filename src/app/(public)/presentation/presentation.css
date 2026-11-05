@@ -1,0 +1,529 @@
+@import "reveal.js/reveal.css";
+
+/* ==========================================================================
+   LORO ERP PRESENTATION THEME: "DEEP VIOLET ENTERPRISE"
+   ========================================================================== */
+
+:root {
+  --loro-bg: #09071a;
+  --loro-bg-darker: #05040f;
+  --loro-surface: rgba(18, 14, 40, 0.9);
+  --loro-surface-hover: rgba(28, 22, 60, 0.95);
+  --loro-border: rgba(124, 58, 237, 0.25);
+  --loro-border-active: rgba(139, 92, 246, 0.65);
+  --loro-violet: #7c3aed;
+  --loro-violet-laser: #8b5cf6;
+  --loro-violet-light: #a78bfa;
+  --loro-emerald: #10b981;
+  --loro-emerald-bg: rgba(16, 185, 129, 0.14);
+  --loro-amber: #f59e0b;
+  --loro-amber-bg: rgba(245, 158, 11, 0.14);
+  --loro-rose: #ef4444;
+  --loro-rose-bg: rgba(239, 68, 68, 0.14);
+  --loro-text: #f8fafc;
+  --loro-muted: #94a3b8;
+  --loro-dim: #64748b;
+}
+
+/* Base Container & Viewport */
+.presentation-layout-container {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  background-color: var(--loro-bg);
+  color: var(--loro-text);
+}
+
+.reveal-viewport {
+  background-color: var(--loro-bg) !important;
+  color: var(--loro-text) !important;
+  overflow: hidden !important;
+}
+
+.reveal {
+  font-family: inherit;
+  color: var(--loro-text);
+  font-size: 16px;
+  background: radial-gradient(circle at 50% 15%, rgba(124, 58, 237, 0.15) 0%, rgba(9, 7, 26, 0.98) 70%);
+}
+
+.reveal .slides {
+  text-align: left;
+}
+
+.reveal .slides > section {
+  height: 100%;
+  display: flex !important;
+  flex-direction: column;
+  justify-content: flex-start;
+  padding: 24px 32px;
+  box-sizing: border-box;
+}
+
+/* ==========================================================================
+   OVERVIEW GRID MODE (Esc or HUD Grid Button)
+   Overrides Reveal's 1D horizontal strip with a 3-4 column executive grid
+   with scaled 16:9 thumbnails (no clipping, no text overlap)
+   ========================================================================== */
+.reveal.overview {
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  background: #09071a !important;
+  z-index: 9999 !important;
+}
+
+.reveal.overview .slides {
+  position: relative !important;
+  width: 92vw !important;
+  max-width: 1360px !important;
+  height: auto !important;
+  min-height: 100vh !important;
+  margin: 36px auto 120px auto !important;
+  display: grid !important;
+  grid-template-columns: repeat(3, 1fr) !important;
+  gap: 24px !important;
+  padding: 0 !important;
+  transform: none !important;
+  left: auto !important;
+  top: auto !important;
+  right: auto !important;
+  bottom: auto !important;
+  counter-reset: slide-counter;
+}
+
+@media (min-width: 1440px) {
+  .reveal.overview .slides {
+    grid-template-columns: repeat(4, 1fr) !important;
+  }
+}
+
+@media (max-width: 860px) {
+  .reveal.overview .slides {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+}
+
+.reveal.overview .slides > section {
+  counter-increment: slide-counter;
+  position: relative !important;
+  width: 100% !important;
+  height: 205px !important;
+  min-height: 205px !important;
+  max-height: 205px !important;
+  aspect-ratio: 16 / 9 !important;
+  overflow: hidden !important;
+  border-radius: 12px !important;
+  border: 1.5px solid rgba(139, 92, 246, 0.45) !important;
+  background: #09071a !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6) !important;
+  cursor: pointer !important;
+  pointer-events: auto !important;
+  transform: none !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  top: auto !important;
+  left: auto !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  box-sizing: border-box !important;
+  transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease !important;
+}
+
+.reveal.overview .slides > section:hover {
+  transform: translateY(-4px) scale(1.02) !important;
+  border-color: #8b5cf6 !important;
+  box-shadow: 0 10px 28px rgba(124, 58, 237, 0.5) !important;
+}
+
+.reveal.overview .slides > section.present {
+  border-color: #10b981 !important;
+  box-shadow: 0 0 25px rgba(16, 185, 129, 0.5) !important;
+}
+
+/* Badge with slide number */
+.reveal.overview .slides > section::after {
+  content: "#" counter(slide-counter);
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  background: rgba(9, 7, 26, 0.92);
+  border: 1px solid rgba(139, 92, 246, 0.7);
+  color: #c4b5fd;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 11px;
+  font-weight: 800;
+  padding: 3px 8px;
+  border-radius: 6px;
+  z-index: 100;
+  pointer-events: none;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
+}
+
+/* Scaling the slide contents inside each thumbnail */
+.reveal.overview .slides > section > * {
+  width: 1280px !important;
+  height: 720px !important;
+  position: absolute !important;
+  top: 0 !important;
+  left: 0 !important;
+  transform-origin: 0 0 !important;
+  zoom: 0.28 !important;
+  pointer-events: none !important;
+  padding: 24px 32px !important;
+  box-sizing: border-box !important;
+}
+
+@media (min-width: 1440px) {
+  .reveal.overview .slides > section > * {
+    zoom: 0.24 !important;
+  }
+}
+
+@media (max-width: 860px) {
+  .reveal.overview .slides > section > * {
+    zoom: 0.33 !important;
+  }
+}
+
+/* Custom Progress Bar */
+.reveal .progress {
+  height: 4px;
+  color: var(--loro-violet-laser);
+  background: rgba(255, 255, 255, 0.08);
+}
+.reveal .progress span {
+  background: linear-gradient(90deg, #7c3aed, #a78bfa);
+  box-shadow: 0 0 12px rgba(139, 92, 246, 0.8);
+}
+
+/* Custom Slide Number */
+.reveal .slide-number {
+  color: var(--loro-dim) !important;
+  font-family: "JetBrains Mono", monospace !important;
+  font-size: 11px !important;
+  background: rgba(15, 23, 42, 0.6) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-radius: 6px !important;
+  padding: 4px 8px !important;
+  bottom: 18px !important;
+  right: 18px !important;
+}
+
+/* Card & Bento Utility Classes */
+.bento-card {
+  background: var(--loro-surface);
+  border: 1px solid var(--loro-border);
+  border-radius: 12px;
+  padding: 16px 20px;
+  backdrop-filter: blur(12px);
+  transition: all 0.25s ease-in-out;
+  box-sizing: border-box;
+}
+
+.bento-card:hover {
+  border-color: var(--loro-border-active);
+  background: var(--loro-surface-hover);
+  box-shadow: 0 8px 24px -6px rgba(124, 58, 237, 0.25);
+}
+
+.bento-hero {
+  border: 1.5px solid var(--loro-border-active);
+  background: linear-gradient(135deg, rgba(28, 22, 60, 0.9) 0%, rgba(18, 14, 40, 0.95) 100%);
+  box-shadow: 0 12px 32px -8px rgba(124, 58, 237, 0.35);
+}
+
+/* Badges and Pills */
+.tactical-pill {
+  font-family: inherit;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  padding: 3px 10px;
+  border-radius: 9999px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tactical-pill-violet {
+  background: rgba(124, 58, 237, 0.18);
+  border: 1px solid rgba(139, 92, 246, 0.4);
+  color: #c4b5fd;
+}
+
+.tactical-pill-emerald {
+  background: var(--loro-emerald-bg);
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  color: #6ee7b7;
+}
+
+.tactical-pill-amber {
+  background: var(--loro-amber-bg);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  color: #fde68a;
+}
+
+.tactical-pill-rose {
+  background: var(--loro-rose-bg);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  color: #fca5a5;
+}
+
+/* Native Select Styling */
+.loro-native-select {
+  width: 100%;
+  background-color: #0f172a;
+  color: #ffffff;
+  border: 1.5px solid rgba(124, 58, 237, 0.4);
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 13.5px;
+  font-family: inherit;
+  outline: none;
+  cursor: pointer;
+  transition: border-color 0.2s ease;
+  appearance: auto;
+}
+
+.loro-native-select:hover,
+.loro-native-select:focus {
+  border-color: #8b5cf6;
+  box-shadow: 0 0 10px rgba(139, 92, 246, 0.3);
+}
+
+.loro-native-select option {
+  background-color: #0f172a;
+  color: #ffffff;
+  padding: 10px;
+}
+
+/* HUD Controls */
+.presentation-hud {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(11, 9, 30, 0.92);
+  border: 1px solid rgba(124, 58, 237, 0.35);
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.6), 0 0 15px rgba(124, 58, 237, 0.2);
+  border-radius: 30px;
+  padding: 6px 14px;
+  backdrop-filter: blur(16px);
+  z-index: 10000;
+  user-select: none;
+}
+
+.hud-btn {
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  padding: 6px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.hud-btn:hover {
+  color: #ffffff;
+  background: rgba(124, 58, 237, 0.25);
+}
+
+.hud-btn.active {
+  color: #a78bfa;
+}
+
+.hud-divider {
+  width: 1px;
+  height: 18px;
+  background: rgba(255, 255, 255, 0.15);
+  margin: 0 4px;
+}
+
+/* ==========================================================================
+   PRINT / PDF EXPORT RULES
+   Guarantees 15 landscape pages, preserved dark theme, full-height centering,
+   no transparent text, no clipping, and zero 16th blank page.
+   ========================================================================== */
+@media print {
+  @page {
+    size: landscape;
+    margin: 0;
+  }
+
+  *,
+  *::before,
+  *::after {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    color-adjust: exact !important;
+    -webkit-text-fill-color: initial !important;
+    text-fill-color: initial !important;
+    text-shadow: none !important;
+  }
+
+  html,
+  body,
+  #__next,
+  .presentation-layout-container,
+  .reveal-viewport,
+  .reveal {
+    background-color: #09071a !important;
+    background: #09071a !important;
+    color: #f8fafc !important;
+    width: 100% !important;
+    height: auto !important;
+    min-height: 100% !important;
+    overflow: visible !important;
+    position: static !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  /* Completely suppress all presentation HUD, Tooltips, Poppers and Navigation */
+  .presentation-hud,
+  .MuiTooltip-popper,
+  .MuiPopper-root,
+  .MuiPopover-root,
+  .MuiModal-root,
+  .reveal .controls,
+  .reveal .progress,
+  .reveal .slide-number,
+  .reveal .pause-overlay {
+    display: none !important;
+    visibility: hidden !important;
+    opacity: 0 !important;
+  }
+
+  .reveal .slides {
+    position: static !important;
+    display: block !important;
+    width: 100% !important;
+    height: auto !important;
+    transform: none !important;
+    left: 0 !important;
+    top: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    perspective: none !important;
+  }
+
+  .reveal .slides > section {
+    position: relative !important;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: center !important;
+    align-items: center !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    min-height: 100vh !important;
+    max-height: 100vh !important;
+    page-break-after: always !important;
+    break-after: page !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    box-sizing: border-box !important;
+    padding: 40px 60px !important;
+    margin: 0 !important;
+    overflow: hidden !important;
+    background-color: #09071a !important;
+    background: radial-gradient(circle at 50% 20%, rgba(124, 58, 237, 0.22) 0%, rgba(9, 7, 26, 0.98) 75%) !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+    transform: none !important;
+  }
+
+  /* Prevent 16th blank empty page */
+  .reveal .slides > section:last-child {
+    page-break-after: avoid !important;
+    break-after: avoid !important;
+  }
+
+  /* Ensure slide content centers vertically and fills the landscape canvas comfortably */
+  .reveal .slides > section > * {
+    width: 100% !important;
+    max-width: 1160px !important;
+    height: 100% !important;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: center !important;
+    margin: 0 auto !important;
+  }
+
+  /* Radiant, high-contrast typography for dark print */
+  h1, h2, h3, h4, h5, h6, strong, b {
+    color: #ffffff !important;
+  }
+
+  p, span, div, .MuiTypography-root {
+    color: #e2e8f0 !important;
+  }
+
+  .reveal .slides > section h1 {
+    font-size: 46px !important;
+    line-height: 1.15 !important;
+    margin-bottom: 12px !important;
+  }
+
+  .reveal .slides > section h2 {
+    font-size: 28px !important;
+    line-height: 1.25 !important;
+    margin-bottom: 12px !important;
+  }
+
+  .reveal .slides > section h3 {
+    font-size: 26px !important;
+    line-height: 1.25 !important;
+    margin-bottom: 10px !important;
+  }
+
+  .reveal .slides > section p,
+  .reveal .slides > section .MuiTypography-root {
+    font-size: 15px !important;
+    line-height: 1.45 !important;
+  }
+
+  .bento-card {
+    background: rgba(18, 14, 40, 0.98) !important;
+    border: 1.5px solid rgba(139, 92, 246, 0.45) !important;
+    padding: 16px 20px !important;
+    box-shadow: none !important;
+  }
+
+  .bento-card h4,
+  .bento-card .MuiTypography-root {
+    font-size: 14px !important;
+  }
+
+  .tactical-pill {
+    background: rgba(124, 58, 237, 0.35) !important;
+    border: 1.5px solid #8b5cf6 !important;
+    color: #ffffff !important;
+  }
+
+  .tactical-pill-emerald {
+    background: rgba(16, 185, 129, 0.35) !important;
+    border: 1.5px solid #10b981 !important;
+    color: #a7f3d0 !important;
+  }
+
+  /* Make sure all fragments are visible in print */
+  .reveal .fragment {
+    opacity: 1 !important;
+    visibility: visible !important;
+    transform: none !important;
+  }
+}

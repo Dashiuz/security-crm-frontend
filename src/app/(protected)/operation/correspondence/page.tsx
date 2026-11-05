@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { usePathname } from "next/navigation";
 import { useNotification } from "@/providers/NotificationProvider";
 import { useAuth } from "@/components/AuthContext";
 import DataTable from "@/components/common/DataTable";
@@ -58,11 +59,9 @@ import { HttpClient } from "@/lib/api/client";
 import { StorageApi, MediaTypeCategory } from "@/lib/api/storage";
 import { formatDate, formatTime, formatDateTime, formatTimeToHHmm } from "@/lib/formatters";
 
-interface CorrespondencePageProps {
-  isInternal?: boolean;
-}
-
-export default function CorrespondencePage({ isInternal = false }: CorrespondencePageProps) {
+export default function CorrespondencePage() {
+  const pathname = usePathname();
+  const isInternal = pathname?.includes("/operation/internal") ?? false;
   const [selectedClientFilter, setSelectedClientFilter] = useState<ClientOption | null>(null);
   const [filters, setFilters] = useState<MinutaFilterValues>({});
 
