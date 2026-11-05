@@ -14,39 +14,64 @@ export default function Slide03Architecture() {
     {
       title: "Su Información es Solo Suya y de Nadie Más",
       desc: "Cada empresa de seguridad tiene un espacio privado y aislado. Ningún cliente, competidor ni usuario no autorizado puede ver sus tarifas, contratos o empleados.",
-      icon: <SecurityIcon sx={{ fontSize: 24, color: "#8B5CF6" }} />,
+      icon: <SecurityIcon sx={{ fontSize: 32, color: "#8B5CF6" }} />,
     },
     {
       title: "Cero Trampas: Nada se Borra a Escondidas",
       desc: "Si alguien intenta cambiar o anular un registro, el sistema guarda de inmediato quién fue, a qué hora exacta y con qué justificación. Todo queda registrado.",
-      icon: <AuditIcon sx={{ fontSize: 24, color: "#10B981" }} />,
+      icon: <AuditIcon sx={{ fontSize: 32, color: "#10B981" }} />,
     },
     {
       title: "Fotos y Firmas Guardadas para Siempre",
       desc: "Las fotos de paquetes, cédulas, daños o carros no se borran ni llenan la memoria de los celulares. Quedan archivadas en la nube para cuando las necesite.",
-      icon: <CloudIcon sx={{ fontSize: 24, color: "#38BDF8" }} />,
+      icon: <CloudIcon sx={{ fontSize: 32, color: "#38BDF8" }} />,
     },
     {
       title: "Funciona 24 Horas sin Caerse ni Ponerse Lento",
       desc: "Usted no tiene que comprar servidores costosos ni contratar técnicos. Puede entrar desde su celular, tablet o computador en cualquier momento con total rapidez.",
-      icon: <TrustIcon sx={{ fontSize: 24, color: "#F59E0B" }} />,
+      icon: <TrustIcon sx={{ fontSize: 32, color: "#F59E0B" }} />,
     },
   ];
 
   return (
     <section>
-      <Box sx={{ height: "100%", display: "flex", flexDirection: "column", justifyContent: "center" }}>
+      <Box
+        sx={{
+          width: "100%",
+          maxWidth: 1660,
+          mx: "auto",
+          display: "flex",
+          flexDirection: "column",
+          justifyContent: "center",
+          py: { xs: 2, md: 1 },
+        }}
+      >
         {/* Header */}
-        <Box sx={{ mb: 3 }}>
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1 }}>
-            <span className="tactical-pill tactical-pill-emerald">
-              <TrustIcon sx={{ fontSize: 14 }} /> TRANQUILIDAD Y CONFIANZA
+        <Box sx={{ mb: { xs: 2, md: 3.5 } }}>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, mb: 1.5 }}>
+            <span className="tactical-pill tactical-pill-emerald" style={{ fontSize: "15px", padding: "6px 16px" }}>
+              <TrustIcon sx={{ fontSize: 18 }} /> TRANQUILIDAD Y CONFIANZA
             </span>
           </Box>
-          <Typography variant="h3" sx={{ fontWeight: 900, color: "#FFFFFF", fontSize: { xs: "28px", md: "38px" } }}>
+          <Typography
+            variant="h2"
+            sx={{
+              fontWeight: 900,
+              color: "#FFFFFF",
+              fontSize: { xs: "28px", sm: "36px", md: "46px", lg: "54px" },
+              lineHeight: 1.12,
+              mb: 1,
+            }}
+          >
             ¿Por Qué su Información Está 100% Segura?
           </Typography>
-          <Typography sx={{ color: "#CBD5E1", fontSize: "16px" }}>
+          <Typography
+            sx={{
+              color: "#E2E8F0",
+              fontSize: { xs: "17px", sm: "20px", md: "23px", lg: "26px" },
+              lineHeight: 1.45,
+            }}
+          >
             Usted no tiene que preocuparse por servidores, virus ni respaldos manuales. Nosotros nos encargamos de que todo esté disponible cuando lo necesite.
           </Typography>
         </Box>
@@ -56,7 +81,7 @@ export default function Slide03Architecture() {
           sx={{
             display: "grid",
             gridTemplateColumns: { xs: "1fr", md: "repeat(2, 1fr)" },
-            gap: 2.5,
+            gap: { xs: 2, md: 3 },
           }}
         >
           {pillars.map((item, i) => (
@@ -64,20 +89,20 @@ export default function Slide03Architecture() {
               key={i}
               className="bento-card"
               sx={{
-                p: 2.5,
-                borderLeft: "3px solid #8B5CF6",
+                p: { xs: 2.5, md: 3.5 },
+                borderLeft: "6px solid #8B5CF6",
                 display: "flex",
-                gap: 2,
+                gap: { xs: 2, md: 2.8 },
                 alignItems: "flex-start",
               }}
             >
               <Box
                 sx={{
-                  width: 44,
-                  height: 44,
-                  borderRadius: "10px",
-                  backgroundColor: "rgba(124, 58, 237, 0.15)",
-                  border: "1px solid rgba(124, 58, 237, 0.3)",
+                  width: { xs: 52, md: 62 },
+                  height: { xs: 52, md: 62 },
+                  borderRadius: "14px",
+                  backgroundColor: "rgba(124, 58, 237, 0.18)",
+                  border: "1.5px solid rgba(124, 58, 237, 0.35)",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
@@ -87,10 +112,10 @@ export default function Slide03Architecture() {
                 {item.icon}
               </Box>
               <Box>
-                <Typography sx={{ fontWeight: 800, color: "#FFFFFF", fontSize: "16px", mb: 0.6 }}>
+                <Typography sx={{ fontWeight: 850, color: "#FFFFFF", fontSize: { xs: "20px", sm: "22px", md: "25px", lg: "27px" }, mb: 1, lineHeight: 1.2 }}>
                   {item.title}
                 </Typography>
-                <Typography sx={{ color: "#CBD5E1", fontSize: "13.5px", lineHeight: 1.45 }}>
+                <Typography sx={{ color: "#E2E8F0", fontSize: { xs: "16px", sm: "18px", md: "20px", lg: "22px" }, lineHeight: 1.5 }}>
                   {item.desc}
                 </Typography>
               </Box>
